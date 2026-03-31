@@ -1,162 +1,195 @@
 ﻿<!-- TAB 2: FORM LÊN LỊCH -->
-      <div id="view_form" class="hidden h-full">
-        <div class="max-w-2xl mx-auto space-y-6">
-          <div
-            class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"
+<div id="view_form" class="hidden h-full">
+  <div class="max-w-2xl mx-auto space-y-6">
+    <div
+      class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"
+    >
+      <div
+        class="bg-indigo-50 border-b border-indigo-100 px-5 py-3 flex items-center gap-2"
+      >
+        <i data-lucide="calendar-plus" class="w-5 h-5 text-indigo-700"></i>
+        <div>
+          <h2 class="text-[15px] font-bold text-indigo-900">Tạo ca dạy mới</h2>
+          <p
+            id="scheduleFormRoleHint"
+            class="text-[11px] text-indigo-700/80 mt-0.5"
           >
-            <div
-              class="bg-indigo-50 border-b border-indigo-100 px-5 py-3 flex items-center gap-2"
-            >
-              <i
-                data-lucide="calendar-plus"
-                class="w-5 h-5 text-indigo-700"
-              ></i>
-              <h2 class="text-[15px] font-bold text-indigo-900">
-                Tạo ca dạy mới
-              </h2>
-            </div>
-            <form id="scheduleForm" class="p-5 space-y-5">
-              <div>
-                <h3
-                  class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3"
-                >
-                  Thông tin Ca học
-                </h3>
-                <div class="grid grid-cols-2 gap-3 mb-3">
-                  <div>
-                    <label
-                      class="block text-[13px] font-medium text-slate-700 mb-1"
-                      >Tuần <span class="text-red-500">*</span></label
-                    ><input
-                      type="week"
-                      id="sch_week"
-                      required
-                      class="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                    />
-                  </div>
-                  <div>
-                    <label
-                      class="block text-[13px] font-medium text-slate-700 mb-1"
-                      >Thứ <span class="text-red-500">*</span></label
-                    ><select
-                      id="sch_day"
-                      required
-                      class="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                    >
-                      <option value="2">Thứ 2</option>
-                      <option value="3">Thứ 3</option>
-                      <option value="4">Thứ 4</option>
-                      <option value="5">Thứ 5</option>
-                      <option value="6">Thứ 6</option>
-                      <option value="7">Thứ 7</option>
-                      <option value="8">Chủ nhật</option>
-                    </select>
-                  </div>
-                </div>
-                <div class="grid grid-cols-2 gap-3 mb-3">
-                  <div>
-                    <label
-                      class="block text-[13px] font-medium text-slate-700 mb-1"
-                      >Từ giờ <span class="text-red-500">*</span></label
-                    ><input
-                      type="time"
-                      id="sch_start"
-                      required
-                      class="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                    />
-                  </div>
-                  <div>
-                    <label
-                      class="block text-[13px] font-medium text-slate-700 mb-1"
-                      >Đến giờ <span class="text-red-500">*</span></label
-                    ><input
-                      type="time"
-                      id="sch_end"
-                      required
-                      class="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label
-                    class="block text-[13px] font-medium text-slate-700 mb-1"
-                    >Cơ sở / Phòng <span class="text-red-500">*</span></label
-                  ><input
-                    type="text"
-                    id="sch_location"
-                    required
-                    class="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-              </div>
-              <hr class="border-slate-100" />
-              <div>
-                <h3
-                  class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3"
-                >
-                  Phân bổ Nhân sự
-                </h3>
-                <div class="space-y-3">
-                  <div>
-                    <label
-                      class="block text-[13px] font-medium text-slate-700 mb-1"
-                      >1. Chọn Lớp / Nhóm
-                      <span class="text-red-500">*</span></label
-                    >
-                    <select
-                      id="sch_classId"
-                      required
-                      onchange="window.handleClassSelection()"
-                      class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-slate-50 font-medium text-indigo-700 shadow-inner"
-                    ></select>
-                  </div>
-                  <div
-                    id="sch_classHint"
-                    class="bg-indigo-50/50 rounded p-2.5 text-[12px] text-slate-600 hidden border border-indigo-100"
-                  ></div>
-                  <div>
-                    <label
-                      class="block text-[13px] font-medium text-slate-700 mb-1 flex justify-between items-center"
-                    >
-                      <span
-                        >2. Giáo viên phụ trách
-                        <span class="text-red-500">*</span></span
-                      >
-                      <span
-                        id="teacherFilterHint"
-                        class="text-[10px] text-emerald-600 font-bold hidden bg-emerald-50 px-2 py-0.5 rounded"
-                        >Đã lọc theo môn</span
-                      >
-                    </label>
-                    <select
-                      id="sch_teacherId"
-                      required
-                      disabled
-                      class="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-100 disabled:text-slate-400"
-                    >
-                      <option value="">-- Vui lòng chọn Lớp trước --</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label
-                      class="block text-[13px] font-medium text-slate-700 mb-1"
-                      >Nội dung bài học (Tùy chọn)</label
-                    ><input
-                      type="text"
-                      id="sch_topic"
-                      class="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                    />
-                  </div>
-                </div>
-              </div>
-              <button
-                type="submit"
-                id="btnSubmitSchedule"
-                class="w-full bg-slate-800 hover:bg-slate-900 text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-md text-sm"
-              >
-                <i data-lucide="cloud-upload" class="w-4 h-4"></i> Lưu lên Cloud
-              </button>
-            </form>
-          </div>
+            Admin tạo lịch sẽ được áp dụng ngay.
+          </p>
         </div>
       </div>
+      <form id="scheduleForm" class="p-5 space-y-5">
+        <div>
+          <h3
+            class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3"
+          >
+            Thông tin Ca học
+          </h3>
+          <div class="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label class="block text-[13px] font-medium text-slate-700 mb-1"
+                >Tuần <span class="text-red-500">*</span></label
+              ><input
+                type="week"
+                id="sch_week"
+                required
+                class="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label class="block text-[13px] font-medium text-slate-700 mb-1"
+                >Thứ <span class="text-red-500">*</span></label
+              ><select
+                id="sch_day"
+                required
+                class="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="2">Thứ 2</option>
+                <option value="3">Thứ 3</option>
+                <option value="4">Thứ 4</option>
+                <option value="5">Thứ 5</option>
+                <option value="6">Thứ 6</option>
+                <option value="7">Thứ 7</option>
+                <option value="8">Chủ nhật</option>
+              </select>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label class="block text-[13px] font-medium text-slate-700 mb-1"
+                >Từ giờ <span class="text-red-500">*</span></label
+              ><select
+                id="sch_start"
+                required
+                class="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+              ></select>
+            </div>
+            <div>
+              <label class="block text-[13px] font-medium text-slate-700 mb-1"
+                >Đến giờ <span class="text-red-500">*</span></label
+              ><select
+                id="sch_end"
+                required
+                class="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+              ></select>
+            </div>
+          </div>
+          <div>
+            <label class="block text-[13px] font-medium text-slate-700 mb-1"
+              >Cơ sở / Phòng <span class="text-red-500">*</span></label
+            ><input
+              type="text"
+              id="sch_location"
+              required
+              class="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+        </div>
+        <hr class="border-slate-100" />
+        <div>
+          <h3
+            class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3"
+          >
+            Phân bổ Nhân sự
+          </h3>
+          <div class="space-y-3">
+            <div>
+              <label class="block text-[13px] font-medium text-slate-700 mb-1"
+                >1. Chọn Nhóm/Lớp học (từ hồ sơ học sinh)
+                <span class="text-red-500">*</span></label
+              >
+              <select
+                id="sch_classId"
+                required
+                onchange="window.handleClassSelection()"
+                class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-slate-50 font-medium text-indigo-700 shadow-inner"
+              ></select>
+            </div>
+            <div
+              id="sch_classHint"
+              class="bg-indigo-50/50 rounded p-2.5 text-[12px] text-slate-600 hidden border border-indigo-100"
+            ></div>
+
+            <div id="sch_studentPickerWrap" class="hidden">
+              <label
+                class="block text-[13px] font-medium text-slate-700 mb-1 flex items-center justify-between"
+              >
+                <span
+                  >2. Chọn Học sinh tham gia ca
+                  <span class="text-red-500">*</span></span
+                >
+                <span
+                  id="sch_selectedStudentCount"
+                  class="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-700"
+                  >0/0</span
+                >
+              </label>
+              <div
+                id="sch_studentSummary"
+                class="text-[11px] text-slate-500 mb-1.5"
+              ></div>
+              <div
+                id="sch_studentCheckboxes"
+                class="max-h-40 overflow-y-auto custom-scrollbar border border-slate-200 rounded-lg p-2 space-y-1 bg-slate-50"
+              ></div>
+            </div>
+
+            <div>
+              <label class="block text-[13px] font-medium text-slate-700 mb-1"
+                >3. Chọn Môn học của ca dạy
+                <span class="text-red-500">*</span></label
+              >
+              <select
+                id="sch_subjectId"
+                required
+                onchange="window.handleClassSelection()"
+                class="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white"
+              >
+                <option value="">-- Chọn môn học --</option>
+              </select>
+            </div>
+            <div>
+              <label
+                class="block text-[13px] font-medium text-slate-700 mb-1 flex justify-between items-center"
+              >
+                <span
+                  >4. Giáo viên phụ trách
+                  <span class="text-red-500">*</span></span
+                >
+                <span
+                  id="teacherFilterHint"
+                  class="text-[10px] text-emerald-600 font-bold hidden bg-emerald-50 px-2 py-0.5 rounded"
+                  >Chọn môn để lọc giáo viên</span
+                >
+              </label>
+              <select
+                id="sch_teacherId"
+                required
+                disabled
+                class="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-100 disabled:text-slate-400"
+              >
+                <option value="">-- Vui lòng chọn Lớp trước --</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[13px] font-medium text-slate-700 mb-1"
+                >Nội dung bài học (Tùy chọn)</label
+              ><input
+                type="text"
+                id="sch_topic"
+                class="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+          </div>
+        </div>
+        <button
+          type="submit"
+          id="btnSubmitSchedule"
+          class="w-full bg-slate-800 hover:bg-slate-900 text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-md text-sm"
+        >
+          <i data-lucide="cloud-upload" class="w-4 h-4"></i> Lưu lên Cloud
+        </button>
+      </form>
+    </div>
+  </div>
+</div>

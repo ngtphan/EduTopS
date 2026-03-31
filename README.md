@@ -2,6 +2,8 @@
 
 Ứng dụng web quản lý vận hành trung tâm học tập: quản lý môn học, giáo viên, học sinh, lớp học, xếp lịch dạy, chấm công, đánh giá và xuất báo cáo Excel.
 
+Phiên bản hiện tại: v1.6.0
+
 ## 1. Tính năng chính
 
 - Đăng nhập Google (Firebase Auth)
@@ -13,6 +15,10 @@
   - Lớp học
   - Tài khoản đăng nhập
 - Xếp lịch theo tuần/ngày/khung giờ
+- Luồng duyệt lịch dạy:
+  - Giáo viên tạo mới/chỉnh sửa lịch theo cơ chế đề xuất
+  - Admin duyệt hoặc từ chối yêu cầu lịch
+  - Admin có thể chỉnh sửa trực tiếp lịch đã tạo
 - Chấm công theo từng ca dạy
 - Đánh giá học sinh theo buổi học
 - Xuất Excel:

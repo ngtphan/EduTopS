@@ -1,110 +1,145 @@
 ﻿<!-- TAB 4: CHẤM CÔNG -->
-      <div id="view_attendance" class="hidden h-full">
-        <div class="max-w-6xl mx-auto space-y-4">
-          <div
-            class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+<div id="view_attendance" class="hidden h-full">
+  <div class="max-w-6xl mx-auto space-y-4">
+    <div
+      class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+    >
+      <div>
+        <h2 class="text-base font-bold text-slate-800">
+          Chấm công giáo viên theo ca dạy
+        </h2>
+        <p class="text-xs text-slate-500 mt-1">
+          Đánh dấu có mặt hoặc vắng mặt cho từng ca và theo dõi tổng giờ dạy
+          theo tuần hoặc theo tháng.
+        </p>
+      </div>
+      <div class="flex flex-col sm:items-end gap-2">
+        <div
+          class="flex flex-wrap sm:flex-nowrap items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200"
+        >
+          <i data-lucide="filter" class="w-4 h-4 text-slate-400"></i>
+          <select
+            id="attendancePeriod"
+            class="text-xs font-bold bg-white border border-slate-200 rounded px-2 py-1 text-slate-700"
           >
-            <div>
-              <h2 class="text-base font-bold text-slate-800">
-                Chấm công giáo viên theo ca dạy
-              </h2>
-              <p class="text-xs text-slate-500 mt-1">
-                Đánh dấu có mặt hoặc vắng mặt cho từng ca và theo dõi tổng giờ
-                dạy theo tuần.
-              </p>
-            </div>
-            <div class="flex flex-col sm:items-end gap-2">
-              <div
-                class="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200"
-              >
-                <i data-lucide="filter" class="w-4 h-4 text-slate-400"></i>
-                <input
-                  type="week"
-                  id="attendanceWeek"
-                  class="text-sm bg-transparent focus:outline-none font-bold text-indigo-700 cursor-pointer"
-                />
-              </div>
-              <div class="flex flex-wrap gap-2">
-                <button
-                  onclick="window.exportAttendanceExcel()"
-                  class="text-xs font-bold px-3 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 flex items-center gap-1.5"
-                >
-                  <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i>
-                  Xuất chấm công tuần
-                </button>
-                <button
-                  onclick="window.exportMasterExcel()"
-                  class="text-xs font-bold px-3 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 flex items-center gap-1.5"
-                >
-                  <i data-lucide="download" class="w-3.5 h-3.5"></i> Xuất tổng
-                  hợp
-                </button>
-              </div>
-            </div>
+            <option value="week">Theo tuần</option>
+            <option value="month">Theo tháng</option>
+          </select>
+          <div id="attendanceWeekWrap" class="flex items-center">
+            <input
+              type="week"
+              id="attendanceWeek"
+              class="text-sm bg-transparent focus:outline-none font-bold text-indigo-700 cursor-pointer"
+            />
           </div>
-
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
-            <div class="rounded-lg border border-slate-200 bg-white px-3 py-2">
-              <div class="text-[10px] font-bold uppercase text-slate-500">
-                Tổng ca
-              </div>
-              <div
-                id="attendanceStatSessions"
-                class="text-base font-bold text-slate-900"
-              >
-                0
-              </div>
-            </div>
-            <div
-              class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2"
-            >
-              <div class="text-[10px] font-bold uppercase text-emerald-700">
-                Có mặt
-              </div>
-              <div
-                id="attendanceStatPresent"
-                class="text-base font-bold text-emerald-900"
-              >
-                0
-              </div>
-            </div>
-            <div class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2">
-              <div class="text-[10px] font-bold uppercase text-rose-700">
-                Vắng
-              </div>
-              <div
-                id="attendanceStatAbsent"
-                class="text-base font-bold text-rose-900"
-              >
-                0
-              </div>
-            </div>
-            <div
-              class="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2"
-            >
-              <div class="text-[10px] font-bold uppercase text-indigo-700">
-                Giờ có mặt
-              </div>
-              <div
-                id="attendanceStatHours"
-                class="text-base font-bold text-indigo-900"
-              >
-                0h
-              </div>
-            </div>
-          </div>
-
-          <div
-            class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"
-          >
-            <div
-              id="attendanceSummary"
-              class="p-4 border-b border-slate-100 text-sm text-slate-600"
-            ></div>
-            <div
-              id="attendanceList"
-              class="p-4 space-y-2 max-h-[calc(100vh-20rem)] overflow-y-auto custom-scrollbar bg-slate-50"
-            ></div>
+          <div id="attendanceMonthWrap" class="hidden items-center">
+            <input
+              type="month"
+              id="attendanceMonth"
+              class="text-sm bg-transparent focus:outline-none font-bold text-indigo-700 cursor-pointer"
+            />
           </div>
         </div>
+        <div class="flex flex-wrap gap-2">
+          <button
+            onclick="window.exportAttendanceExcel()"
+            class="text-xs font-bold px-3 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 flex items-center gap-1.5"
+          >
+            <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i>
+            Xuất chấm công kỳ hiện tại
+          </button>
+          <button
+            onclick="window.exportMasterExcel()"
+            class="text-xs font-bold px-3 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 flex items-center gap-1.5"
+          >
+            <i data-lucide="download" class="w-3.5 h-3.5"></i> Xuất tổng hợp
+          </button>
+        </div>
       </div>
+    </div>
+
+    <div
+      id="attendancePeriodLabel"
+      class="text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-lg px-3 py-2"
+    >
+      Kỳ thống kê: Tuần
+    </div>
+
+    <div class="grid grid-cols-2 md:grid-cols-6 gap-2">
+      <div class="rounded-lg border border-slate-200 bg-white px-3 py-2">
+        <div class="text-[10px] font-bold uppercase text-slate-500">
+          Tổng ca
+        </div>
+        <div
+          id="attendanceStatSessions"
+          class="text-base font-bold text-slate-900"
+        >
+          0
+        </div>
+      </div>
+      <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
+        <div class="text-[10px] font-bold uppercase text-emerald-700">
+          Có mặt
+        </div>
+        <div
+          id="attendanceStatPresent"
+          class="text-base font-bold text-emerald-900"
+        >
+          0
+        </div>
+      </div>
+      <div class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2">
+        <div class="text-[10px] font-bold uppercase text-rose-700">Vắng</div>
+        <div
+          id="attendanceStatAbsent"
+          class="text-base font-bold text-rose-900"
+        >
+          0
+        </div>
+      </div>
+      <div class="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2">
+        <div class="text-[10px] font-bold uppercase text-indigo-700">
+          Giờ có mặt
+        </div>
+        <div
+          id="attendanceStatHours"
+          class="text-base font-bold text-indigo-900"
+        >
+          0h
+        </div>
+      </div>
+      <div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+        <div class="text-[10px] font-bold uppercase text-amber-700">
+          Chưa chấm
+        </div>
+        <div
+          id="attendanceStatPending"
+          class="text-base font-bold text-amber-900"
+        >
+          0
+        </div>
+      </div>
+      <div class="rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2">
+        <div class="text-[10px] font-bold uppercase text-cyan-700">
+          Tỉ lệ có mặt
+        </div>
+        <div id="attendanceStatRate" class="text-base font-bold text-cyan-900">
+          0%
+        </div>
+      </div>
+    </div>
+
+    <div
+      class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"
+    >
+      <div
+        id="attendanceSummary"
+        class="p-4 border-b border-slate-100 text-sm text-slate-600"
+      ></div>
+      <div
+        id="attendanceList"
+        class="p-4 space-y-2 max-h-[calc(100vh-20rem)] overflow-y-auto custom-scrollbar bg-slate-50"
+      ></div>
+    </div>
+  </div>
+</div>

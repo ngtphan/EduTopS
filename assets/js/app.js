@@ -31,6 +31,8 @@ import { registerSubjectForm } from "./modules/subject-management.js";
 import { registerReportingExports } from "./modules/reporting.js";
 import { sanitizeForStorage, isSafeDocId } from "./modules/security-utils.js";
 
+const APP_VERSION = "v1.6.0";
+
 const injectPartial = async (hostId, filePath) => {
   const host = document.getElementById(hostId);
   if (!host) {
@@ -75,6 +77,10 @@ try {
 }
 
 lucide.createIcons();
+const headerAppVersion = document.getElementById("headerAppVersion");
+if (headerAppVersion) {
+  headerAppVersion.innerText = APP_VERSION;
+}
 
 // -------------------------------------------------------------
 // CẤU HÌNH FIREBASE CHÍNH THỨC CỦA BẠN (EDUTOPS)
@@ -127,11 +133,17 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const firestore = getFirestore(app);
 
-const getColRef = (colName) => {
-  if (isCanvasEnv)
+let activeDataPathMode = isCanvasEnv ? "canvas" : "root";
+let hasRetriedAlternateDataPath = false;
+
+const getColRefByPathMode = (colName, pathMode = activeDataPathMode) => {
+  if (pathMode === "canvas") {
     return collection(firestore, "artifacts", appId, "public", "data", colName);
+  }
   return collection(firestore, colName);
 };
+
+const getColRef = (colName) => getColRefByPathMode(colName, activeDataPathMode);
 
 window.db = {
   subjects: [],
@@ -150,6 +162,7 @@ let applyRBAC = () => {};
 let renderSchedules = () => {};
 let renderAttendance = () => {};
 let renderAll = () => {};
+let renderAllFrame = null;
 const syncState = {
   loadedCollections: new Set(),
   collectionMeta: {},
@@ -241,14 +254,67 @@ const getAttendanceStatusMeta = (status) => {
   return { label: "Chưa chấm", sort: 3 };
 };
 
+const getScheduleApprovalStatus = (schedule) => {
+  const status = schedule?.approval?.status;
+  if (status === "pending" || status === "rejected" || status === "approved") {
+    return status;
+  }
+  return "approved";
+};
+
+const toClassToken = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "unknown";
+
+const getStudentGradeLevel = (student) =>
+  String(student?.gradeLevel || student?.classLevel || "Chưa phân lớp").trim();
+
+const buildAutoClassGroups = () => {
+  const grouped = new Map();
+  window.db.students.forEach((student) => {
+    const gradeLevel = getStudentGradeLevel(student);
+    if (!grouped.has(gradeLevel)) grouped.set(gradeLevel, []);
+    grouped.get(gradeLevel).push(student.id);
+  });
+
+  return Array.from(grouped.entries())
+    .map(([gradeLevel, studentIds]) => ({
+      id: `grade_${toClassToken(gradeLevel)}`,
+      name: gradeLevel,
+      groupName: "Tự động",
+      studentIds,
+      defaultDays: [],
+    }))
+    .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+};
+
+const getSelectableClasses = () => {
+  const autoGroups = buildAutoClassGroups();
+  if (autoGroups.length > 0) return autoGroups;
+  return window.db.classes;
+};
+
 const getAttendanceWeekSchedules = (week) =>
   window.db.schedules
-    .filter((s) => s.week === week)
+    .filter(
+      (s) => s.week === week && getScheduleApprovalStatus(s) === "approved",
+    )
     .sort((a, b) => {
       const dayDiff = Number(a.dayOfWeek) - Number(b.dayOfWeek);
       if (dayDiff !== 0) return dayDiff;
       return String(a.startTime || "").localeCompare(String(b.startTime || ""));
     });
+
+const requestRenderAll = () => {
+  if (renderAllFrame !== null) return;
+  renderAllFrame = window.requestAnimationFrame(() => {
+    renderAllFrame = null;
+    renderAll();
+  });
+};
 
 const getWeekAttendanceOverview = (week) => {
   const schedules = getAttendanceWeekSchedules(week);
@@ -280,15 +346,13 @@ const renderMasterOverview = () => {
   const subjectsEl = document.getElementById("masterStatSubjects");
   const teachersEl = document.getElementById("masterStatTeachers");
   const studentsEl = document.getElementById("masterStatStudents");
-  const classesEl = document.getElementById("masterStatClasses");
   const schedulesWeekEl = document.getElementById("masterStatSchedulesWeek");
 
-  if (!subjectsEl || !teachersEl || !studentsEl || !classesEl) return;
+  if (!subjectsEl || !teachersEl || !studentsEl) return;
 
   subjectsEl.innerText = `${window.db.subjects.length}`;
   teachersEl.innerText = `${window.db.teachers.length}`;
   studentsEl.innerText = `${window.db.students.length}`;
-  classesEl.innerText = `${window.db.classes.length}`;
 
   if (schedulesWeekEl) {
     const weekCount = week
@@ -414,6 +478,8 @@ const appDialog = {
   message: document.getElementById("appDialogMessage"),
   inputWrap: document.getElementById("appDialogInputWrap"),
   input: document.getElementById("appDialogInput"),
+  selectWrap: document.getElementById("appDialogSelectWrap"),
+  select: document.getElementById("appDialogSelect"),
   btnCancel: document.getElementById("appDialogCancel"),
   btnConfirm: document.getElementById("appDialogConfirm"),
 };
@@ -425,11 +491,14 @@ const closeDialog = (result) => {
   appDialog.root.classList.add("hidden");
   appDialog.root.classList.remove("flex");
   if (appDialog.inputWrap) appDialog.inputWrap.classList.add("hidden");
+  if (appDialog.selectWrap) appDialog.selectWrap.classList.add("hidden");
   if (dialogResolver) {
     dialogResolver(result);
     dialogResolver = null;
   }
 };
+
+const getDialogCancelValue = () => (dialogMode === "confirm" ? false : null);
 
 const openDialog = ({
   message,
@@ -437,11 +506,17 @@ const openDialog = ({
   mode = "confirm",
   defaultValue = "",
   confirmText = "Đồng ý",
+  options = [],
 } = {}) =>
   new Promise((resolve) => {
     if (!appDialog.root) {
       if (mode === "prompt") {
         resolve(globalThis.prompt(message, defaultValue));
+      } else if (mode === "select") {
+        const normalizedOptions = Array.isArray(options) ? options : [];
+        const fallbackValue =
+          defaultValue || String(normalizedOptions[0]?.value || "");
+        resolve(globalThis.prompt(message, fallbackValue));
       } else {
         resolve(globalThis.confirm(message));
       }
@@ -455,13 +530,37 @@ const openDialog = ({
 
     if (mode === "prompt") {
       appDialog.inputWrap?.classList.remove("hidden");
+      appDialog.selectWrap?.classList.add("hidden");
       if (appDialog.input) {
         appDialog.input.value = defaultValue || "";
         setTimeout(() => appDialog.input?.focus(), 20);
       }
+    } else if (mode === "select") {
+      appDialog.inputWrap?.classList.add("hidden");
+      appDialog.selectWrap?.classList.remove("hidden");
+      if (appDialog.select) {
+        const normalizedOptions = Array.isArray(options) ? options : [];
+        appDialog.select.innerHTML = "";
+        normalizedOptions.forEach((option) => {
+          const optionEl = document.createElement("option");
+          optionEl.value = String(option?.value || "");
+          optionEl.textContent = String(option?.label || option?.value || "");
+          appDialog.select.appendChild(optionEl);
+        });
+        const safeDefault = String(defaultValue || "");
+        const hasDefault = normalizedOptions.some(
+          (option) => String(option?.value || "") === safeDefault,
+        );
+        appDialog.select.value = hasDefault
+          ? safeDefault
+          : String(normalizedOptions[0]?.value || "");
+        setTimeout(() => appDialog.select?.focus(), 20);
+      }
     } else {
       appDialog.inputWrap?.classList.add("hidden");
+      appDialog.selectWrap?.classList.add("hidden");
       if (appDialog.input) appDialog.input.value = "";
+      if (appDialog.select) appDialog.select.innerHTML = "";
     }
 
     appDialog.root.classList.remove("hidden");
@@ -481,21 +580,228 @@ window.appPrompt = (title, message, defaultValue = "") =>
     confirmText: "Lưu",
   });
 
-appDialog.btnCancel?.addEventListener("click", () => closeDialog(false));
+window.appSelect = (
+  title,
+  message,
+  options = [],
+  defaultValue = "",
+  confirmText = "Chọn",
+) =>
+  openDialog({
+    title,
+    message,
+    mode: "select",
+    options,
+    defaultValue,
+    confirmText,
+  });
+
+const formModalState = {
+  resolve: null,
+  onSubmit: null,
+  isSubmitting: false,
+  submitText: "Lưu",
+};
+
+const getFormModalRefs = (() => {
+  let refs = null;
+
+  return () => {
+    if (refs) return refs;
+
+    const root = document.createElement("div");
+    root.id = "appFormModal";
+    root.className =
+      "fixed inset-0 z-[165] hidden items-center justify-center p-4 bg-slate-900/50";
+    root.innerHTML = `
+      <div id="appFormModalPanel" class="bg-white w-full max-w-lg rounded-2xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+        <div class="px-5 py-3 border-b border-slate-200 bg-slate-50 flex items-start justify-between gap-3 shrink-0">
+          <div>
+            <h3 id="appFormModalTitle" class="text-base font-bold text-slate-800">Biểu mẫu</h3>
+            <p id="appFormModalDescription" class="text-[11px] text-slate-500 mt-1"></p>
+          </div>
+          <button type="button" id="appFormModalClose" class="text-slate-400 hover:text-slate-700 text-xl leading-none">&times;</button>
+        </div>
+
+        <form id="appFormModalForm" class="flex-1 min-h-0 flex flex-col">
+          <div id="appFormModalBody" class="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 space-y-3"></div>
+          <div class="px-4 py-3 border-t border-slate-200 bg-white flex items-center justify-end gap-2 shrink-0">
+            <button type="button" id="appFormModalCancel" class="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium">Hủy</button>
+            <button type="submit" id="appFormModalSubmit" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold">Lưu</button>
+          </div>
+        </form>
+      </div>`;
+
+    document.body.appendChild(root);
+
+    refs = {
+      root,
+      panel: root.querySelector("#appFormModalPanel"),
+      title: root.querySelector("#appFormModalTitle"),
+      description: root.querySelector("#appFormModalDescription"),
+      closeBtn: root.querySelector("#appFormModalClose"),
+      form: root.querySelector("#appFormModalForm"),
+      body: root.querySelector("#appFormModalBody"),
+      cancelBtn: root.querySelector("#appFormModalCancel"),
+      submitBtn: root.querySelector("#appFormModalSubmit"),
+    };
+
+    const setSubmitting = (isSubmitting) => {
+      formModalState.isSubmitting = !!isSubmitting;
+      if (refs.submitBtn) {
+        refs.submitBtn.disabled = !!isSubmitting;
+        refs.submitBtn.innerText = isSubmitting
+          ? "Đang lưu..."
+          : formModalState.submitText || "Lưu";
+        refs.submitBtn.classList.toggle("opacity-70", !!isSubmitting);
+        refs.submitBtn.classList.toggle("cursor-not-allowed", !!isSubmitting);
+      }
+      if (refs.cancelBtn) {
+        refs.cancelBtn.disabled = !!isSubmitting;
+        refs.cancelBtn.classList.toggle("opacity-70", !!isSubmitting);
+        refs.cancelBtn.classList.toggle("cursor-not-allowed", !!isSubmitting);
+      }
+      if (refs.closeBtn) {
+        refs.closeBtn.disabled = !!isSubmitting;
+        refs.closeBtn.classList.toggle("opacity-70", !!isSubmitting);
+        refs.closeBtn.classList.toggle("cursor-not-allowed", !!isSubmitting);
+      }
+    };
+
+    const close = (result) => {
+      if (formModalState.isSubmitting) return;
+      setSubmitting(false);
+      refs.root.classList.add("hidden");
+      refs.root.classList.remove("flex");
+      if (formModalState.resolve) {
+        formModalState.resolve(result);
+        formModalState.resolve = null;
+      }
+      formModalState.onSubmit = null;
+    };
+
+    refs.closeBtn?.addEventListener("click", () => close(null));
+    refs.cancelBtn?.addEventListener("click", () => close(null));
+    refs.root?.addEventListener("click", (event) => {
+      if (event.target === refs.root) close(null);
+    });
+
+    refs.form?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (formModalState.isSubmitting) return;
+
+      const values = Object.fromEntries(new FormData(refs.form).entries());
+      setSubmitting(true);
+
+      try {
+        if (typeof formModalState.onSubmit === "function") {
+          const nextValue = await formModalState.onSubmit({
+            form: refs.form,
+            values,
+            close,
+          });
+          if (nextValue === false) {
+            setSubmitting(false);
+            return;
+          }
+          setSubmitting(false);
+          close(nextValue ?? values);
+          return;
+        }
+
+        setSubmitting(false);
+        close(values);
+      } catch (error) {
+        setSubmitting(false);
+        console.error("appFormModal submit error:", error);
+        alert("Không thể lưu dữ liệu. Vui lòng thử lại.");
+      }
+    });
+
+    return refs;
+  };
+})();
+
+window.appFormModal = ({
+  title = "Biểu mẫu",
+  description = "",
+  submitText = "Lưu",
+  size = "md",
+  bodyHtml = "",
+  onOpen,
+  onSubmit,
+} = {}) => {
+  const refs = getFormModalRefs();
+  const sizeMap = {
+    sm: "max-w-md",
+    md: "max-w-lg",
+    lg: "max-w-2xl",
+    xl: "max-w-4xl",
+  };
+
+  refs.panel.className =
+    "bg-white w-full rounded-2xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[92vh] " +
+    (sizeMap[size] || sizeMap.md);
+  refs.title.innerText = title;
+  refs.description.innerText = description || "";
+  refs.submitBtn.innerText = submitText;
+  refs.body.innerHTML = bodyHtml;
+  formModalState.submitText = submitText;
+  formModalState.isSubmitting = false;
+  refs.submitBtn.disabled = false;
+  refs.cancelBtn.disabled = false;
+  refs.closeBtn.disabled = false;
+  refs.submitBtn.classList.remove("opacity-70", "cursor-not-allowed");
+  refs.cancelBtn.classList.remove("opacity-70", "cursor-not-allowed");
+  refs.closeBtn.classList.remove("opacity-70", "cursor-not-allowed");
+
+  refs.root.classList.remove("hidden");
+  refs.root.classList.add("flex");
+
+  const firstInput = refs.body.querySelector(
+    "input, select, textarea, button:not([type='button'])",
+  );
+  if (firstInput && typeof firstInput.focus === "function") {
+    setTimeout(() => firstInput.focus(), 20);
+  }
+
+  if (typeof onOpen === "function") {
+    onOpen({ form: refs.form, body: refs.body, panel: refs.panel });
+  }
+
+  return new Promise((resolve) => {
+    formModalState.resolve = resolve;
+    formModalState.onSubmit = onSubmit;
+  });
+};
+
+appDialog.btnCancel?.addEventListener("click", () => {
+  closeDialog(getDialogCancelValue());
+});
 appDialog.btnConfirm?.addEventListener("click", () => {
   if (dialogMode === "prompt") {
     closeDialog(appDialog.input?.value ?? "");
     return;
   }
+  if (dialogMode === "select") {
+    closeDialog(appDialog.select?.value ?? "");
+    return;
+  }
   closeDialog(true);
 });
 appDialog.root?.addEventListener("click", (e) => {
-  if (e.target === appDialog.root) closeDialog(false);
+  if (e.target === appDialog.root) closeDialog(getDialogCancelValue());
 });
 appDialog.input?.addEventListener("keydown", (e) => {
   if (e.key === "Enter") {
     e.preventDefault();
     closeDialog(appDialog.input?.value ?? "");
+  }
+});
+appDialog.select?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    closeDialog(appDialog.select?.value ?? "");
   }
 });
 
@@ -530,6 +836,30 @@ const setupRealtimeSync = () => {
     "accounts",
   ];
 
+  const switchToAlternatePathAndRetry = () => {
+    if (!isCanvasEnv) return false;
+    if (hasRetriedAlternateDataPath) return false;
+    hasRetriedAlternateDataPath = true;
+    activeDataPathMode = activeDataPathMode === "root" ? "canvas" : "root";
+    showToast(
+      "Không tìm thấy dữ liệu ở nguồn hiện tại, đang thử nguồn đồng bộ dự phòng...",
+      "warning",
+      5200,
+    );
+    setupRealtimeSync();
+    return true;
+  };
+
+  if (window.unsubscribes?.length) {
+    window.unsubscribes.forEach((u) => {
+      try {
+        u();
+      } catch (error) {
+        console.warn("Không thể hủy listener cũ:", error);
+      }
+    });
+  }
+
   syncState.loadedCollections = new Set();
   syncState.collectionMeta = {};
   syncErrorNotified.clear();
@@ -546,6 +876,22 @@ const setupRealtimeSync = () => {
   // Tránh treo overlay khi một collection gặp lỗi quyền/truy cập.
   syncState.initialLoadTimer = setTimeout(() => {
     if (!isDataLoaded) {
+      const metas = Object.values(syncState.collectionMeta);
+      const totalLoadedDocs = metas.reduce(
+        (sum, meta) => sum + Number(meta?.docCount || 0),
+        0,
+      );
+      const hasAnyServerSnapshot = metas.some(
+        (meta) => meta?.fromCache === false,
+      );
+
+      if (
+        !hasAnyServerSnapshot &&
+        totalLoadedDocs === 0 &&
+        switchToAlternatePathAndRetry()
+      ) {
+        return;
+      }
       isDataLoaded = true;
       document.getElementById("loadingOverlay").classList.add("hidden");
       showToast(
@@ -573,6 +919,7 @@ const setupRealtimeSync = () => {
         syncState.collectionMeta[colName] = {
           fromCache: snapshot.metadata.fromCache,
           hasPendingWrites: snapshot.metadata.hasPendingWrites,
+          docCount: snapshot.size,
           updatedAt: Date.now(),
           error: null,
         };
@@ -580,6 +927,19 @@ const setupRealtimeSync = () => {
         syncState.loadedCollections.add(colName);
         if (!isDataLoaded) {
           if (syncState.loadedCollections.size === collections.length) {
+            const totalLoadedDocs = Object.values(
+              syncState.collectionMeta,
+            ).reduce((sum, meta) => sum + Number(meta?.docCount || 0), 0);
+            const hasAnyServerSnapshot = Object.values(
+              syncState.collectionMeta,
+            ).some((meta) => meta?.fromCache === false);
+
+            // Đợt snapshot đầu có thể chỉ là cache rỗng; chờ thêm server snapshot hoặc timeout.
+            if (!hasAnyServerSnapshot && totalLoadedDocs === 0) {
+              recomputeSyncStatus();
+              return;
+            }
+
             isDataLoaded = true;
             if (syncState.initialLoadTimer) {
               clearTimeout(syncState.initialLoadTimer);
@@ -594,7 +954,7 @@ const setupRealtimeSync = () => {
             checkAuthAndMapRole(auth.currentUser);
           }
         } else {
-          renderAll();
+          requestRenderAll();
         }
         recomputeSyncStatus();
       },
@@ -603,6 +963,7 @@ const setupRealtimeSync = () => {
         syncState.collectionMeta[colName] = {
           fromCache: true,
           hasPendingWrites: false,
+          docCount: 0,
           updatedAt: Date.now(),
           error: error?.code || "sync-error",
         };
@@ -776,6 +1137,8 @@ const checkAuthAndMapRole = async (user) => {
   }, 300);
 
   applyRBAC();
+  // Trigger a full, throttled render once user role is resolved.
+  requestRenderAll();
   window.switchTab("board");
 };
 
@@ -797,8 +1160,63 @@ const canWriteTable = (table, payload) => {
   if (table !== "schedules") return false;
 
   const scheduleTeacherId = String(payload?.teacherId || "");
-  return (
-    scheduleTeacherId && scheduleTeacherId === String(currentUser?.id || "")
+  const isOwner =
+    scheduleTeacherId && scheduleTeacherId === String(currentUser?.id || "");
+  if (!isOwner) return false;
+
+  const existingSchedule = window.db.schedules.find(
+    (s) => s.id === payload?.id,
+  );
+  if (!existingSchedule) {
+    // Giáo viên tạo mới phải đi qua luồng chờ duyệt.
+    return payload?.approval?.status === "pending";
+  }
+
+  const nextApprovalStatus = getScheduleApprovalStatus(payload);
+  if (nextApprovalStatus === "pending") {
+    // Cho phép giáo viên gửi yêu cầu chỉnh sửa/tạo lịch chờ admin duyệt.
+    return true;
+  }
+
+  // Lịch đã duyệt: giáo viên chỉ được cập nhật đánh giá (không sửa thông tin vận hành).
+  if (
+    getScheduleApprovalStatus(existingSchedule) !== "approved" ||
+    nextApprovalStatus !== "approved"
+  ) {
+    return false;
+  }
+
+  const existingApproval = existingSchedule?.approval || {};
+  const payloadApproval = payload?.approval || {};
+  if (
+    String(existingApproval.requestType || "") !==
+      String(payloadApproval.requestType || "") ||
+    String(existingApproval.reviewedBy || "") !==
+      String(payloadApproval.reviewedBy || "") ||
+    Number(existingApproval.reviewedAt || 0) !==
+      Number(payloadApproval.reviewedAt || 0)
+  ) {
+    return false;
+  }
+
+  const protectedFields = [
+    "week",
+    "dayOfWeek",
+    "startTime",
+    "endTime",
+    "location",
+    "classId",
+    "classLabel",
+    "studentIds",
+    "subjectId",
+    "teacherId",
+    "topic",
+  ];
+
+  return protectedFields.every(
+    (field) =>
+      JSON.stringify(payload?.[field]) ===
+      JSON.stringify(existingSchedule?.[field]),
   );
 };
 
@@ -884,7 +1302,8 @@ const getStudentInfo = (id) =>
     name: "HS đã xóa",
     parentPhone: "",
   };
-const getClassInfo = (id) => window.db.classes.find((c) => c.id === id);
+const getClassInfo = (id) =>
+  getSelectableClasses().find((c) => String(c.id) === String(id));
 
 // --- FORMS SUBMIT LOGIC ---
 const renderCore = registerRenderCore({
@@ -926,6 +1345,7 @@ registerTeacherActions({
 registerTeacherForms({
   ADMIN_EMAIL,
   normalizeEmail,
+  isFixedAdmin,
   getCurrentRole: () => currentRole,
 });
 registerStudentAndClassForms();
@@ -935,6 +1355,8 @@ registerScheduleActions({
   getCurrentUser: () => currentUser,
 });
 registerScheduleFormsAndFilters({
+  getCurrentRole: () => currentRole,
+  getCurrentUser: () => currentUser,
   renderSchedules,
   renderMasterOverview,
   renderAttendance,
@@ -956,6 +1378,7 @@ registerReportingExports({
   showToast,
   getSelectedWeek,
   getAttendanceWeekSchedules,
+  getSelectableClasses,
   getTeacherInfo,
   getClassInfo,
   getSubjectInfo,
@@ -979,9 +1402,21 @@ const getCurrentWeekDefault = () => {
     .toString()
     .padStart(2, "0")}`;
 };
+
+const getCurrentMonthDefault = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+};
+
 document.getElementById("sch_week").value = getCurrentWeekDefault();
 document.getElementById("filterWeek").value = getCurrentWeekDefault();
 document.getElementById("attendanceWeek").value = getCurrentWeekDefault();
+if (document.getElementById("attendanceMonth")) {
+  document.getElementById("attendanceMonth").value = getCurrentMonthDefault();
+}
+if (document.getElementById("attendancePeriod")) {
+  document.getElementById("attendancePeriod").value = "week";
+}
 
 recomputeSyncStatus();
 

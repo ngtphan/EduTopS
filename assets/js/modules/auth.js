@@ -32,6 +32,9 @@ export const registerAuthHandlers = ({ auth, showToast }) => {
       } else if (error.code === "auth/unauthorized-domain") {
         document.getElementById("loginErrorText").innerText =
           "Lỗi: Tên miền chưa được cấp phép (Unauthorized Domain). Vui lòng vào Firebase Console -> Authentication -> Settings -> Authorized domains và thêm tên miền trang web hiện tại của bạn vào danh sách.";
+      } else if (error.code === "auth/internal-error") {
+        document.getElementById("loginErrorText").innerText =
+          "Đăng nhập thất bại do môi trường trình duyệt chặn tài nguyên Google (CSP/extension). Vui lòng tải lại trang bằng Ctrl+F5, tắt extension can thiệp nội dung và thử lại.";
       } else {
         document.getElementById("loginErrorText").innerText =
           "Đăng nhập thất bại. Vui lòng thử lại sau. (" + error.code + ")";
