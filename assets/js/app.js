@@ -1,0 +1,988 @@
+﻿import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+// NHẬP THÊM MODULE GOOGLE AUTH PROVIDER
+import {
+  getAuth,
+  signOut,
+  onAuthStateChanged,
+  signInAnonymously,
+  signInWithCustomToken,
+} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import {
+  getFirestore,
+  collection,
+  doc,
+  setDoc,
+  deleteDoc,
+  onSnapshot,
+} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { registerAuthHandlers } from "./modules/auth.js";
+import {
+  registerTeacherActions,
+  registerTeacherForms,
+} from "./modules/teacher-management.js";
+import { registerStudentAndClassForms } from "./modules/student-management.js";
+import {
+  registerScheduleActions,
+  registerScheduleFormsAndFilters,
+} from "./modules/schedule-management.js";
+import { registerRenderCore } from "./modules/render-core.js";
+import { registerDataManagement } from "./modules/data-management.js";
+import { registerSubjectForm } from "./modules/subject-management.js";
+import { registerReportingExports } from "./modules/reporting.js";
+import { sanitizeForStorage, isSafeDocId } from "./modules/security-utils.js";
+
+const injectPartial = async (hostId, filePath) => {
+  const host = document.getElementById(hostId);
+  if (!host) {
+    throw new Error(`Không tìm thấy host: ${hostId}`);
+  }
+
+  const response = await fetch(filePath, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Không thể tải partial ${filePath} (${response.status})`);
+  }
+
+  host.innerHTML = await response.text();
+};
+
+const mountLayoutPartials = async () => {
+  const partials = [
+    ["loadingOverlayHost", "./src/partials/overlays/loading-overlay.html"],
+    ["loginOverlayHost", "./src/partials/overlays/login-overlay.html"],
+    ["headerHost", "./src/partials/layout/header.html"],
+    ["viewBoardHost", "./src/partials/views/view-board.html"],
+    ["viewFormHost", "./src/partials/views/view-form.html"],
+    ["viewMasterHost", "./src/partials/views/view-master.html"],
+    ["viewAttendanceHost", "./src/partials/views/view-attendance.html"],
+    ["evalModalHost", "./src/partials/modals/eval-modal.html"],
+    ["syncStatusHost", "./src/partials/layout/sync-status-panel.html"],
+    ["toastContainerHost", "./src/partials/layout/toast-container.html"],
+    ["appDialogHost", "./src/partials/layout/app-dialog.html"],
+  ];
+
+  await Promise.all(
+    partials.map(([hostId, filePath]) => injectPartial(hostId, filePath)),
+  );
+};
+
+try {
+  await mountLayoutPartials();
+} catch (error) {
+  console.error("Lỗi tải layout partials:", error);
+  document.body.innerHTML =
+    '<div class="min-h-screen flex items-center justify-center p-6 text-center text-slate-700"><div><h1 class="text-xl font-bold mb-2">Không thể tải giao diện</h1><p class="text-sm text-slate-500">Vui lòng chạy ứng dụng qua web server (ví dụ Live Server) và tải lại trang.</p></div></div>';
+  throw error;
+}
+
+lucide.createIcons();
+
+// -------------------------------------------------------------
+// CẤU HÌNH FIREBASE CHÍNH THỨC CỦA BẠN (EDUTOPS)
+// -------------------------------------------------------------
+const fallbackFirebaseConfig = {
+  apiKey: "AIzaSyCQyeYypgYspNtJK5dYv7TNGtX80engR2U",
+  authDomain: "edutops-8f3ac.firebaseapp.com",
+  projectId: "edutops-8f3ac",
+  storageBucket: "edutops-8f3ac.firebasestorage.app",
+  messagingSenderId: "955439571406",
+  appId: "1:955439571406:web:47acd32eac072d9fa68b9f",
+  measurementId: "G-R7W8X9R46Q",
+};
+
+let firebaseConfig = fallbackFirebaseConfig;
+let appId = "edutops-app";
+let isCanvasEnv = false;
+
+if (typeof __firebase_config !== "undefined") {
+  try {
+    const raw = __firebase_config;
+    if (typeof raw === "string") {
+      const trimmed = raw.trim();
+      if (trimmed && trimmed !== "undefined" && trimmed !== "null") {
+        firebaseConfig = JSON.parse(trimmed);
+        isCanvasEnv = true;
+      }
+    } else if (raw && typeof raw === "object") {
+      firebaseConfig = raw;
+      isCanvasEnv = true;
+    }
+  } catch (error) {
+    console.warn(
+      "Bỏ qua __firebase_config không hợp lệ, dùng cấu hình fallback.",
+      error,
+    );
+    firebaseConfig = fallbackFirebaseConfig;
+    isCanvasEnv = false;
+  }
+}
+
+if (isCanvasEnv && typeof __app_id !== "undefined") {
+  const rawAppId = String(__app_id || "").trim();
+  if (rawAppId && rawAppId !== "undefined" && rawAppId !== "null") {
+    appId = rawAppId;
+  }
+}
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const firestore = getFirestore(app);
+
+const getColRef = (colName) => {
+  if (isCanvasEnv)
+    return collection(firestore, "artifacts", appId, "public", "data", colName);
+  return collection(firestore, colName);
+};
+
+window.db = {
+  subjects: [],
+  teachers: [],
+  students: [],
+  classes: [],
+  schedules: [],
+  accounts: [],
+};
+let currentUser = null;
+let currentRole = null;
+let isDataLoaded = false;
+window.unsubscribes = [];
+let pendingLoginError = "";
+let applyRBAC = () => {};
+let renderSchedules = () => {};
+let renderAttendance = () => {};
+let renderAll = () => {};
+const syncState = {
+  loadedCollections: new Set(),
+  collectionMeta: {},
+  initialLoadTimer: null,
+};
+const syncErrorNotified = new Set();
+
+const ADMIN_EMAIL = "ngoctaiphan.edu@gmail.com";
+const normalizeEmail = (email) => (email || "").trim().toLowerCase();
+const isFixedAdmin = () =>
+  normalizeEmail(currentUser?.email) === normalizeEmail(ADMIN_EMAIL);
+
+const EVAL_LEVELS = {
+  good: {
+    label: "Tốt",
+    className: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  },
+  fair: {
+    label: "Khá",
+    className: "bg-amber-50 text-amber-700 border-amber-200",
+  },
+  watch: {
+    label: "Cần theo dõi",
+    className: "bg-rose-50 text-rose-700 border-rose-200",
+  },
+};
+
+const parseEvaluationRecord = (raw) => {
+  if (!raw) return null;
+  if (typeof raw === "string") {
+    const note = raw.trim();
+    return note ? { level: "fair", note } : null;
+  }
+  if (typeof raw === "object" && raw.level) {
+    return { level: raw.level, note: raw.note || "" };
+  }
+  return null;
+};
+
+const getEvalLevelMeta = (level) => EVAL_LEVELS[level] || EVAL_LEVELS.fair;
+
+const getLatestStudentEvaluation = (studentId) => {
+  let latest = null;
+  let latestTime = 0;
+  window.db.schedules.forEach((sch) => {
+    const evalRecord = parseEvaluationRecord(sch.evaluations?.[studentId]);
+    if (!evalRecord) return;
+    const timeKey =
+      Number((sch.week || "").replace("-W", "")) * 10 +
+      Number(sch.dayOfWeek || 0);
+    if (timeKey >= latestTime) {
+      latestTime = timeKey;
+      latest = evalRecord;
+    }
+  });
+  return latest;
+};
+
+const getDurationHours = (startTime, endTime) => {
+  if (!startTime || !endTime) return 0;
+  const [sh, sm] = startTime.split(":").map(Number);
+  const [eh, em] = endTime.split(":").map(Number);
+  if ([sh, sm, eh, em].some((v) => Number.isNaN(v))) return 0;
+  const start = sh * 60 + sm;
+  const end = eh * 60 + em;
+  const diff = end - start;
+  return diff > 0 ? diff / 60 : 0;
+};
+
+const formatHours = (hours) => {
+  if (!hours || hours <= 0) return "0h";
+  if (Math.abs(hours - Math.round(hours)) < 0.001)
+    return `${Math.round(hours)}h`;
+  return `${hours.toFixed(1)}h`;
+};
+
+const getSelectedWeek = () => {
+  const weekFromAttendance = document.getElementById("attendanceWeek")?.value;
+  const weekFromBoard = document.getElementById("filterWeek")?.value;
+  return weekFromAttendance || weekFromBoard || "";
+};
+
+const formatDayOfWeek = (dayOfWeek) =>
+  String(dayOfWeek) === "8" ? "Chủ nhật" : `Thứ ${dayOfWeek}`;
+
+const getAttendanceStatusMeta = (status) => {
+  if (status === "present") return { label: "Có mặt", sort: 1 };
+  if (status === "absent") return { label: "Vắng", sort: 2 };
+  return { label: "Chưa chấm", sort: 3 };
+};
+
+const getAttendanceWeekSchedules = (week) =>
+  window.db.schedules
+    .filter((s) => s.week === week)
+    .sort((a, b) => {
+      const dayDiff = Number(a.dayOfWeek) - Number(b.dayOfWeek);
+      if (dayDiff !== 0) return dayDiff;
+      return String(a.startTime || "").localeCompare(String(b.startTime || ""));
+    });
+
+const getWeekAttendanceOverview = (week) => {
+  const schedules = getAttendanceWeekSchedules(week);
+  let presentCount = 0;
+  let absentCount = 0;
+  let totalPresentHours = 0;
+
+  schedules.forEach((sch) => {
+    const status = sch.attendance?.status || "pending";
+    if (status === "present") {
+      presentCount += 1;
+      totalPresentHours += getDurationHours(sch.startTime, sch.endTime);
+    } else if (status === "absent") {
+      absentCount += 1;
+    }
+  });
+
+  return {
+    totalSessions: schedules.length,
+    presentCount,
+    absentCount,
+    totalPresentHours,
+    schedules,
+  };
+};
+
+const renderMasterOverview = () => {
+  const week = getSelectedWeek();
+  const subjectsEl = document.getElementById("masterStatSubjects");
+  const teachersEl = document.getElementById("masterStatTeachers");
+  const studentsEl = document.getElementById("masterStatStudents");
+  const classesEl = document.getElementById("masterStatClasses");
+  const schedulesWeekEl = document.getElementById("masterStatSchedulesWeek");
+
+  if (!subjectsEl || !teachersEl || !studentsEl || !classesEl) return;
+
+  subjectsEl.innerText = `${window.db.subjects.length}`;
+  teachersEl.innerText = `${window.db.teachers.length}`;
+  studentsEl.innerText = `${window.db.students.length}`;
+  classesEl.innerText = `${window.db.classes.length}`;
+
+  if (schedulesWeekEl) {
+    const weekCount = week
+      ? window.db.schedules.filter((s) => s.week === week).length
+      : 0;
+    schedulesWeekEl.innerText = `${weekCount}`;
+  }
+};
+
+const syncStatusUI = {
+  panel: document.getElementById("syncStatusPanel"),
+  dot: document.getElementById("syncStatusDot"),
+  title: document.getElementById("syncStatusTitle"),
+  detail: document.getElementById("syncStatusDetail"),
+};
+
+const updateSyncStatus = (status, title, detail) => {
+  if (!syncStatusUI.panel) return;
+  const dotClassMap = {
+    loading: "bg-amber-500 animate-pulse",
+    live: "bg-emerald-500",
+    syncing: "bg-indigo-500 animate-pulse",
+    cache: "bg-slate-400",
+    offline: "bg-rose-500",
+    error: "bg-red-500",
+    idle: "bg-slate-300",
+  };
+  syncStatusUI.dot.className = `w-2.5 h-2.5 rounded-full ${dotClassMap[status] || dotClassMap.idle}`;
+  syncStatusUI.title.innerText = title;
+  syncStatusUI.detail.innerText = detail;
+};
+
+const recomputeSyncStatus = () => {
+  const metas = Object.values(syncState.collectionMeta);
+  const loadedCount = syncState.loadedCollections.size;
+  const total = 6;
+
+  if (!navigator.onLine) {
+    updateSyncStatus(
+      "offline",
+      "Mất kết nối Internet",
+      "Đang dùng dữ liệu cache cục bộ. Sẽ tự đồng bộ khi có mạng.",
+    );
+    return;
+  }
+
+  if (!isDataLoaded) {
+    updateSyncStatus(
+      "loading",
+      `Đang tải dữ liệu (${loadedCount}/${total})`,
+      "Hệ thống đang đồng bộ dữ liệu ban đầu từ Cloud.",
+    );
+    return;
+  }
+
+  const hasError = metas.some((m) => m.error);
+  if (hasError) {
+    const errCount = metas.filter((m) => m.error).length;
+    updateSyncStatus(
+      "error",
+      "Đồng bộ gặp lỗi",
+      `${errCount} bảng dữ liệu đang lỗi. Hệ thống sẽ tự thử lại.`,
+    );
+    return;
+  }
+
+  const hasPendingWrites = metas.some((m) => m.hasPendingWrites);
+  if (hasPendingWrites) {
+    updateSyncStatus(
+      "syncing",
+      "Đang đồng bộ thay đổi",
+      "Dữ liệu mới đang được gửi lên Cloud...",
+    );
+    return;
+  }
+
+  const allFromCache = metas.length > 0 && metas.every((m) => m.fromCache);
+  if (allFromCache) {
+    updateSyncStatus(
+      "cache",
+      "Đang hiển thị cache",
+      "Kết nối server chưa ổn định. Dữ liệu có thể chưa mới nhất.",
+    );
+    return;
+  }
+
+  const latestUpdated = metas.reduce(
+    (acc, m) => Math.max(acc, m.updatedAt || 0),
+    0,
+  );
+  const latestText = latestUpdated
+    ? `Lần cập nhật gần nhất: ${new Date(latestUpdated).toLocaleTimeString("vi-VN")}`
+    : "Dữ liệu đang đồng bộ thời gian thực.";
+  updateSyncStatus("live", "Đồng bộ thời gian thực ổn định", latestText);
+};
+
+const toastContainer = document.getElementById("toastContainer");
+const showToast = (message, type = "info", duration = 3600) => {
+  if (!toastContainer || !message) return;
+  const typeStyles = {
+    success: "border-emerald-200 bg-emerald-50 text-emerald-800",
+    error: "border-red-200 bg-red-50 text-red-800",
+    warning: "border-amber-200 bg-amber-50 text-amber-800",
+    info: "border-slate-200 bg-white text-slate-800",
+  };
+  const toast = document.createElement("div");
+  toast.className = `toast-item border rounded-xl shadow-sm px-3 py-2.5 text-sm leading-relaxed ${typeStyles[type] || typeStyles.info}`;
+  toast.innerText = String(message);
+  toastContainer.appendChild(toast);
+
+  setTimeout(() => {
+    toast.classList.add("toast-out");
+    setTimeout(() => {
+      toast.remove();
+    }, 220);
+  }, duration);
+};
+
+let dialogResolver = null;
+const appDialog = {
+  root: document.getElementById("appDialog"),
+  title: document.getElementById("appDialogTitle"),
+  message: document.getElementById("appDialogMessage"),
+  inputWrap: document.getElementById("appDialogInputWrap"),
+  input: document.getElementById("appDialogInput"),
+  btnCancel: document.getElementById("appDialogCancel"),
+  btnConfirm: document.getElementById("appDialogConfirm"),
+};
+
+let dialogMode = "confirm";
+
+const closeDialog = (result) => {
+  if (!appDialog.root) return;
+  appDialog.root.classList.add("hidden");
+  appDialog.root.classList.remove("flex");
+  if (appDialog.inputWrap) appDialog.inputWrap.classList.add("hidden");
+  if (dialogResolver) {
+    dialogResolver(result);
+    dialogResolver = null;
+  }
+};
+
+const openDialog = ({
+  message,
+  title = "Xác nhận thao tác",
+  mode = "confirm",
+  defaultValue = "",
+  confirmText = "Đồng ý",
+} = {}) =>
+  new Promise((resolve) => {
+    if (!appDialog.root) {
+      if (mode === "prompt") {
+        resolve(globalThis.prompt(message, defaultValue));
+      } else {
+        resolve(globalThis.confirm(message));
+      }
+      return;
+    }
+
+    dialogMode = mode;
+    appDialog.title.innerText = title;
+    appDialog.message.innerText = message;
+    appDialog.btnConfirm.innerText = confirmText;
+
+    if (mode === "prompt") {
+      appDialog.inputWrap?.classList.remove("hidden");
+      if (appDialog.input) {
+        appDialog.input.value = defaultValue || "";
+        setTimeout(() => appDialog.input?.focus(), 20);
+      }
+    } else {
+      appDialog.inputWrap?.classList.add("hidden");
+      if (appDialog.input) appDialog.input.value = "";
+    }
+
+    appDialog.root.classList.remove("hidden");
+    appDialog.root.classList.add("flex");
+    dialogResolver = resolve;
+  });
+
+window.appConfirm = (message, title = "Xác nhận thao tác") =>
+  openDialog({ message, title, mode: "confirm", confirmText: "Đồng ý" });
+
+window.appPrompt = (title, message, defaultValue = "") =>
+  openDialog({
+    title,
+    message,
+    mode: "prompt",
+    defaultValue,
+    confirmText: "Lưu",
+  });
+
+appDialog.btnCancel?.addEventListener("click", () => closeDialog(false));
+appDialog.btnConfirm?.addEventListener("click", () => {
+  if (dialogMode === "prompt") {
+    closeDialog(appDialog.input?.value ?? "");
+    return;
+  }
+  closeDialog(true);
+});
+appDialog.root?.addEventListener("click", (e) => {
+  if (e.target === appDialog.root) closeDialog(false);
+});
+appDialog.input?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    closeDialog(appDialog.input?.value ?? "");
+  }
+});
+
+globalThis.alert = (message) => {
+  showToast(message || "Có thông báo mới", "warning", 4200);
+};
+
+window.addEventListener("online", () => {
+  showToast("Đã có kết nối Internet. Hệ thống đang đồng bộ lại.", "success");
+  recomputeSyncStatus();
+});
+window.addEventListener("offline", () => {
+  showToast("Mất kết nối Internet. Chế độ cache đã được bật.", "warning", 5000);
+  recomputeSyncStatus();
+});
+
+const showLoginError = (message) => {
+  const errorBox = document.getElementById("loginError");
+  document.getElementById("loginErrorText").innerText = message;
+  errorBox.classList.remove("hidden");
+  showToast(message, "error", 5200);
+};
+
+// BƯỚC 1: LẮNG NGHE ĐỒNG BỘ DỮ LIỆU
+const setupRealtimeSync = () => {
+  const collections = [
+    "subjects",
+    "teachers",
+    "students",
+    "classes",
+    "schedules",
+    "accounts",
+  ];
+
+  syncState.loadedCollections = new Set();
+  syncState.collectionMeta = {};
+  syncErrorNotified.clear();
+  updateSyncStatus(
+    "loading",
+    "Đang tải dữ liệu (0/6)",
+    "Khởi tạo đồng bộ realtime từ Firebase.",
+  );
+
+  if (syncState.initialLoadTimer) {
+    clearTimeout(syncState.initialLoadTimer);
+  }
+
+  // Tránh treo overlay khi một collection gặp lỗi quyền/truy cập.
+  syncState.initialLoadTimer = setTimeout(() => {
+    if (!isDataLoaded) {
+      isDataLoaded = true;
+      document.getElementById("loadingOverlay").classList.add("hidden");
+      showToast(
+        "Mất nhiều thời gian để tải toàn bộ dữ liệu. Hệ thống đã vào chế độ xem tạm thời và sẽ tự đồng bộ tiếp.",
+        "warning",
+        6500,
+      );
+      checkAuthAndMapRole(auth.currentUser);
+      recomputeSyncStatus();
+    }
+  }, 10000);
+
+  window.unsubscribes = [];
+
+  collections.forEach((colName) => {
+    const unsub = onSnapshot(
+      getColRef(colName),
+      { includeMetadataChanges: true },
+      (snapshot) => {
+        window.db[colName] = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+
+        syncState.collectionMeta[colName] = {
+          fromCache: snapshot.metadata.fromCache,
+          hasPendingWrites: snapshot.metadata.hasPendingWrites,
+          updatedAt: Date.now(),
+          error: null,
+        };
+
+        syncState.loadedCollections.add(colName);
+        if (!isDataLoaded) {
+          if (syncState.loadedCollections.size === collections.length) {
+            isDataLoaded = true;
+            if (syncState.initialLoadTimer) {
+              clearTimeout(syncState.initialLoadTimer);
+              syncState.initialLoadTimer = null;
+            }
+            document.getElementById("loadingOverlay").classList.add("hidden");
+            showToast(
+              "Kết nối dữ liệu thành công. Đã bật đồng bộ realtime.",
+              "success",
+              2600,
+            );
+            checkAuthAndMapRole(auth.currentUser);
+          }
+        } else {
+          renderAll();
+        }
+        recomputeSyncStatus();
+      },
+      (error) => {
+        console.error(`Lỗi đồng bộ ${colName}:`, error);
+        syncState.collectionMeta[colName] = {
+          fromCache: true,
+          hasPendingWrites: false,
+          updatedAt: Date.now(),
+          error: error?.code || "sync-error",
+        };
+        syncState.loadedCollections.add(colName);
+
+        if (!syncErrorNotified.has(colName)) {
+          syncErrorNotified.add(colName);
+          showToast(
+            `Bảng ${colName} đang lỗi đồng bộ (${error?.code || "unknown"}). Hệ thống sẽ tự thử lại.`,
+            "error",
+            6200,
+          );
+        }
+
+        if (
+          !isDataLoaded &&
+          syncState.loadedCollections.size === collections.length
+        ) {
+          isDataLoaded = true;
+          if (syncState.initialLoadTimer) {
+            clearTimeout(syncState.initialLoadTimer);
+            syncState.initialLoadTimer = null;
+          }
+          document.getElementById("loadingOverlay").classList.add("hidden");
+          checkAuthAndMapRole(auth.currentUser);
+        }
+
+        recomputeSyncStatus();
+      },
+    );
+
+    window.unsubscribes.push(unsub);
+  });
+};
+
+// BƯỚC 2: KHỞI TẠO QUY TRÌNH
+const initApp = async () => {
+  if (isCanvasEnv) {
+    try {
+      if (typeof __initial_auth_token !== "undefined" && __initial_auth_token) {
+        await signInWithCustomToken(auth, __initial_auth_token);
+      } else {
+        await signInAnonymously(auth);
+      }
+    } catch (e) {
+      console.error("Lỗi Auth Canvas:", e);
+    }
+  }
+
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      if (!isDataLoaded) setupRealtimeSync();
+      else checkAuthAndMapRole(user);
+    } else {
+      if (window.unsubscribes) {
+        window.unsubscribes.forEach((u) => u());
+        window.unsubscribes = [];
+      }
+      isDataLoaded = false;
+      currentUser = null;
+      currentRole = null;
+      syncState.loadedCollections = new Set();
+      syncState.collectionMeta = {};
+      if (syncState.initialLoadTimer) {
+        clearTimeout(syncState.initialLoadTimer);
+        syncState.initialLoadTimer = null;
+      }
+      syncErrorNotified.clear();
+      updateSyncStatus(
+        "idle",
+        "Chưa đăng nhập",
+        "Đăng nhập Google để bắt đầu đồng bộ dữ liệu.",
+      );
+
+      document.getElementById("loadingOverlay").classList.add("hidden");
+      const loginOverlay = document.getElementById("loginOverlay");
+      loginOverlay.classList.remove("hidden");
+      setTimeout(() => {
+        loginOverlay.style.opacity = "1";
+        document.getElementById("loginBox").classList.remove("scale-95");
+        document.getElementById("loginBox").classList.add("scale-100");
+      }, 50);
+
+      const btn = document.getElementById("btnGoogleLogin");
+      btn.innerHTML = `
+                        <svg class="w-5 h-5" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 15.02 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+                        Đăng nhập bằng Google
+                    `;
+      btn.disabled = false;
+
+      if (pendingLoginError) {
+        showLoginError(pendingLoginError);
+        pendingLoginError = "";
+      } else {
+        document.getElementById("loginError").classList.add("hidden");
+      }
+      document.getElementById("mainBody").classList.add("overflow-hidden");
+    }
+  });
+};
+
+// BƯỚC 3: MAPPING QUYỀN HẠN
+const checkAuthAndMapRole = async (user) => {
+  if (!user) return;
+
+  const loginEmail = normalizeEmail(user.email);
+  if (!loginEmail) {
+    pendingLoginError =
+      "Không lấy được email từ tài khoản Google. Vui lòng dùng tài khoản Gmail hợp lệ.";
+    await signOut(auth);
+    return;
+  }
+
+  const adminAccount = window.db.accounts.find(
+    (a) =>
+      normalizeEmail(a.email) === loginEmail &&
+      a.role === "admin" &&
+      a.active !== false,
+  );
+
+  if (loginEmail === ADMIN_EMAIL || adminAccount) {
+    currentUser = {
+      id: user.uid,
+      name: adminAccount?.name || user.displayName || "Quản trị viên",
+      email: loginEmail,
+    };
+    currentRole = "admin";
+  } else {
+    const account = window.db.accounts.find(
+      (a) =>
+        normalizeEmail(a.email) === loginEmail &&
+        a.role === "teacher" &&
+        a.active !== false,
+    );
+    if (!account) {
+      pendingLoginError =
+        "Email chưa được cấp quyền truy cập. Vui lòng liên hệ admin để cấp ở mục 5 - Tài khoản đăng nhập.";
+      await signOut(auth);
+      return;
+    }
+
+    const tea = window.db.teachers.find(
+      (t) => normalizeEmail(t.email) === loginEmail,
+    );
+    currentUser = tea || {
+      id: account.teacherId || user.uid,
+      name: account.name || user.displayName || "Giáo viên",
+      email: loginEmail,
+      phone: "",
+    };
+    currentRole = "teacher";
+  }
+
+  document.getElementById("headerUserName").innerText = currentUser.name;
+  const badge = document.getElementById("headerRoleBadge");
+  if (currentRole === "admin") {
+    badge.innerText = "Admin";
+    badge.className =
+      "text-[10px] font-bold uppercase tracking-wider text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 mt-1 inline-block";
+  } else {
+    badge.innerText = "Teacher";
+    badge.className =
+      "text-[10px] font-bold uppercase tracking-wider text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 mt-1 inline-block";
+  }
+
+  const loginOverlay = document.getElementById("loginOverlay");
+  loginOverlay.style.opacity = "0";
+  setTimeout(() => {
+    loginOverlay.classList.add("hidden");
+    document.getElementById("mainBody").classList.remove("overflow-hidden");
+  }, 300);
+
+  applyRBAC();
+  window.switchTab("board");
+};
+
+registerAuthHandlers({ auth, showToast });
+
+// --- CÁC HÀM CRUD CLOUD ---
+const ALLOWED_TABLES = new Set([
+  "subjects",
+  "teachers",
+  "students",
+  "classes",
+  "schedules",
+  "accounts",
+]);
+
+const canWriteTable = (table, payload) => {
+  if (currentRole === "admin") return true;
+  if (currentRole !== "teacher") return false;
+  if (table !== "schedules") return false;
+
+  const scheduleTeacherId = String(payload?.teacherId || "");
+  return (
+    scheduleTeacherId && scheduleTeacherId === String(currentUser?.id || "")
+  );
+};
+
+window.cloudSave = async (table, data) => {
+  try {
+    if (!ALLOWED_TABLES.has(table)) {
+      throw new Error(`Bảng không hợp lệ: ${table}`);
+    }
+
+    const sanitized = sanitizeForStorage(data);
+    if (!sanitized || typeof sanitized !== "object") {
+      throw new Error("Payload dữ liệu không hợp lệ.");
+    }
+
+    const recordId = String(sanitized.id || "");
+    if (!isSafeDocId(recordId)) {
+      throw new Error("ID dữ liệu không hợp lệ.");
+    }
+    if (!canWriteTable(table, sanitized)) {
+      throw new Error("Bạn không có quyền ghi dữ liệu này.");
+    }
+
+    await setDoc(doc(getColRef(table), recordId), sanitized);
+  } catch (e) {
+    console.error("Lỗi lưu:", e);
+    showToast(
+      "Lưu dữ liệu thất bại. Vui lòng kiểm tra kết nối và thử lại.",
+      "error",
+    );
+  }
+};
+
+window.cloudDelete = async (table, id) => {
+  try {
+    if (!ALLOWED_TABLES.has(table)) {
+      throw new Error(`Bảng không hợp lệ: ${table}`);
+    }
+    if (currentRole !== "admin") {
+      throw new Error("Bạn không có quyền xóa dữ liệu.");
+    }
+    if (!isSafeDocId(String(id || ""))) {
+      throw new Error("ID dữ liệu không hợp lệ.");
+    }
+    await deleteDoc(doc(getColRef(table), id));
+  } catch (e) {
+    console.error("Lỗi xóa:", e);
+    showToast("Xóa dữ liệu thất bại. Vui lòng thử lại.", "error");
+  }
+};
+
+// --- GIAO DIỆN & LOGIC UI ---
+const colorStyles = {
+  blue: "bg-blue-100 text-blue-800 border-blue-200",
+  rose: "bg-rose-100 text-rose-800 border-rose-200",
+  emerald: "bg-emerald-100 text-emerald-800 border-emerald-200",
+  amber: "bg-amber-100 text-amber-800 border-amber-200",
+  purple: "bg-purple-100 text-purple-800 border-purple-200",
+  cyan: "bg-cyan-100 text-cyan-800 border-cyan-200",
+};
+const dotColors = {
+  blue: "bg-blue-500",
+  rose: "bg-rose-500",
+  emerald: "bg-emerald-500",
+  amber: "bg-amber-500",
+  purple: "bg-purple-500",
+  cyan: "bg-cyan-500",
+};
+
+// --- RENDER LOGIC ---
+const getSubjectInfo = (id) =>
+  window.db.subjects.find((s) => s.id === id) || {
+    name: "Môn đã xóa",
+    color: "slate",
+  };
+const getTeacherInfo = (id) =>
+  window.db.teachers.find((t) => t.id === id) || {
+    name: "GV đã xóa",
+    phone: "",
+    email: "",
+  };
+const getStudentInfo = (id) =>
+  window.db.students.find((s) => s.id === id) || {
+    name: "HS đã xóa",
+    parentPhone: "",
+  };
+const getClassInfo = (id) => window.db.classes.find((c) => c.id === id);
+
+// --- FORMS SUBMIT LOGIC ---
+const renderCore = registerRenderCore({
+  colorStyles,
+  dotColors,
+  normalizeEmail,
+  ADMIN_EMAIL,
+  isFixedAdmin,
+  getCurrentRole: () => currentRole,
+  getCurrentUser: () => currentUser,
+  getSubjectInfo,
+  getTeacherInfo,
+  getStudentInfo,
+  getClassInfo,
+  parseEvaluationRecord,
+  getEvalLevelMeta,
+  getLatestStudentEvaluation,
+  getDurationHours,
+  formatHours,
+  formatDayOfWeek,
+  getWeekAttendanceOverview,
+  renderMasterOverview,
+});
+
+applyRBAC = renderCore.applyRBAC;
+renderSchedules = renderCore.renderSchedules;
+renderAttendance = renderCore.renderAttendance;
+renderAll = renderCore.renderAll;
+
+registerSubjectForm();
+
+registerTeacherActions({
+  ADMIN_EMAIL,
+  normalizeEmail,
+  isFixedAdmin,
+  getCurrentRole: () => currentRole,
+  getCurrentUser: () => currentUser,
+});
+registerTeacherForms({
+  ADMIN_EMAIL,
+  normalizeEmail,
+  getCurrentRole: () => currentRole,
+});
+registerStudentAndClassForms();
+
+registerScheduleActions({
+  getCurrentRole: () => currentRole,
+  getCurrentUser: () => currentUser,
+});
+registerScheduleFormsAndFilters({
+  renderSchedules,
+  renderMasterOverview,
+  renderAttendance,
+});
+
+registerDataManagement({
+  ADMIN_EMAIL,
+  normalizeEmail,
+  isFixedAdmin,
+  getCurrentRole: () => currentRole,
+  getCurrentUser: () => currentUser,
+  getSubjectInfo,
+  getStudentInfo,
+  getClassInfo,
+  parseEvaluationRecord,
+});
+
+registerReportingExports({
+  showToast,
+  getSelectedWeek,
+  getAttendanceWeekSchedules,
+  getTeacherInfo,
+  getClassInfo,
+  getSubjectInfo,
+  getStudentInfo,
+  getAttendanceStatusMeta,
+  formatDayOfWeek,
+  getDurationHours,
+  formatHours,
+  getLatestStudentEvaluation,
+  getEvalLevelMeta,
+  getWeekAttendanceOverview,
+});
+
+// INIT
+const getCurrentWeekDefault = () => {
+  const now = new Date();
+  const firstDay = new Date(now.getFullYear(), 0, 1);
+  return `${now.getFullYear()}-W${Math.ceil(
+    ((now - firstDay) / 86400000 + firstDay.getDay() + 1) / 7,
+  )
+    .toString()
+    .padStart(2, "0")}`;
+};
+document.getElementById("sch_week").value = getCurrentWeekDefault();
+document.getElementById("filterWeek").value = getCurrentWeekDefault();
+document.getElementById("attendanceWeek").value = getCurrentWeekDefault();
+
+recomputeSyncStatus();
+
+initApp(); // Khởi chạy ứng dụng và lắng nghe đăng nhập

@@ -1,0 +1,39 @@
+﻿<!-- TAB 1: BOARD -->
+      <div id="view_board" class="block h-full">
+        <div
+          class="max-w-6xl mx-auto flex flex-col h-[calc(100vh-12rem)] min-h-[500px]"
+        >
+          <div
+            class="bg-white rounded-xl shadow-sm border border-slate-200 flex-1 flex flex-col overflow-hidden"
+          >
+            <div
+              class="bg-white border-b border-slate-200 px-6 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 z-10 shadow-sm shrink-0"
+            >
+              <div>
+                <h2 class="text-lg font-bold text-slate-800" id="boardTitle">
+                  Bảng điều phối Vận hành
+                </h2>
+                <p class="text-xs text-slate-500 mt-0.5" id="boardSubtitle">
+                  Theo dõi toàn bộ lịch dạy trung tâm
+                </p>
+              </div>
+              <div
+                class="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200"
+              >
+                <i data-lucide="filter" class="w-4 h-4 text-slate-400"></i>
+                <input
+                  type="week"
+                  id="filterWeek"
+                  class="text-sm bg-transparent focus:outline-none font-bold text-indigo-700 cursor-pointer"
+                />
+              </div>
+            </div>
+            <div
+              class="flex-1 overflow-y-auto custom-scrollbar p-4 lg:p-6 bg-slate-50/50"
+              id="scheduleContainer"
+            >
+              <!-- JS render -->
+            </div>
+          </div>
+        </div>
+      </div>
