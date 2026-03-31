@@ -29,8 +29,8 @@ export const registerRenderCore = ({
     String(value || "")
       .trim()
       .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "unknown";
+      .replaceAll(/[^a-z0-9]+/g, "-")
+      .replaceAll(/^-+|-+$/g, "") || "unknown";
 
   const getStudentGradeLevel = (student) =>
     String(
@@ -39,7 +39,7 @@ export const registerRenderCore = ({
 
   const buildAutoClassGroups = () => {
     const grouped = new Map();
-    window.db.students.forEach((student) => {
+    globalThis.db.students.forEach((student) => {
       const gradeLevel = getStudentGradeLevel(student);
       if (!grouped.has(gradeLevel)) {
         grouped.set(gradeLevel, []);
@@ -61,7 +61,7 @@ export const registerRenderCore = ({
   const getSelectableClasses = () => {
     const autoGroups = buildAutoClassGroups();
     if (autoGroups.length > 0) return autoGroups;
-    return window.db.classes || [];
+    return globalThis.db.classes || [];
   };
 
   const getClassInfoSafe = (id) => {
@@ -99,7 +99,7 @@ export const registerRenderCore = ({
 
   const switchMasterTab = (tabName = "overview") => {
     const nextTab = masterTabKeys.includes(tabName) ? tabName : "overview";
-    window.currentMasterTab = nextTab;
+    globalThis.currentMasterTab = nextTab;
 
     masterTabKeys.forEach((key) => {
       const panel = document.getElementById(`masterPanel_${key}`);
@@ -118,13 +118,13 @@ export const registerRenderCore = ({
     refreshIcons();
   };
 
-  window.switchMasterTab = switchMasterTab;
+  globalThis.switchMasterTab = switchMasterTab;
 
   let iconRenderFrame = null;
 
   const refreshIcons = () => {
     if (iconRenderFrame !== null) return;
-    iconRenderFrame = window.requestAnimationFrame(() => {
+    iconRenderFrame = globalThis.requestAnimationFrame(() => {
       iconRenderFrame = null;
       lucide.createIcons();
     });
@@ -196,14 +196,14 @@ export const registerRenderCore = ({
     const scheduleSubjectSelect = document.getElementById("sch_subjectId");
     const teaTagsContainer = document.getElementById("tea_subjectTags");
     if (list) {
-      list.innerHTML = window.db.subjects
+      list.innerHTML = globalThis.db.subjects
         .map(
           (sub) => `
                 <div class="flex items-center justify-between p-2 hover:bg-slate-50 rounded-lg group border border-slate-100 hover:border-slate-200">
                     <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full ${dotColors[safeColorKey(sub.color)] || "bg-slate-400"} shadow-sm"></span><span class="text-sm font-bold text-slate-700">${safeText(sub.name)}</span></div>
                   <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100">
-                    <button onclick="window.editData('subjects', '${safeAttr(sub.id)}')" class="text-slate-300 hover:text-indigo-500"><i data-lucide="pencil" class="w-4 h-4"></i></button>
-                    <button onclick="window.deleteData('subjects', '${safeAttr(sub.id)}')" class="text-slate-300 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                    <button onclick="globalThis.editData('subjects', '${safeAttr(sub.id)}')" class="text-slate-300 hover:text-indigo-500"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+                    <button onclick="globalThis.deleteData('subjects', '${safeAttr(sub.id)}')" class="text-slate-300 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                   </div>
                 </div>
             `,
@@ -213,7 +213,7 @@ export const registerRenderCore = ({
 
     const subjectOptions =
       '<option value="">-- Chọn môn --</option>' +
-      window.db.subjects
+      globalThis.db.subjects
         .map(
           (sub) =>
             `<option value="${safeAttr(sub.id)}">${safeText(sub.name)}</option>`,
@@ -228,14 +228,14 @@ export const registerRenderCore = ({
       const currentUser = getCurrentUser();
       const currentTeacher = getTeacherInfo(currentUser?.id);
       const allowedTeacherSubjectIds = new Set(
-        (currentTeacher?.subjectIds || []).map((id) => String(id)),
+        (currentTeacher?.subjectIds || []).map(String),
       );
       const selectableSubjects =
         role === "teacher"
-          ? window.db.subjects.filter((sub) =>
+          ? globalThis.db.subjects.filter((sub) =>
               allowedTeacherSubjectIds.has(String(sub.id)),
             )
-          : window.db.subjects;
+          : globalThis.db.subjects;
 
       const selected = scheduleSubjectSelect.value;
       scheduleSubjectSelect.innerHTML =
@@ -256,7 +256,7 @@ export const registerRenderCore = ({
       }
     }
     if (teaTagsContainer) {
-      teaTagsContainer.innerHTML = window.db.subjects
+      teaTagsContainer.innerHTML = globalThis.db.subjects
         .map(
           (sub) => `
                 <label class="cursor-pointer relative"><input type="checkbox" value="${safeAttr(sub.id)}" class="peer sr-only">
@@ -274,7 +274,7 @@ export const registerRenderCore = ({
     const teacherListCount = document.getElementById("teacherListCount");
     if (!teacherList) return;
 
-    teacherList.innerHTML = window.db.teachers
+    teacherList.innerHTML = globalThis.db.teachers
       .map((tea) => {
         const subjectsTags = tea.subjectIds
           .map((id) => {
@@ -292,8 +292,8 @@ export const registerRenderCore = ({
                         <div class="flex-1 min-w-0">
                             <div class="flex justify-between items-start mb-0.5"><h3 class="font-bold text-slate-800 text-sm truncate pr-2">${safeText(tea.name)}</h3>
                                 <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100">
-                                  <button onclick="window.editData('teachers', '${safeAttr(tea.id)}')" class="text-slate-300 hover:text-indigo-500"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>
-                                  <button onclick="window.deleteData('teachers', '${safeAttr(tea.id)}')" class="text-slate-300 hover:text-red-500"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                                  <button onclick="globalThis.editData('teachers', '${safeAttr(tea.id)}')" class="text-slate-300 hover:text-indigo-500"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>
+                                  <button onclick="globalThis.deleteData('teachers', '${safeAttr(tea.id)}')" class="text-slate-300 hover:text-red-500"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                                 </div>
                             </div>
                             <div class="text-[10px] text-slate-500 mb-0.5 font-medium"><i data-lucide="mail" class="w-3 h-3 inline"></i> ${safeText(tea.email)}</div>
@@ -305,7 +305,7 @@ export const registerRenderCore = ({
       })
       .join("");
     if (teacherListCount) {
-      teacherListCount.innerText = `${window.db.teachers.length}`;
+      teacherListCount.innerText = `${globalThis.db.teachers.length}`;
     }
     refreshIcons();
   };
@@ -324,19 +324,19 @@ export const registerRenderCore = ({
     const grantedCount = document.getElementById("accountGrantedCount");
     if (!pendingList || !grantedList || !adminList) return;
 
-    const adminAccounts = window.db.accounts.filter(
+    const adminAccounts = globalThis.db.accounts.filter(
       (acc) =>
         acc.role === "admin" && normalizeEmail(acc.email) !== ADMIN_EMAIL,
     );
 
-    const teacherAccounts = window.db.accounts.filter(
+    const teacherAccounts = globalThis.db.accounts.filter(
       (acc) => acc.role === "teacher",
     );
     const teacherAccountEmails = new Set(
       teacherAccounts.map((acc) => normalizeEmail(acc.email)),
     );
 
-    const availableTeachers = window.db.teachers.filter((tea) => {
+    const availableTeachers = globalThis.db.teachers.filter((tea) => {
       const email = normalizeEmail(tea.email);
       return email && email !== ADMIN_EMAIL && !teacherAccountEmails.has(email);
     });
@@ -349,7 +349,7 @@ export const registerRenderCore = ({
                       <div class="text-[11px] font-bold text-slate-800 truncate">${safeText(tea.name)}</div>
                       <div class="text-[11px] text-slate-500 truncate">${safeText(tea.email)}</div>
                     </div>
-                    <button onclick="window.openGrantTeacherAccountModal('${safeAttr(tea.id)}')" class="text-[11px] font-bold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 border border-emerald-200 px-2 py-1 rounded">Cấp</button>
+                    <button onclick="globalThis.openGrantTeacherAccountModal('${safeAttr(tea.id)}')" class="text-[11px] font-bold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 border border-emerald-200 px-2 py-1 rounded">Cấp</button>
                 </div>
             `;
       })
@@ -366,8 +366,8 @@ export const registerRenderCore = ({
                         <span class="inline-block mt-1 text-[9px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold uppercase">Admin</span>
                     </div>
                   <div class="flex items-center gap-1">
-                    <button onclick="window.editData('accounts', '${safeAttr(acc.id)}')" class="text-slate-300 hover:text-indigo-500 opacity-0 group-hover:opacity-100"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>
-                    ${canDelete ? `<button onclick="window.deleteData('accounts', '${safeAttr(acc.id)}')" class="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>` : ""}
+                    <button onclick="globalThis.editData('accounts', '${safeAttr(acc.id)}')" class="text-slate-300 hover:text-indigo-500 opacity-0 group-hover:opacity-100"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>
+                    ${canDelete ? `<button onclick="globalThis.deleteData('accounts', '${safeAttr(acc.id)}')" class="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>` : ""}
                   </div>
                 </div>
             `;
@@ -377,8 +377,8 @@ export const registerRenderCore = ({
     const grantedCards = teacherAccounts
       .map((acc) => {
         const teacher =
-          window.db.teachers.find((t) => t.id === acc.teacherId) ||
-          window.db.teachers.find(
+          globalThis.db.teachers.find((t) => t.id === acc.teacherId) ||
+          globalThis.db.teachers.find(
             (t) => normalizeEmail(t.email) === normalizeEmail(acc.email),
           );
         const teacherName = teacher ? teacher.name : acc.name || "Giáo viên";
@@ -390,8 +390,8 @@ export const registerRenderCore = ({
                             <span class="inline-block mt-1 text-[9px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 font-bold uppercase">Teacher</span>
                         </div>
                       <div class="flex items-center gap-1">
-                        <button onclick="window.editData('accounts', '${safeAttr(acc.id)}')" class="text-slate-300 hover:text-indigo-500 opacity-0 group-hover:opacity-100"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>
-                        <button onclick="window.deleteData('accounts', '${safeAttr(acc.id)}')" class="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                        <button onclick="globalThis.editData('accounts', '${safeAttr(acc.id)}')" class="text-slate-300 hover:text-indigo-500 opacity-0 group-hover:opacity-100"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>
+                        <button onclick="globalThis.deleteData('accounts', '${safeAttr(acc.id)}')" class="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                       </div>
                     </div>
                 `;
@@ -426,7 +426,7 @@ export const registerRenderCore = ({
     const studentList = document.getElementById("studentList");
     if (!studentList) return;
 
-    studentList.innerHTML = window.db.students
+    studentList.innerHTML = globalThis.db.students
       .map((stu) => {
         const latest = getLatestStudentEvaluation(stu.id);
         const gradeLabel = safeText(
@@ -443,15 +443,15 @@ export const registerRenderCore = ({
                       <div class="mt-1">${evalBadge}</div>
                     </div>
                     <div class="flex items-center gap-1 opacity-100">
-                      <button onclick="window.editData('students', '${safeAttr(stu.id)}')" title="Chỉnh sửa thông tin học sinh" class="text-slate-300 hover:text-indigo-500"><i data-lucide="pencil" class="w-4 h-4"></i></button>
-                      <button onclick="window.deleteData('students', '${safeAttr(stu.id)}')" title="Xóa học sinh" class="text-slate-300 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                      <button onclick="globalThis.editData('students', '${safeAttr(stu.id)}')" title="Chỉnh sửa thông tin học sinh" class="text-slate-300 hover:text-indigo-500"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+                      <button onclick="globalThis.deleteData('students', '${safeAttr(stu.id)}')" title="Xóa học sinh" class="text-slate-300 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                     </div>
                 </div>`;
       })
       .join("");
     const studentCheckboxes = document.getElementById("cls_studentCheckboxes");
     if (studentCheckboxes) {
-      studentCheckboxes.innerHTML = window.db.students
+      studentCheckboxes.innerHTML = globalThis.db.students
         .map(
           (stu) => `
                 <label class="flex items-center gap-2 p-1.5 hover:bg-slate-50 rounded cursor-pointer border border-transparent hover:border-slate-200">
@@ -513,7 +513,7 @@ export const registerRenderCore = ({
     refreshIcons();
   };
 
-  window.updateScheduleStudentSelection = () => {
+  globalThis.updateScheduleStudentSelection = () => {
     const studentWrap = document.getElementById("sch_studentPickerWrap");
     const checkboxContainer = document.getElementById("sch_studentCheckboxes");
     const summaryEl = document.getElementById("sch_studentSummary");
@@ -535,7 +535,7 @@ export const registerRenderCore = ({
     summaryEl.className = "text-[11px] text-slate-500 mb-1.5";
   };
 
-  window.handleClassSelection = () => {
+  globalThis.handleClassSelection = () => {
     const currentRole = getCurrentRole();
     const currentUser = getCurrentUser();
     const classId = document.getElementById("sch_classId").value;
@@ -559,8 +559,8 @@ export const registerRenderCore = ({
         studentCheckboxes.innerHTML = "";
       }
       filterHint?.classList.add("hidden");
-      if (typeof window.syncScheduleFormByRole === "function") {
-        window.syncScheduleFormByRole();
+      if (typeof globalThis.syncScheduleFormByRole === "function") {
+        globalThis.syncScheduleFormByRole();
       }
       return;
     }
@@ -576,7 +576,7 @@ export const registerRenderCore = ({
       const defaultSelectedIds =
         previousClassId === String(cls.id) && prevSelectedIds.size > 0
           ? prevSelectedIds
-          : new Set((cls.studentIds || []).map((id) => String(id)));
+          : new Set((cls.studentIds || []).map(String));
 
       if (studentCheckboxes) {
         studentCheckboxes.innerHTML = (cls.studentIds || [])
@@ -585,7 +585,7 @@ export const registerRenderCore = ({
             const checkedAttr = defaultSelectedIds.has(String(id))
               ? "checked"
               : "";
-            return `<label class="flex items-center gap-2 p-1.5 rounded border border-transparent hover:border-indigo-200 hover:bg-white cursor-pointer"><input type="checkbox" value="${safeAttr(id)}" ${checkedAttr} onchange="window.updateScheduleStudentSelection()" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"><span class="text-[12px] text-slate-700 font-medium">${safeText(student.name)}</span></label>`;
+            return `<label class="flex items-center gap-2 p-1.5 rounded border border-transparent hover:border-indigo-200 hover:bg-white cursor-pointer"><input type="checkbox" value="${safeAttr(id)}" ${checkedAttr} onchange="globalThis.updateScheduleStudentSelection()" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"><span class="text-[12px] text-slate-700 font-medium">${safeText(student.name)}</span></label>`;
           })
           .join("");
       }
@@ -604,28 +604,35 @@ export const registerRenderCore = ({
         hintDiv.innerHTML = `<div class="space-y-1"><div><span class="font-bold text-indigo-800">Nhóm lớp:</span> ${safeText(getClassDisplayName(cls))}</div><div><span class="font-bold text-indigo-800">Sĩ số ${safeText(String(cls.studentIds.length))} HS:</span></div><div class="flex flex-wrap gap-1">${studentChips || '<span class="text-[11px] italic text-slate-500">Chưa có học sinh.</span>'}</div></div>`;
         hintDiv.classList.remove("hidden");
       }
-      if (typeof window.updateScheduleStudentSelection === "function") {
-        window.updateScheduleStudentSelection();
+      if (typeof globalThis.updateScheduleStudentSelection === "function") {
+        globalThis.updateScheduleStudentSelection();
       }
 
       if (currentRole === "teacher") {
         const currentTeacher = getTeacherInfo(currentUser?.id);
         const teacherName =
           currentTeacher?.name || currentUser?.name || "Giáo viên";
-        const hasSubjectMatch = !subjectId
-          ? true
-          : (currentTeacher?.subjectIds || []).includes(subjectId);
+        const subjectSelected = subjectId.length > 0;
+        let hasSubjectMatch = true;
+        if (subjectSelected) {
+          hasSubjectMatch = (currentTeacher?.subjectIds || []).includes(
+            subjectId,
+          );
+        }
 
         teacherSelect.disabled = true;
         teacherSelect.innerHTML = `<option value="${safeAttr(String(currentUser?.id || ""))}">${safeText(teacherName)}</option>`;
         teacherSelect.value = String(currentUser?.id || "");
         if (filterHint) {
           filterHint.classList.remove("hidden");
-          filterHint.innerText = !subjectId
-            ? "Chọn môn để kiểm tra chuyên môn"
-            : hasSubjectMatch
-              ? "Đã khóa theo giáo viên đăng nhập"
-              : "Môn đã chọn không thuộc chuyên môn của bạn";
+          let teacherHint = "Chọn môn để kiểm tra chuyên môn";
+          if (subjectSelected) {
+            teacherHint = "Môn đã chọn không thuộc chuyên môn của bạn";
+            if (hasSubjectMatch) {
+              teacherHint = "Đã khóa theo giáo viên đăng nhập";
+            }
+          }
+          filterHint.innerText = teacherHint;
         }
         return;
       }
@@ -641,7 +648,7 @@ export const registerRenderCore = ({
         return;
       }
 
-      const availableTeachers = window.db.teachers.filter((t) =>
+      const availableTeachers = globalThis.db.teachers.filter((t) =>
         t.subjectIds.includes(subjectId),
       );
 
@@ -713,8 +720,8 @@ export const registerRenderCore = ({
     };
   };
 
-  window.openTimetableScheduleDetail = async (scheduleId) => {
-    const schedule = window.db.schedules.find(
+  globalThis.openTimetableScheduleDetail = async (scheduleId) => {
+    const schedule = globalThis.db.schedules.find(
       (item) => String(item.id) === String(scheduleId),
     );
     if (!schedule) {
@@ -770,8 +777,8 @@ export const registerRenderCore = ({
         </div>
       </div>`;
 
-    if (typeof window.appFormModal === "function") {
-      await window.appFormModal({
+    if (typeof globalThis.appFormModal === "function") {
+      await globalThis.appFormModal({
         title: "Chi tiết ca dạy",
         description: "Thông tin chi tiết từ thời khóa biểu tuần.",
         submitText: "Đóng",
@@ -782,7 +789,7 @@ export const registerRenderCore = ({
       return;
     }
 
-    await window.appConfirm(
+    await globalThis.appConfirm(
       "Không thể mở popup chi tiết ở phiên này.",
       "Thông báo",
     );
@@ -800,7 +807,7 @@ export const registerRenderCore = ({
       return;
     }
 
-    const pendingSchedules = window.db.schedules
+    const pendingSchedules = globalThis.db.schedules
       .filter(
         (sch) =>
           sch.week === week && getScheduleApprovalStatus(sch) === "pending",
@@ -841,9 +848,9 @@ export const registerRenderCore = ({
               <div class="text-[10px] mt-1 text-amber-700 font-bold">${safeText(typeText)} • ${safeText(sch.approval?.requestedBy || "N/A")}</div>
             </div>
             <div class="flex items-center gap-1.5 shrink-0">
-              <button onclick="window.openScheduleEditor('${safeAttr(sch.id)}')" class="text-[11px] font-bold px-2 py-1 rounded border border-slate-200 text-slate-700 bg-slate-50 hover:bg-slate-100">Sửa</button>
-              <button onclick="window.reviewScheduleRequest('${safeAttr(sch.id)}', 'reject')" class="text-[11px] font-bold px-2 py-1 rounded border border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100">Từ chối</button>
-              <button onclick="window.reviewScheduleRequest('${safeAttr(sch.id)}', 'approve')" class="text-[11px] font-bold px-2 py-1 rounded border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100">Duyệt</button>
+              <button onclick="globalThis.openScheduleEditor('${safeAttr(sch.id)}')" class="text-[11px] font-bold px-2 py-1 rounded border border-slate-200 text-slate-700 bg-slate-50 hover:bg-slate-100">Sửa</button>
+              <button onclick="globalThis.reviewScheduleRequest('${safeAttr(sch.id)}', 'reject')" class="text-[11px] font-bold px-2 py-1 rounded border border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100">Từ chối</button>
+              <button onclick="globalThis.reviewScheduleRequest('${safeAttr(sch.id)}', 'approve')" class="text-[11px] font-bold px-2 py-1 rounded border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100">Duyệt</button>
             </div>
           </div>`;
       })
@@ -860,7 +867,7 @@ export const registerRenderCore = ({
 
     renderScheduleApprovalPanel(filterWeek, currentRole);
 
-    let filtered = window.db.schedules.filter((s) => s.week === filterWeek);
+    let filtered = globalThis.db.schedules.filter((s) => s.week === filterWeek);
     if (currentRole === "teacher") {
       filtered = filtered.filter((s) => s.teacherId === currentUser.id);
     }
@@ -872,7 +879,13 @@ export const registerRenderCore = ({
     const weekLabel = formatWeekLabel(filterWeek);
 
     if (filtered.length === 0) {
-      container.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-slate-400 py-20"><i data-lucide="${currentRole === "teacher" ? "coffee" : "inbox"}" class="w-16 h-16 mb-4 opacity-30"></i><p class="text-lg font-bold text-slate-600">${currentRole === "teacher" ? `${safeText(weekLabel)} bạn không có ca dạy.` : `${safeText(weekLabel)} chưa có lịch.`}</p></div>`;
+      const emptyIcon = currentRole === "teacher" ? "coffee" : "inbox";
+      const safeWeekLabel = safeText(weekLabel);
+      const emptyMessage =
+        currentRole === "teacher"
+          ? `${safeWeekLabel} bạn không có ca dạy.`
+          : `${safeWeekLabel} chưa có lịch.`;
+      container.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-slate-400 py-20"><i data-lucide="${emptyIcon}" class="w-16 h-16 mb-4 opacity-30"></i><p class="text-lg font-bold text-slate-600">${emptyMessage}</p></div>`;
       refreshIcons();
       return;
     }
@@ -948,22 +961,22 @@ export const registerRenderCore = ({
                     colorStyles[safeColorKey(subInfo.color)] ||
                     "bg-slate-100 text-slate-800 border-slate-200";
                   const editBtn = canEditSchedule
-                    ? `<button onclick="event.stopPropagation(); window.openScheduleEditor('${safeAttr(sch.id)}')" class="text-slate-400 hover:text-indigo-600"><i data-lucide="pencil-line" class="w-3.5 h-3.5"></i></button>`
+                    ? `<button onclick="event.stopPropagation(); globalThis.openScheduleEditor('${safeAttr(sch.id)}')" class="text-slate-400 hover:text-indigo-600"><i data-lucide="pencil-line" class="w-3.5 h-3.5"></i></button>`
                     : "";
                   const deleteBtn =
                     currentRole === "admin"
-                      ? `<button onclick="event.stopPropagation(); window.deleteData('schedules', '${safeAttr(sch.id)}')" class="text-slate-400 hover:text-rose-600"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>`
+                      ? `<button onclick="event.stopPropagation(); globalThis.deleteData('schedules', '${safeAttr(sch.id)}')" class="text-slate-400 hover:text-rose-600"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>`
                       : "";
 
                   return `
-                    <div onclick="window.openTimetableScheduleDetail('${safeAttr(sch.id)}')" class="rounded-lg border border-slate-200 bg-white p-2.5 mb-1.5 last:mb-0 cursor-pointer hover:border-indigo-300 hover:shadow-sm transition-all" title="Bấm để xem chi tiết ca dạy">
+                    <div onclick="globalThis.openTimetableScheduleDetail('${safeAttr(sch.id)}')" class="rounded-lg border border-slate-200 bg-white p-2.5 mb-1.5 last:mb-0 cursor-pointer hover:border-indigo-300 hover:shadow-sm transition-all" title="Bấm để xem chi tiết ca dạy">
                       <div class="flex items-start justify-between gap-1.5">
                         <div class="min-w-0">
                           <div class="text-[11px] font-bold text-slate-800 truncate">${safeText(classLabel)}</div>
                           <div class="text-[10px] text-slate-500 truncate">${safeText(teacher.name)}</div>
                         </div>
                         <div class="flex items-center gap-1 shrink-0">
-                          <button onclick="event.stopPropagation(); window.openEvalModal('${safeAttr(sch.id)}')" ${canOpenEvaluation ? "" : "disabled"} class="text-slate-400 hover:text-emerald-600 ${canOpenEvaluation ? "" : "opacity-40 cursor-not-allowed"}"><i data-lucide="clipboard-check" class="w-3.5 h-3.5"></i></button>
+                          <button onclick="event.stopPropagation(); globalThis.openEvalModal('${safeAttr(sch.id)}')" ${canOpenEvaluation ? "" : "disabled"} class="text-slate-400 hover:text-emerald-600 ${canOpenEvaluation ? "" : "opacity-40 cursor-not-allowed"}"><i data-lucide="clipboard-check" class="w-3.5 h-3.5"></i></button>
                           ${editBtn}
                           ${deleteBtn}
                         </div>
@@ -1016,7 +1029,7 @@ export const registerRenderCore = ({
       grouped[s.dayOfWeek].push(s);
     });
     const sortedDays = Object.keys(grouped).sort(
-      (a, b) => parseInt(a) - parseInt(b),
+      (a, b) => Number.parseInt(a, 10) - Number.parseInt(b, 10),
     );
 
     let html = "";
@@ -1050,43 +1063,47 @@ export const registerRenderCore = ({
           scheduleStudentIds.length > 0 &&
           evalCount === scheduleStudentIds.length;
         const attendanceState = sch.attendance?.status || "pending";
-        const attendanceMeta =
-          attendanceState === "present"
-            ? {
-                label: "Đã chấm công",
-                className: "bg-emerald-50 text-emerald-700 border-emerald-200",
-              }
-            : attendanceState === "absent"
-              ? {
-                  label: "Vắng",
-                  className: "bg-rose-50 text-rose-700 border-rose-200",
-                }
-              : {
-                  label: "Chưa chấm công",
-                  className: "bg-slate-50 text-slate-600 border-slate-200",
-                };
+        let attendanceMeta = {
+          label: "Chưa chấm công",
+          className: "bg-slate-50 text-slate-600 border-slate-200",
+        };
+        if (attendanceState === "present") {
+          attendanceMeta = {
+            label: "Đã chấm công",
+            className: "bg-emerald-50 text-emerald-700 border-emerald-200",
+          };
+        } else if (attendanceState === "absent") {
+          attendanceMeta = {
+            label: "Vắng",
+            className: "bg-rose-50 text-rose-700 border-rose-200",
+          };
+        }
         const badges = scheduleStudentIds
           .map((id) => {
-            const evalRecord = parseEvaluationRecord(
-              sch.evaluations && sch.evaluations[id],
-            );
+            const evalRecord = parseEvaluationRecord(sch.evaluations?.[id]);
             const levelMeta = evalRecord
               ? getEvalLevelMeta(evalRecord.level)
               : null;
-            return `<span class="text-[10px] font-medium px-2 py-0.5 rounded border ${levelMeta ? levelMeta.className : "bg-slate-50 text-slate-600 border-slate-200"}">${safeText(getStudentInfo(id).name)}${levelMeta ? ` • ${safeText(levelMeta.label)}` : ""}</span>`;
+            const badgeClass = levelMeta
+              ? levelMeta.className
+              : "bg-slate-50 text-slate-600 border-slate-200";
+            const levelSuffix = levelMeta
+              ? ` • ${safeText(levelMeta.label)}`
+              : "";
+            return `<span class="text-[10px] font-medium px-2 py-0.5 rounded border ${badgeClass}">${safeText(getStudentInfo(id).name)}${levelSuffix}</span>`;
           })
           .join(" ");
         const deleteBtnHtml =
           currentRole === "admin"
-            ? `<button onclick="window.deleteData('schedules', '${safeAttr(sch.id)}')" class="p-2 w-full sm:w-auto flex justify-center items-center text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`
+            ? `<button onclick="globalThis.deleteData('schedules', '${safeAttr(sch.id)}')" class="p-2 w-full sm:w-auto flex justify-center items-center text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`
             : "";
 
         const editBtnHtml = canEditSchedule
-          ? `<button onclick="window.openScheduleEditor('${safeAttr(sch.id)}')" class="p-2 w-full sm:w-auto flex justify-center items-center text-slate-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"><i data-lucide="pencil-line" class="w-4 h-4"></i></button>`
+          ? `<button onclick="globalThis.openScheduleEditor('${safeAttr(sch.id)}')" class="p-2 w-full sm:w-auto flex justify-center items-center text-slate-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"><i data-lucide="pencil-line" class="w-4 h-4"></i></button>`
           : "";
 
         const addStudentBtnHtml = canEditSchedule
-          ? `<button onclick="window.addStudentToScheduleClass('${safeAttr(sch.id)}')" class="p-2 w-full sm:w-auto flex justify-center items-center text-slate-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors" title="Thêm học sinh vào lớp"><i data-lucide="user-plus" class="w-4 h-4"></i></button>`
+          ? `<button onclick="globalThis.addStudentToScheduleClass('${safeAttr(sch.id)}')" class="p-2 w-full sm:w-auto flex justify-center items-center text-slate-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors" title="Thêm học sinh vào lớp"><i data-lucide="user-plus" class="w-4 h-4"></i></button>`
           : "";
 
         const approvalNote = sch.approval?.note
@@ -1108,7 +1125,7 @@ export const registerRenderCore = ({
                                 <div class="flex flex-wrap gap-1 mt-auto">${badges}</div>
                             </div>
                             <div class="flex sm:flex-col justify-end gap-2 shrink-0 border-t sm:border-t-0 sm:border-l border-slate-100 pt-3 sm:pt-0 sm:pl-3">
-                                <button onclick="window.openEvalModal('${safeAttr(sch.id)}')" ${canOpenEvaluation ? "" : "disabled"} class="p-2 w-full sm:w-auto flex justify-center items-center ${isDone ? "text-emerald-600 bg-emerald-50 border-emerald-100" : "text-slate-600 bg-slate-50 border-slate-200"} ${canOpenEvaluation ? "" : "opacity-50 cursor-not-allowed"} rounded-lg transition-colors group/btn" title="${canOpenEvaluation ? "Đánh giá học sinh" : "Lịch chưa duyệt, chưa thể đánh giá"}"><i data-lucide="${isDone ? "clipboard-check" : "clipboard-pen"}" class="w-4 h-4 group-hover/btn:scale-110 transition-transform"></i></button>
+                                <button onclick="globalThis.openEvalModal('${safeAttr(sch.id)}')" ${canOpenEvaluation ? "" : "disabled"} class="p-2 w-full sm:w-auto flex justify-center items-center ${isDone ? "text-emerald-600 bg-emerald-50 border-emerald-100" : "text-slate-600 bg-slate-50 border-slate-200"} ${canOpenEvaluation ? "" : "opacity-50 cursor-not-allowed"} rounded-lg transition-colors group/btn" title="${canOpenEvaluation ? "Đánh giá học sinh" : "Lịch chưa duyệt, chưa thể đánh giá"}"><i data-lucide="${isDone ? "clipboard-check" : "clipboard-pen"}" class="w-4 h-4 group-hover/btn:scale-110 transition-transform"></i></button>
                                 ${addStudentBtnHtml}
                                 ${editBtnHtml}
                                 ${deleteBtnHtml}
@@ -1139,7 +1156,7 @@ export const registerRenderCore = ({
     if (!weekInput || !summaryEl || !listEl) return;
 
     const getMonthTokenFromWeek = (weekToken) => {
-      const match = String(weekToken || "").match(/^(\d{4})-W(\d{2})$/);
+      const match = /^(\d{4})-W(\d{2})$/.exec(String(weekToken || ""));
       if (!match) return "";
       const year = Number(match[1]);
       const week = Number(match[2]);
@@ -1182,7 +1199,7 @@ export const registerRenderCore = ({
       const totalSessions = schedules.length;
       const attendanceRate =
         totalSessions > 0
-          ? `${((presentCount / totalSessions) * 100).toFixed(1).replace(".0", "")}%`
+          ? `${((presentCount / totalSessions) * 100).toFixed(1).replaceAll(".0", "")}%`
           : "0%";
 
       return {
@@ -1197,7 +1214,7 @@ export const registerRenderCore = ({
 
     const getMonthSchedules = (monthToken) => {
       const weekMonthCache = new Map();
-      return window.db.schedules
+      return globalThis.db.schedules
         .filter((sch) => {
           if (getScheduleApprovalStatus(sch) !== "approved") return false;
           const weekToken = String(sch.week || "");
@@ -1341,12 +1358,15 @@ export const registerRenderCore = ({
         const cls = getClassInfoSafe(sch.classId);
         const classLabel = getScheduleClassLabel(sch, cls);
         const status = sch.attendance?.status || "pending";
-        const statusBadge =
-          status === "present"
-            ? '<span class="text-[10px] px-2 py-0.5 rounded border bg-emerald-50 text-emerald-700 border-emerald-200 font-bold">Có mặt</span>'
-            : status === "absent"
-              ? '<span class="text-[10px] px-2 py-0.5 rounded border bg-rose-50 text-rose-700 border-rose-200 font-bold">Vắng</span>'
-              : '<span class="text-[10px] px-2 py-0.5 rounded border bg-slate-50 text-slate-600 border-slate-200 font-bold">Chưa chấm</span>';
+        let statusBadge =
+          '<span class="text-[10px] px-2 py-0.5 rounded border bg-slate-50 text-slate-600 border-slate-200 font-bold">Chưa chấm</span>';
+        if (status === "present") {
+          statusBadge =
+            '<span class="text-[10px] px-2 py-0.5 rounded border bg-emerald-50 text-emerald-700 border-emerald-200 font-bold">Có mặt</span>';
+        } else if (status === "absent") {
+          statusBadge =
+            '<span class="text-[10px] px-2 py-0.5 rounded border bg-rose-50 text-rose-700 border-rose-200 font-bold">Vắng</span>';
+        }
         const durationHours = getDurationHours(sch.startTime, sch.endTime);
         const weekBadge =
           mode === "month"
@@ -1360,8 +1380,8 @@ export const registerRenderCore = ({
                 </div>
                 <div class="flex items-center gap-2">
                   ${statusBadge}
-                  <button onclick="window.setAttendanceStatus('${safeAttr(sch.id)}', 'present')" class="text-[11px] font-bold px-2 py-1 rounded border bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-200">Có mặt</button>
-                  <button onclick="window.setAttendanceStatus('${safeAttr(sch.id)}', 'absent')" class="text-[11px] font-bold px-2 py-1 rounded border bg-rose-100 text-rose-700 border-rose-200 hover:bg-rose-200">Vắng</button>
+                  <button onclick="globalThis.setAttendanceStatus('${safeAttr(sch.id)}', 'present')" class="text-[11px] font-bold px-2 py-1 rounded border bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-200">Có mặt</button>
+                  <button onclick="globalThis.setAttendanceStatus('${safeAttr(sch.id)}', 'absent')" class="text-[11px] font-bold px-2 py-1 rounded border bg-rose-100 text-rose-700 border-rose-200 hover:bg-rose-200">Vắng</button>
                 </div>
               </div>`;
       })
@@ -1373,9 +1393,9 @@ export const registerRenderCore = ({
     renderTeachers();
     renderStudents();
     renderClasses();
-    switchMasterTab(window.currentMasterTab || "overview");
-    if (typeof window.handleClassSelection === "function") {
-      window.handleClassSelection();
+    switchMasterTab(globalThis.currentMasterTab || "overview");
+    if (typeof globalThis.handleClassSelection === "function") {
+      globalThis.handleClassSelection();
     }
     renderAccounts();
     renderMasterOverview();
@@ -1407,13 +1427,13 @@ export const registerRenderCore = ({
       document.getElementById("boardSubtitle").innerText =
         "Đồng bộ Cloud theo thời gian thực";
     }
-    if (typeof window.syncScheduleFormByRole === "function") {
-      window.syncScheduleFormByRole();
+    if (typeof globalThis.syncScheduleFormByRole === "function") {
+      globalThis.syncScheduleFormByRole();
     }
     renderSchedules();
   };
 
-  window.switchTab = (tabName) => {
+  globalThis.switchTab = (tabName) => {
     const currentRole = getCurrentRole();
     if (currentRole === "teacher" && tabName !== "board" && tabName !== "form")
       return;
@@ -1448,9 +1468,9 @@ export const registerRenderCore = ({
     if (tabName === "master") switchMasterTab("overview");
     if (
       tabName === "form" &&
-      typeof window.syncScheduleFormByRole === "function"
+      typeof globalThis.syncScheduleFormByRole === "function"
     ) {
-      window.syncScheduleFormByRole();
+      globalThis.syncScheduleFormByRole();
     }
   };
 
