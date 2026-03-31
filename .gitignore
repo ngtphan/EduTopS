@@ -10,3 +10,6 @@ firebase-debug.log
 # Local env files
 .env
 .env.*
+
+# Local ops workspace
+/ops/firebase-admin/
