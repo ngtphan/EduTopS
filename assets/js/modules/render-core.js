@@ -20,6 +20,11 @@ export const registerRenderCore = ({
   formatDayOfWeek,
   getWeekAttendanceOverview,
   renderMasterOverview,
+  getAttendancePeriodSelection,
+  getAttendancePeriodLabel,
+  getAttendanceDashboardData,
+  formatWorkedMinutes,
+  getBoardTeacherAttendanceSummary,
 }) => {
   const safeText = (value) => escapeHtml(value);
   const safeAttr = (value) => escapeAttr(value);
@@ -1139,253 +1144,257 @@ export const registerRenderCore = ({
   };
 
   const renderAttendance = () => {
-    const periodSelect = document.getElementById("attendancePeriod");
-    const weekInput = document.getElementById("attendanceWeek");
-    const monthInput = document.getElementById("attendanceMonth");
-    const weekWrap = document.getElementById("attendanceWeekWrap");
-    const monthWrap = document.getElementById("attendanceMonthWrap");
-    const periodLabelEl = document.getElementById("attendancePeriodLabel");
-    const summaryEl = document.getElementById("attendanceSummary");
-    const listEl = document.getElementById("attendanceList");
-    const sessionsEl = document.getElementById("attendanceStatSessions");
-    const presentEl = document.getElementById("attendanceStatPresent");
-    const absentEl = document.getElementById("attendanceStatAbsent");
-    const hoursEl = document.getElementById("attendanceStatHours");
-    const pendingEl = document.getElementById("attendanceStatPending");
-    const rateEl = document.getElementById("attendanceStatRate");
-    if (!weekInput || !summaryEl || !listEl) return;
+    const controls = {
+      periodSelect: document.getElementById("attendancePeriod"),
+      dateInput: document.getElementById("attendanceDate"),
+      weekInput: document.getElementById("attendanceWeek"),
+      monthInput: document.getElementById("attendanceMonth"),
+      dateWrap: document.getElementById("attendanceDateWrap"),
+      weekWrap: document.getElementById("attendanceWeekWrap"),
+      monthWrap: document.getElementById("attendanceMonthWrap"),
+      periodLabelEl: document.getElementById("attendancePeriodLabel"),
+      approvalPanel: document.getElementById("attendanceApprovalPanel"),
+      approvalSummaryEl: document.getElementById("attendanceApprovalSummary"),
+      approvalBadgeEl: document.getElementById("attendanceApprovalBadge"),
+      approvalListEl: document.getElementById("attendanceApprovalList"),
+      summaryEl: document.getElementById("attendanceSummary"),
+      listEl: document.getElementById("attendanceList"),
+      sessionsEl: document.getElementById("attendanceStatSessions"),
+      presentEl: document.getElementById("attendanceStatPresent"),
+      absentEl: document.getElementById("attendanceStatAbsent"),
+      hoursEl: document.getElementById("attendanceStatHours"),
+      pendingEl: document.getElementById("attendanceStatPending"),
+      rateEl: document.getElementById("attendanceStatRate"),
+    };
+    if (!controls.summaryEl || !controls.listEl) return;
 
-    const getMonthTokenFromWeek = (weekToken) => {
-      const match = /^(\d{4})-W(\d{2})$/.exec(String(weekToken || ""));
-      if (!match) return "";
-      const year = Number(match[1]);
-      const week = Number(match[2]);
-      if (!year || !week) return "";
+    const statusMetaMap = {
+      pending: {
+        label: "Chờ duyệt",
+        className: "bg-amber-50 text-amber-700 border-amber-200",
+      },
+      approved: {
+        label: "Đã duyệt",
+        className: "bg-emerald-50 text-emerald-700 border-emerald-200",
+      },
+      rejected: {
+        label: "Từ chối",
+        className: "bg-rose-50 text-rose-700 border-rose-200",
+      },
+    };
 
-      const simple = new Date(year, 0, 1 + (week - 1) * 7);
-      const dayOfWeek = simple.getDay();
-      const isoMonday = new Date(simple);
-      if (dayOfWeek <= 4 && dayOfWeek > 0) {
-        isoMonday.setDate(simple.getDate() - dayOfWeek + 1);
-      } else {
-        isoMonday.setDate(simple.getDate() + 8 - dayOfWeek);
+    const formatWorkedMinutesSafe = (minutes) =>
+      typeof formatWorkedMinutes === "function"
+        ? formatWorkedMinutes(minutes)
+        : formatHours(Number(minutes || 0) / 60);
+
+    const toDateLabel = (dateToken) => {
+      const [year, month, day] = String(dateToken || "").split("-");
+      if (!year || !month || !day) return String(dateToken || "");
+      return `${day}/${month}/${year}`;
+    };
+
+    const getSelection = () =>
+      typeof getAttendancePeriodSelection === "function"
+        ? getAttendancePeriodSelection()
+        : {
+            mode:
+              String(controls.periodSelect?.value || "")
+                .trim()
+                .toLowerCase() === "month"
+                ? "month"
+                : "day",
+            date: String(controls.dateInput?.value || "").trim(),
+            month: String(controls.monthInput?.value || "").trim(),
+          };
+
+    const applySelection = (selection) => {
+      if (controls.periodSelect) controls.periodSelect.value = selection.mode;
+      if (controls.dateInput && selection.date) {
+        controls.dateInput.value = selection.date;
+      }
+      if (controls.monthInput && selection.month) {
+        controls.monthInput.value = selection.month;
+      }
+      if (controls.weekInput && selection.week) {
+        controls.weekInput.value = selection.week;
       }
 
-      return `${isoMonday.getFullYear()}-${String(
-        isoMonday.getMonth() + 1,
-      ).padStart(2, "0")}`;
+      if (controls.dateWrap) {
+        controls.dateWrap.classList.toggle("hidden", selection.mode !== "day");
+        controls.dateWrap.classList.toggle("flex", selection.mode === "day");
+      }
+      if (controls.weekWrap) {
+        controls.weekWrap.classList.add("hidden");
+        controls.weekWrap.classList.remove("flex");
+      }
+      if (controls.monthWrap) {
+        controls.monthWrap.classList.toggle(
+          "hidden",
+          selection.mode !== "month",
+        );
+        controls.monthWrap.classList.toggle("flex", selection.mode === "month");
+      }
     };
 
-    const summarizeSchedules = (schedules) => {
-      let presentCount = 0;
-      let absentCount = 0;
-      let pendingCount = 0;
-      let totalPresentHours = 0;
+    const getDashboard = (selection) =>
+      typeof getAttendanceDashboardData === "function"
+        ? getAttendanceDashboardData(selection)
+        : {
+            periodLabel: "Kỳ thống kê",
+            requests: [],
+            pendingRequests: [],
+            stats: {
+              totalRequests: 0,
+              approvedCount: 0,
+              rejectedCount: 0,
+              pendingCount: 0,
+              totalWorkedMinutes: 0,
+              approvalRate: "0%",
+            },
+            teacherSummary: [],
+          };
 
-      schedules.forEach((sch) => {
-        const status = sch.attendance?.status || "pending";
-        if (status === "present") {
-          presentCount += 1;
-          totalPresentHours += getDurationHours(sch.startTime, sch.endTime);
-          return;
-        }
-        if (status === "absent") {
-          absentCount += 1;
-          return;
-        }
-        pendingCount += 1;
-      });
+    const getPeriodLabelSafe = (selection, dashboard) =>
+      typeof getAttendancePeriodLabel === "function"
+        ? getAttendancePeriodLabel(selection)
+        : dashboard.periodLabel || "Kỳ thống kê";
 
-      const totalSessions = schedules.length;
-      const attendanceRate =
-        totalSessions > 0
-          ? `${((presentCount / totalSessions) * 100).toFixed(1).replaceAll(".0", "")}%`
-          : "0%";
+    const renderStats = (stats) => {
+      const totalRequests = Number(stats?.totalRequests || 0);
+      const approvedCount = Number(stats?.approvedCount || 0);
+      const rejectedCount = Number(stats?.rejectedCount || 0);
+      const pendingCount = Number(stats?.pendingCount || 0);
+      const totalWorkedMinutes = Number(stats?.totalWorkedMinutes || 0);
+      const approvalRate = String(stats?.approvalRate || "0%");
 
-      return {
-        totalSessions,
-        presentCount,
-        absentCount,
-        pendingCount,
-        totalPresentHours,
-        attendanceRate,
-      };
+      if (controls.sessionsEl)
+        controls.sessionsEl.innerText = `${totalRequests}`;
+      if (controls.presentEl) controls.presentEl.innerText = `${approvedCount}`;
+      if (controls.absentEl) controls.absentEl.innerText = `${rejectedCount}`;
+      if (controls.pendingEl) controls.pendingEl.innerText = `${pendingCount}`;
+      if (controls.hoursEl) {
+        controls.hoursEl.innerText =
+          formatWorkedMinutesSafe(totalWorkedMinutes);
+      }
+      if (controls.rateEl) controls.rateEl.innerText = approvalRate;
     };
 
-    const getMonthSchedules = (monthToken) => {
-      const weekMonthCache = new Map();
-      return globalThis.db.schedules
-        .filter((sch) => {
-          if (getScheduleApprovalStatus(sch) !== "approved") return false;
-          const weekToken = String(sch.week || "");
-          if (!weekToken) return false;
-          if (!weekMonthCache.has(weekToken)) {
-            weekMonthCache.set(weekToken, getMonthTokenFromWeek(weekToken));
-          }
-          return weekMonthCache.get(weekToken) === monthToken;
+    const renderTeacherSummary = (teacherSummary) => {
+      const summaryRows = (teacherSummary || [])
+        .slice(0, 8)
+        .map((item) => {
+          const totalDays = Number(item.totalDays || item.totalRequests || 0);
+          const approvedDays = Number(
+            item.approvedDays || item.approvedCount || 0,
+          );
+          return `<div class="text-xs bg-slate-50 border border-slate-200 rounded px-2 py-1"><span class="font-bold text-slate-700">${safeText(item.teacherName)}</span>: ${approvedDays}/${totalDays} ngày duyệt • ${item.pendingCount} chờ • ${item.rejectedCount} từ chối • ${formatWorkedMinutesSafe(item.workedMinutes)}</div>`;
         })
-        .sort((a, b) => {
-          const weekDiff = String(a.week || "").localeCompare(
-            String(b.week || ""),
-          );
-          if (weekDiff !== 0) return weekDiff;
-          const dayDiff = Number(a.dayOfWeek) - Number(b.dayOfWeek);
-          if (dayDiff !== 0) return dayDiff;
-          return String(a.startTime || "").localeCompare(
-            String(b.startTime || ""),
-          );
-        });
+        .join(" ");
+
+      controls.summaryEl.innerHTML =
+        summaryRows ||
+        '<span class="text-sm text-slate-400">Chưa có dữ liệu chấm công trong kỳ đang chọn.</span>';
     };
 
-    const resetAttendanceStats = () => {
-      if (sessionsEl) sessionsEl.innerText = "0";
-      if (presentEl) presentEl.innerText = "0";
-      if (absentEl) absentEl.innerText = "0";
-      if (hoursEl) hoursEl.innerText = "0h";
-      if (pendingEl) pendingEl.innerText = "0";
-      if (rateEl) rateEl.innerText = "0%";
-    };
-
-    const mode = periodSelect?.value === "month" ? "month" : "week";
-    if (periodSelect && periodSelect.value !== mode) {
-      periodSelect.value = mode;
-    }
-
-    if (weekWrap) {
-      weekWrap.classList.toggle("hidden", mode !== "week");
-      weekWrap.classList.toggle("flex", mode === "week");
-    }
-    if (monthWrap) {
-      monthWrap.classList.toggle("hidden", mode !== "month");
-      monthWrap.classList.toggle("flex", mode === "month");
-    }
-
-    let schedules = [];
-    let selectedPeriodText = "";
-
-    if (mode === "month") {
-      const fallbackMonth = getMonthTokenFromWeek(weekInput.value || "");
-      const selectedMonth = String(monthInput?.value || fallbackMonth || "");
-      if (monthInput && !monthInput.value && selectedMonth) {
-        monthInput.value = selectedMonth;
-      }
-
-      if (!selectedMonth) {
-        listEl.innerHTML =
-          '<div class="text-sm text-slate-400">Chưa chọn tháng.</div>';
-        summaryEl.innerHTML = "";
-        if (periodLabelEl) periodLabelEl.innerText = "Kỳ thống kê: Tháng";
-        resetAttendanceStats();
+    const renderApprovalPanel = (pendingRequests, periodLabel, currentRole) => {
+      if (
+        !controls.approvalPanel ||
+        !controls.approvalSummaryEl ||
+        !controls.approvalBadgeEl ||
+        !controls.approvalListEl
+      ) {
         return;
       }
 
-      schedules = getMonthSchedules(selectedMonth);
-      const [year, month] = selectedMonth.split("-");
-      selectedPeriodText = `Tháng ${month}/${year}`;
-    } else {
-      const selectedWeek =
-        weekInput.value || document.getElementById("filterWeek").value;
-      if (!selectedWeek) {
-        listEl.innerHTML =
-          '<div class="text-sm text-slate-400">Chưa chọn tuần.</div>';
-        summaryEl.innerHTML = "";
-        if (periodLabelEl) periodLabelEl.innerText = "Kỳ thống kê: Tuần";
-        resetAttendanceStats();
+      if (currentRole !== "admin" || pendingRequests.length === 0) {
+        controls.approvalPanel.classList.add("hidden");
+        controls.approvalBadgeEl.innerText = "0";
+        controls.approvalListEl.innerHTML = "";
         return;
       }
-      schedules = getWeekAttendanceOverview(selectedWeek).schedules;
-      selectedPeriodText = `Tuần ${selectedWeek}`;
-    }
 
-    const overview = summarizeSchedules(schedules);
-    if (sessionsEl) sessionsEl.innerText = `${overview.totalSessions}`;
-    if (presentEl) presentEl.innerText = `${overview.presentCount}`;
-    if (absentEl) absentEl.innerText = `${overview.absentCount}`;
-    if (hoursEl) hoursEl.innerText = formatHours(overview.totalPresentHours);
-    if (pendingEl) pendingEl.innerText = `${overview.pendingCount}`;
-    if (rateEl) rateEl.innerText = overview.attendanceRate;
-    if (periodLabelEl) {
-      periodLabelEl.innerText = `Kỳ thống kê: ${selectedPeriodText}`;
-    }
+      controls.approvalPanel.classList.remove("hidden");
+      controls.approvalSummaryEl.innerText = `${periodLabel} có ${pendingRequests.length} yêu cầu chờ duyệt.`;
+      controls.approvalBadgeEl.innerText = `${pendingRequests.length}`;
+      controls.approvalListEl.innerHTML = pendingRequests
+        .map(
+          (item) => `
+            <div class="rounded-lg border border-amber-200 bg-white p-2.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div>
+                <div class="text-[12px] font-bold text-slate-800">${safeText(item.teacherName)} • ${safeText(toDateLabel(item.attendanceDate))}</div>
+                <div class="text-[11px] text-slate-500">${safeText(item.checkInTime)} - ${safeText(item.checkOutTime)} • ${safeText(formatWorkedMinutesSafe(item.workedMinutes))}</div>
+                <div class="text-[11px] text-slate-500">Môn dạy: ${safeText(item.teachingSubjectsText || "Không có dữ liệu môn dạy trong ngày.")}</div>
+                ${item.note ? `<div class="text-[10px] text-slate-500 italic mt-1">${safeText(item.note)}</div>` : ""}
+              </div>
+              <div class="flex items-center gap-1.5 shrink-0">
+                <button onclick="globalThis.reviewAttendanceRequest('${safeAttr(item.id)}', 'reject')" class="text-[11px] font-bold px-2 py-1 rounded border border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100">Từ chối</button>
+                <button onclick="globalThis.reviewAttendanceRequest('${safeAttr(item.id)}', 'approve')" class="text-[11px] font-bold px-2 py-1 rounded border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100">Duyệt</button>
+              </div>
+            </div>`,
+        )
+        .join("");
+    };
 
-    const stats = {};
-    schedules.forEach((sch) => {
-      const teacher = getTeacherInfo(sch.teacherId);
-      const key = sch.teacherId;
-      if (!stats[key]) {
-        stats[key] = {
-          name: teacher.name,
-          total: 0,
-          present: 0,
-          absent: 0,
-          pending: 0,
-          hours: 0,
-        };
+    const renderAttendanceList = (requests, currentRole) => {
+      if ((requests || []).length === 0) {
+        controls.listEl.innerHTML =
+          '<div class="text-sm text-slate-400">Không có bản ghi chấm công trong kỳ đã chọn.</div>';
+        return;
       }
-      const teacherStat = stats[key];
-      teacherStat.total += 1;
-      const status = sch.attendance?.status || "pending";
-      if (status === "present") {
-        teacherStat.present += 1;
-        teacherStat.hours += getDurationHours(sch.startTime, sch.endTime);
-      } else if (status === "absent") {
-        teacherStat.absent += 1;
-      } else {
-        teacherStat.pending += 1;
-      }
-    });
 
-    const summaryRows = Object.values(stats)
-      .sort((a, b) => b.total - a.total)
-      .map(
-        (s) =>
-          `<div class="text-xs bg-slate-50 border border-slate-200 rounded px-2 py-1"><span class="font-bold text-slate-700">${safeText(s.name)}</span>: ${s.present}/${s.total} ca có mặt • ${s.absent} vắng • ${s.pending} chưa chấm • ${formatHours(s.hours)}</div>`,
-      )
-      .join(" ");
-
-    summaryEl.innerHTML =
-      summaryRows ||
-      `<span class="text-sm text-slate-400">${mode === "month" ? "Tháng này" : "Tuần này"} chưa có dữ liệu chấm công.</span>`;
-
-    if (schedules.length === 0) {
-      listEl.innerHTML = `<div class="text-sm text-slate-400">Không có ca dạy trong ${mode === "month" ? "tháng" : "tuần"} đã chọn.</div>`;
-      return;
-    }
-
-    listEl.innerHTML = schedules
-      .map((sch) => {
-        const teacher = getTeacherInfo(sch.teacherId);
-        const cls = getClassInfoSafe(sch.classId);
-        const classLabel = getScheduleClassLabel(sch, cls);
-        const status = sch.attendance?.status || "pending";
-        let statusBadge =
-          '<span class="text-[10px] px-2 py-0.5 rounded border bg-slate-50 text-slate-600 border-slate-200 font-bold">Chưa chấm</span>';
-        if (status === "present") {
-          statusBadge =
-            '<span class="text-[10px] px-2 py-0.5 rounded border bg-emerald-50 text-emerald-700 border-emerald-200 font-bold">Có mặt</span>';
-        } else if (status === "absent") {
-          statusBadge =
-            '<span class="text-[10px] px-2 py-0.5 rounded border bg-rose-50 text-rose-700 border-rose-200 font-bold">Vắng</span>';
-        }
-        const durationHours = getDurationHours(sch.startTime, sch.endTime);
-        const weekBadge =
-          mode === "month"
-            ? `<span class="text-[10px] px-1.5 py-0.5 rounded border bg-slate-100 text-slate-700 border-slate-200 font-bold">${safeText(sch.week || "")}</span>`
+      controls.listEl.innerHTML = requests
+        .map((item) => {
+          const statusMeta =
+            statusMetaMap[item.status] || statusMetaMap.pending;
+          const createdAtText = item.createdAt
+            ? new Date(item.createdAt).toLocaleString("vi-VN")
             : "";
-        return `
-              <div class="bg-white border border-slate-200 rounded-lg p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <div class="text-sm font-bold text-slate-800">${safeText(teacher.name)} • ${safeText(classLabel)}</div>
-                  <div class="text-[11px] text-slate-500 flex items-center gap-1.5 flex-wrap">${weekBadge}${safeText(formatDayOfWeek(sch.dayOfWeek))} • ${safeText(sch.startTime)} - ${safeText(sch.endTime)} • ${formatHours(durationHours)}</div>
-                </div>
-                <div class="flex items-center gap-2">
-                  ${statusBadge}
-                  <button onclick="globalThis.setAttendanceStatus('${safeAttr(sch.id)}', 'present')" class="text-[11px] font-bold px-2 py-1 rounded border bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-200">Có mặt</button>
-                  <button onclick="globalThis.setAttendanceStatus('${safeAttr(sch.id)}', 'absent')" class="text-[11px] font-bold px-2 py-1 rounded border bg-rose-100 text-rose-700 border-rose-200 hover:bg-rose-200">Vắng</button>
-                </div>
-              </div>`;
-      })
-      .join("");
+          const reviewedAtText = item.reviewedAt
+            ? new Date(item.reviewedAt).toLocaleString("vi-VN")
+            : "";
+          const adminActions =
+            currentRole === "admin" && item.status === "pending"
+              ? `<div class="flex items-center gap-1.5 mt-2 sm:mt-0"><button onclick="globalThis.reviewAttendanceRequest('${safeAttr(item.id)}', 'reject')" class="text-[11px] font-bold px-2 py-1 rounded border border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100">Từ chối</button><button onclick="globalThis.reviewAttendanceRequest('${safeAttr(item.id)}', 'approve')" class="text-[11px] font-bold px-2 py-1 rounded border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100">Duyệt</button></div>`
+              : "";
+
+          return `
+            <div class="bg-white border border-slate-200 rounded-lg p-3 flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+              <div>
+                <div class="text-sm font-bold text-slate-800">${safeText(item.teacherName)} • ${safeText(toDateLabel(item.attendanceDate))}</div>
+                <div class="text-[11px] text-slate-500">Giờ vào: ${safeText(item.checkInTime)} • Giờ ra: ${safeText(item.checkOutTime)} • ${safeText(formatWorkedMinutesSafe(item.workedMinutes))}</div>
+                <div class="text-[11px] text-slate-500">Môn dạy trong ngày: ${safeText(item.teachingSubjectsText || "Không có dữ liệu môn dạy trong ngày.")}</div>
+                ${item.note ? `<div class="text-[11px] text-slate-500 mt-1 italic">${safeText(item.note)}</div>` : ""}
+                <div class="text-[10px] text-slate-400 mt-1.5">Tạo: ${safeText(createdAtText || "N/A")}${reviewedAtText ? ` • Duyệt: ${safeText(reviewedAtText)}` : ""}</div>
+                ${item.reviewNote ? `<div class="text-[10px] text-slate-500 mt-1">Ghi chú duyệt: ${safeText(item.reviewNote)}</div>` : ""}
+              </div>
+              <div class="flex flex-col items-start sm:items-end gap-2 shrink-0">
+                <span class="text-[10px] px-2 py-0.5 rounded border font-bold ${statusMeta.className}">${statusMeta.label}</span>
+                ${adminActions}
+              </div>
+            </div>`;
+        })
+        .join("");
+    };
+
+    const selection = getSelection();
+    applySelection(selection);
+
+    const dashboard = getDashboard(selection);
+    const periodLabel = getPeriodLabelSafe(selection, dashboard);
+    if (controls.periodLabelEl) {
+      controls.periodLabelEl.innerText = `Kỳ thống kê: ${periodLabel}`;
+    }
+
+    renderStats(dashboard.stats || {});
+    renderTeacherSummary(dashboard.teacherSummary || []);
+    const currentRole = getCurrentRole();
+    renderApprovalPanel(
+      dashboard.pendingRequests || [],
+      periodLabel,
+      currentRole,
+    );
+    renderAttendanceList(dashboard.requests || [], currentRole);
   };
 
   const renderAll = () => {
@@ -1416,16 +1425,41 @@ export const registerRenderCore = ({
       el.style.display =
         currentRole === "admin" && isFixedAdmin() ? "block" : "none";
     });
+    const teacherOnlyElements = document.querySelectorAll(".teacher-only");
+    teacherOnlyElements.forEach((el) => {
+      el.classList.toggle("hidden", currentRole !== "teacher");
+    });
+
+    const teacherAttendanceSummaryEl = document.getElementById(
+      "teacherAttendanceQuickSummary",
+    );
+
     if (currentRole === "teacher") {
       document.getElementById("boardTitle").innerText =
         `Lịch giảng dạy của ${String(currentUser.name || "")}`;
       document.getElementById("boardSubtitle").innerText =
-        "Tạo lịch hoặc gửi đề xuất để admin duyệt.";
+        "Tạo lịch hoặc gửi đề xuất để admin duyệt. Quét QR để gửi giờ công.";
+
+      if (
+        teacherAttendanceSummaryEl &&
+        typeof getBoardTeacherAttendanceSummary === "function"
+      ) {
+        const summary = getBoardTeacherAttendanceSummary(currentUser?.id);
+        const workedText =
+          typeof formatWorkedMinutes === "function"
+            ? formatWorkedMinutes(summary.workedMinutes)
+            : formatHours(Number(summary.workedMinutes || 0) / 60);
+        teacherAttendanceSummaryEl.innerHTML = `<span class="font-bold">30 ngày gần nhất:</span> ${summary.approved}/${summary.total} bản ghi đã duyệt • ${summary.pending} chờ duyệt • ${summary.rejected} từ chối • ${workedText}`;
+      }
     } else {
       document.getElementById("boardTitle").innerText =
         "Lịch giảng dạy trung tâm";
       document.getElementById("boardSubtitle").innerText =
         "Đồng bộ Cloud theo thời gian thực";
+
+      if (teacherAttendanceSummaryEl) {
+        teacherAttendanceSummaryEl.innerHTML = "";
+      }
     }
     if (typeof globalThis.syncScheduleFormByRole === "function") {
       globalThis.syncScheduleFormByRole();

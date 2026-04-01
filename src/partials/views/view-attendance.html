@@ -6,11 +6,11 @@
     >
       <div>
         <h2 class="text-base font-bold text-slate-800">
-          Chấm công giáo viên theo ca dạy
+          Chấm công giáo viên theo ngày làm việc
         </h2>
         <p class="text-xs text-slate-500 mt-1">
-          Đánh dấu có mặt hoặc vắng mặt cho từng ca và theo dõi tổng giờ dạy
-          theo tuần hoặc theo tháng.
+          Giáo viên quét mã QR cố định để gửi giờ vào/ra. Admin duyệt để chốt
+          giờ công chính thức.
         </p>
       </div>
       <div class="flex flex-col sm:items-end gap-2">
@@ -22,10 +22,17 @@
             id="attendancePeriod"
             class="text-xs font-bold bg-white border border-slate-200 rounded px-2 py-1 text-slate-700"
           >
-            <option value="week">Theo tuần</option>
+            <option value="day">Theo ngày</option>
             <option value="month">Theo tháng</option>
           </select>
-          <div id="attendanceWeekWrap" class="flex items-center">
+          <div id="attendanceDateWrap" class="flex items-center">
+            <input
+              type="date"
+              id="attendanceDate"
+              class="text-sm bg-transparent focus:outline-none font-bold text-indigo-700 cursor-pointer"
+            />
+          </div>
+          <div id="attendanceWeekWrap" class="hidden items-center">
             <input
               type="week"
               id="attendanceWeek"
@@ -42,11 +49,18 @@
         </div>
         <div class="flex flex-wrap gap-2">
           <button
+            onclick="globalThis.openAttendanceQrAdminModal()"
+            class="admin-only hidden text-xs font-bold px-3 py-1.5 rounded-lg border border-cyan-200 bg-cyan-50 text-cyan-700 hover:bg-cyan-100 flex items-center gap-1.5"
+          >
+            <i data-lucide="qr-code" class="w-3.5 h-3.5"></i>
+            Quản lý mã QR
+          </button>
+          <button
             onclick="window.exportAttendanceExcel()"
             class="text-xs font-bold px-3 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 flex items-center gap-1.5"
           >
             <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i>
-            Xuất chấm công kỳ hiện tại
+            Xuất báo cáo chấm công
           </button>
           <button
             onclick="window.exportMasterExcel()"
@@ -62,13 +76,13 @@
       id="attendancePeriodLabel"
       class="text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-lg px-3 py-2"
     >
-      Kỳ thống kê: Tuần
+      Kỳ thống kê: Ngày
     </div>
 
     <div class="grid grid-cols-2 md:grid-cols-6 gap-2">
       <div class="rounded-lg border border-slate-200 bg-white px-3 py-2">
         <div class="text-[10px] font-bold uppercase text-slate-500">
-          Tổng ca
+          Tổng bản ghi
         </div>
         <div
           id="attendanceStatSessions"
@@ -79,7 +93,7 @@
       </div>
       <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
         <div class="text-[10px] font-bold uppercase text-emerald-700">
-          Có mặt
+          Đã duyệt
         </div>
         <div
           id="attendanceStatPresent"
@@ -89,7 +103,7 @@
         </div>
       </div>
       <div class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2">
-        <div class="text-[10px] font-bold uppercase text-rose-700">Vắng</div>
+        <div class="text-[10px] font-bold uppercase text-rose-700">Từ chối</div>
         <div
           id="attendanceStatAbsent"
           class="text-base font-bold text-rose-900"
@@ -99,7 +113,7 @@
       </div>
       <div class="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2">
         <div class="text-[10px] font-bold uppercase text-indigo-700">
-          Giờ có mặt
+          Giờ công duyệt
         </div>
         <div
           id="attendanceStatHours"
@@ -110,7 +124,7 @@
       </div>
       <div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
         <div class="text-[10px] font-bold uppercase text-amber-700">
-          Chưa chấm
+          Chờ duyệt
         </div>
         <div
           id="attendanceStatPending"
@@ -121,12 +135,38 @@
       </div>
       <div class="rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2">
         <div class="text-[10px] font-bold uppercase text-cyan-700">
-          Tỉ lệ có mặt
+          Tỉ lệ duyệt
         </div>
         <div id="attendanceStatRate" class="text-base font-bold text-cyan-900">
           0%
         </div>
       </div>
+    </div>
+
+    <div
+      id="attendanceApprovalPanel"
+      class="hidden bg-amber-50 border border-amber-200 rounded-xl p-3"
+    >
+      <div class="flex items-center justify-between gap-2">
+        <div>
+          <h3 class="text-sm font-bold text-amber-900">Yêu cầu chờ duyệt</h3>
+          <p
+            class="text-[11px] text-amber-800/80"
+            id="attendanceApprovalSummary"
+          >
+            Chờ admin xử lý.
+          </p>
+        </div>
+        <span
+          id="attendanceApprovalBadge"
+          class="text-[11px] font-bold px-2 py-1 rounded border border-amber-300 bg-white text-amber-800"
+          >0</span
+        >
+      </div>
+      <div
+        id="attendanceApprovalList"
+        class="mt-2 space-y-2 max-h-52 overflow-y-auto custom-scrollbar"
+      ></div>
     </div>
 
     <div

@@ -2,7 +2,7 @@
 
 Ứng dụng web quản lý vận hành trung tâm học tập: quản lý môn học, giáo viên, học sinh, lớp học, xếp lịch dạy, chấm công, đánh giá và xuất báo cáo Excel.
 
-Phiên bản hiện tại: v1.6.0
+Phiên bản hiện tại: v1.7.0
 
 ## 1. Tính năng chính
 
@@ -19,7 +19,7 @@ Phiên bản hiện tại: v1.6.0
   - Giáo viên tạo mới/chỉnh sửa lịch theo cơ chế đề xuất
   - Admin duyệt hoặc từ chối yêu cầu lịch
   - Admin có thể chỉnh sửa trực tiếp lịch đã tạo
-- Chấm công theo từng ca dạy
+- Chấm công QR cố định: giáo viên quét mã, nhập giờ vào/ra, admin duyệt
 - Đánh giá học sinh theo buổi học
 - Xuất Excel:
   - Giáo viên
@@ -99,6 +99,7 @@ File khoi tao: `assets/js/app.js`.
 - `classes`
 - `schedules`
 - `accounts`
+- `attendanceRequests`
 
 ## 7. Quyen truy cap
 
@@ -136,3 +137,22 @@ Luu y quan trong: phan quyen phia client chi la lop bo sung. Can cau hinh Firest
 ## 10. Quy trinh commit
 
 Xem huong dan chi tiet tai: `docs/COMMIT_GUIDE.md`
+
+## 11. Cham cong QR co dinh va duyet admin
+
+Luong moi:
+
+- Giao vien bam nut `Quet QR cham cong` ngay tren tab Board (giao dien chinh).
+- Quet ma QR co dinh cua trung tam.
+- Sau khi QR hop le, he thong mo form nhap `ngay`, `gio vao`, `gio ra`, `ghi chu`.
+- Ban ghi duoc gui vao trang thai `pending` cho admin duyet.
+- Admin duyet/tu choi trong tab Cham cong.
+
+Bao cao Excel cham cong:
+
+- Ho tro xuat theo `ngay` hoac `thang`.
+- Co 3 sheet mac dinh:
+  - `ChamCong_ChiTiet`
+  - `ChamCong_TongHop` (theo giao vien)
+  - `ChamCong_TheoNgay`
+- So lieu dua tren gio vao/ra thuc te da duyet.

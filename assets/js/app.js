@@ -14,6 +14,7 @@ import {
   setDoc,
   deleteDoc,
   onSnapshot,
+  serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { registerAuthHandlers } from "./modules/auth.js";
 import {
@@ -29,9 +30,16 @@ import { registerRenderCore } from "./modules/render-core.js";
 import { registerDataManagement } from "./modules/data-management.js";
 import { registerSubjectForm } from "./modules/subject-management.js";
 import { registerReportingExports } from "./modules/reporting.js";
+import {
+  ATTENDANCE_MAX_WORKED_MINUTES,
+  buildAttendanceRequestId,
+  computeWorkedMinutes,
+  isIsoDateToken,
+  registerAttendanceFeature,
+} from "./modules/features/attendance/attendance-feature.js";
 import { sanitizeForStorage, isSafeDocId } from "./modules/security-utils.js";
 
-const APP_VERSION = "v1.6.0";
+const APP_VERSION = "v1.7.0";
 
 const injectPartial = async (hostId, filePath) => {
   const host = document.getElementById(hostId);
@@ -152,7 +160,20 @@ globalThis.db = {
   classes: [],
   schedules: [],
   accounts: [],
+  attendanceRequests: [],
+  settings: [],
 };
+
+const DATA_COLLECTIONS = [
+  "subjects",
+  "teachers",
+  "students",
+  "classes",
+  "schedules",
+  "accounts",
+  "attendanceRequests",
+  "settings",
+];
 let currentUser = null;
 let currentRole = null;
 let isDataLoaded = false;
@@ -398,7 +419,7 @@ const updateSyncStatus = (status, title, detail) => {
 const recomputeSyncStatus = () => {
   const metas = Object.values(syncState.collectionMeta);
   const loadedCount = syncState.loadedCollections.size;
-  const total = 6;
+  const total = DATA_COLLECTIONS.length;
 
   if (!navigator.onLine) {
     updateSyncStatus(
@@ -866,14 +887,7 @@ const showLoginError = (message) => {
 
 // BƯỚC 1: LẮNG NGHE ĐỒNG BỘ DỮ LIỆU
 const setupRealtimeSync = () => {
-  const collections = [
-    "subjects",
-    "teachers",
-    "students",
-    "classes",
-    "schedules",
-    "accounts",
-  ];
+  const collections = DATA_COLLECTIONS;
 
   const switchToAlternatePathAndRetry = () => {
     if (!isCanvasEnv) return false;
@@ -904,7 +918,7 @@ const setupRealtimeSync = () => {
   syncErrorNotified.clear();
   updateSyncStatus(
     "loading",
-    "Đang tải dữ liệu (0/6)",
+    `Đang tải dữ liệu (0/${collections.length})`,
     "Khởi tạo đồng bộ realtime từ Firebase.",
   );
 
@@ -1189,11 +1203,94 @@ const ALLOWED_TABLES = new Set([
   "classes",
   "schedules",
   "accounts",
+  "attendanceRequests",
+  "settings",
 ]);
+
+const canTeacherWriteAttendanceRequest = (payload) => {
+  const ownerTeacherId = String(payload?.teacherId || "");
+  if (!ownerTeacherId || ownerTeacherId !== String(currentUser?.id || "")) {
+    return false;
+  }
+
+  const existing = globalThis.db.attendanceRequests.find(
+    (item) => String(item.id) === String(payload?.id || ""),
+  );
+
+  const dateToken = String(payload?.attendanceDate || "").trim();
+  const checkIn = String(payload?.checkInTime || "").trim();
+  const checkOut = String(payload?.checkOutTime || "").trim();
+  const workedMinutes = Number(payload?.workedMinutes || 0);
+  const createdAt = Number(payload?.createdAt || 0);
+  const note = String(payload?.note || "").trim();
+  const reviewNote = String(payload?.reviewNote || "").trim();
+
+  if (
+    payload?.submittedAtServer ||
+    payload?.reviewedAtServer ||
+    payload?.updatedAtServer
+  ) {
+    return false;
+  }
+
+  if (String(payload?.status || "") !== "pending") return false;
+  if (payload?.reviewedBy || payload?.reviewedAt || reviewNote) return false;
+  if (!isIsoDateToken(dateToken)) return false;
+  if (note.length > 1000) return false;
+  if (
+    !Number.isFinite(createdAt) ||
+    createdAt <= 0 ||
+    createdAt > Date.now() + 5 * 60 * 1000
+  ) {
+    return false;
+  }
+
+  if (
+    String(payload?.id || "") !==
+    buildAttendanceRequestId(ownerTeacherId, dateToken)
+  ) {
+    return false;
+  }
+
+  const computedWorkedMinutes = computeWorkedMinutes(checkIn, checkOut);
+  if (computedWorkedMinutes === null) {
+    return false;
+  }
+  if (
+    !Number.isFinite(workedMinutes) ||
+    workedMinutes <= 0 ||
+    workedMinutes > ATTENDANCE_MAX_WORKED_MINUTES ||
+    workedMinutes !== computedWorkedMinutes
+  ) {
+    return false;
+  }
+
+  if (existing) {
+    const isSafeRejectedResubmission =
+      String(existing.teacherId || "") === ownerTeacherId &&
+      String(existing.attendanceDate || "") === dateToken &&
+      String(existing.status || "") === "rejected";
+    if (!isSafeRejectedResubmission) return false;
+  }
+
+  const hasDuplicateActiveRecord = globalThis.db.attendanceRequests.some(
+    (item) =>
+      String(item.id || "") !== String(existing?.id || "") &&
+      String(item.teacherId || "") === ownerTeacherId &&
+      String(item.attendanceDate || "") === dateToken &&
+      ["pending", "approved"].includes(String(item.status || "pending")),
+  );
+  if (hasDuplicateActiveRecord) return false;
+
+  return true;
+};
 
 const canWriteTable = (table, payload) => {
   if (currentRole === "admin") return true;
   if (currentRole !== "teacher") return false;
+  if (table === "attendanceRequests") {
+    return canTeacherWriteAttendanceRequest(payload);
+  }
   if (table !== "schedules") return false;
 
   const scheduleTeacherId = String(payload?.teacherId || "");
@@ -1276,7 +1373,25 @@ globalThis.cloudSave = async (table, data) => {
       throw new Error("Bạn không có quyền ghi dữ liệu này.");
     }
 
-    await setDoc(doc(getColRef(table), recordId), sanitized);
+    let payloadForSave = sanitized;
+    if (table === "attendanceRequests") {
+      const status = String(sanitized?.status || "").trim();
+      if (status === "pending") {
+        payloadForSave = {
+          ...sanitized,
+          submittedAtServer: serverTimestamp(),
+          updatedAtServer: serverTimestamp(),
+        };
+      } else if (status === "approved" || status === "rejected") {
+        payloadForSave = {
+          ...sanitized,
+          reviewedAtServer: serverTimestamp(),
+          updatedAtServer: serverTimestamp(),
+        };
+      }
+    }
+
+    await setDoc(doc(getColRef(table), recordId), payloadForSave);
   } catch (e) {
     console.error("Lỗi lưu:", e);
     showToast(
@@ -1343,6 +1458,12 @@ const getClassInfo = (id) =>
   getSelectableClasses().find((c) => String(c.id) === String(id));
 
 // --- FORMS SUBMIT LOGIC ---
+const attendanceFeature = registerAttendanceFeature({
+  getCurrentRole: () => currentRole,
+  getCurrentUser: () => currentUser,
+  showToast,
+});
+
 const renderCore = registerRenderCore({
   colorStyles,
   dotColors,
@@ -1363,6 +1484,12 @@ const renderCore = registerRenderCore({
   formatDayOfWeek,
   getWeekAttendanceOverview,
   renderMasterOverview,
+  getAttendancePeriodSelection: attendanceFeature.getAttendancePeriodSelection,
+  getAttendancePeriodLabel: attendanceFeature.getAttendancePeriodLabel,
+  getAttendanceDashboardData: attendanceFeature.getAttendanceDashboardData,
+  formatWorkedMinutes: attendanceFeature.formatWorkedMinutes,
+  getBoardTeacherAttendanceSummary:
+    attendanceFeature.getBoardTeacherAttendanceSummary,
 });
 
 applyRBAC = renderCore.applyRBAC;
@@ -1427,6 +1554,10 @@ registerReportingExports({
   getLatestStudentEvaluation,
   getEvalLevelMeta,
   getWeekAttendanceOverview,
+  getAttendancePeriodSelection: attendanceFeature.getAttendancePeriodSelection,
+  getAttendanceDashboardData: attendanceFeature.getAttendanceDashboardData,
+  getAttendancePeriodLabel: attendanceFeature.getAttendancePeriodLabel,
+  formatWorkedMinutes: attendanceFeature.formatWorkedMinutes,
 });
 
 // INIT
@@ -1445,14 +1576,22 @@ const getCurrentMonthDefault = () => {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 };
 
+const getCurrentDateDefault = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+};
+
 document.getElementById("sch_week").value = getCurrentWeekDefault();
 document.getElementById("filterWeek").value = getCurrentWeekDefault();
 document.getElementById("attendanceWeek").value = getCurrentWeekDefault();
 if (document.getElementById("attendanceMonth")) {
   document.getElementById("attendanceMonth").value = getCurrentMonthDefault();
 }
+if (document.getElementById("attendanceDate")) {
+  document.getElementById("attendanceDate").value = getCurrentDateDefault();
+}
 if (document.getElementById("attendancePeriod")) {
-  document.getElementById("attendancePeriod").value = "week";
+  document.getElementById("attendancePeriod").value = "day";
 }
 
 recomputeSyncStatus();

@@ -1239,18 +1239,27 @@ export const registerScheduleFormsAndFilters = ({
     });
 
   document.getElementById("filterWeek").addEventListener("change", () => {
-    document.getElementById("attendanceWeek").value =
-      document.getElementById("filterWeek").value;
+    const attendanceWeekInput = document.getElementById("attendanceWeek");
+    if (attendanceWeekInput) {
+      attendanceWeekInput.value = document.getElementById("filterWeek").value;
+    }
     renderSchedules();
     renderMasterOverview();
     renderAttendance();
   });
 
-  document.getElementById("attendanceWeek").addEventListener("change", () => {
-    const week = document.getElementById("attendanceWeek").value;
-    document.getElementById("filterWeek").value = week;
+  document.getElementById("attendanceWeek")?.addEventListener("change", () => {
+    const week = document.getElementById("attendanceWeek")?.value || "";
+    if (week) {
+      document.getElementById("filterWeek").value = week;
+      renderSchedules();
+    }
     renderMasterOverview();
-    renderSchedules();
+    renderAttendance();
+  });
+
+  document.getElementById("attendanceDate")?.addEventListener("change", () => {
+    renderMasterOverview();
     renderAttendance();
   });
 
@@ -1287,6 +1296,14 @@ export const registerScheduleFormsAndFilters = ({
         if (week) {
           document.getElementById("filterWeek").value = week;
           renderSchedules();
+        }
+      } else if (mode === "day") {
+        const selectedDate = document.getElementById("attendanceDate")?.value;
+        if (selectedDate) {
+          const fallbackWeek = document.getElementById("filterWeek")?.value;
+          if (fallbackWeek && document.getElementById("attendanceWeek")) {
+            document.getElementById("attendanceWeek").value = fallbackWeek;
+          }
         }
       }
       renderMasterOverview();
