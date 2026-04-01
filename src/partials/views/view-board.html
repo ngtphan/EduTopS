@@ -20,7 +20,8 @@
         <div class="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            class="teacher-only hidden items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border border-cyan-200 bg-cyan-50 text-cyan-700 hover:bg-cyan-100"
+            data-role-display="inline-flex"
+            class="teacher-only hidden inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border border-cyan-200 bg-cyan-50 text-cyan-700 hover:bg-cyan-100"
             onclick="globalThis.openTeacherAttendanceQrModal()"
           >
             <i data-lucide="scan-line" class="w-3.5 h-3.5"></i>
@@ -52,6 +53,7 @@
       </div>
       <div
         id="teacherAttendanceQuickSummary"
+        data-role-display="block"
         class="teacher-only hidden border-b border-cyan-200 bg-cyan-50/70 px-4 lg:px-6 py-2.5 text-xs text-cyan-800"
       ></div>
       <div

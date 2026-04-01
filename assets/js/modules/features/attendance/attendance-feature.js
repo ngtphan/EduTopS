@@ -1,6 +1,8 @@
 ﻿const FIXED_ATTENDANCE_QR_TOKEN = "EDUTOPS_FIXED_ATTENDANCE_QR_V1";
-const QR_SCANNER_LIB_URL =
-  "https://unpkg.com/html5-qrcode@2.3.8/minified/html5-qrcode.min.js";
+const QR_SCANNER_LIB_URLS = [
+  "https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js",
+  "https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js",
+];
 const QR_IMAGE_API_URL = "https://api.qrserver.com/v1/create-qr-code/";
 const ATTENDANCE_QR_CONFIG_ID = "attendance_qr_config";
 const ATTENDANCE_QR_PAYLOAD_TYPE = "edutops_attendance_qr";
@@ -209,34 +211,79 @@ const parseFixedAttendanceQrPayload = (rawPayload) => {
 
 const loadQrScannerLibrary = (() => {
   let loaderPromise = null;
+  const SCRIPT_TIMEOUT_MS = 12000;
+
+  const loadScriptFromUrl = (url) =>
+    new Promise((resolve) => {
+      const selector = `script[data-lib="html5-qrcode"][data-src="${url}"]`;
+      const existingScript = document.querySelector(selector);
+
+      if (existingScript?.dataset?.state === "loaded") {
+        resolve(true);
+        return;
+      }
+      if (existingScript?.dataset?.state === "error") {
+        existingScript.remove();
+      }
+
+      const script =
+        existingScript && existingScript.dataset?.state === "loading"
+          ? existingScript
+          : document.createElement("script");
+
+      if (script !== existingScript) {
+        script.src = url;
+        script.async = true;
+        script.dataset.lib = "html5-qrcode";
+        script.dataset.src = url;
+        script.dataset.state = "loading";
+        script.crossOrigin = "anonymous";
+        document.head.appendChild(script);
+      }
+
+      let settled = false;
+      const finalize = (ok) => {
+        if (settled) return;
+        settled = true;
+        script.dataset.state = ok ? "loaded" : "error";
+        if (!ok) {
+          script.remove();
+        }
+        resolve(ok);
+      };
+
+      const timeoutId = setTimeout(() => finalize(false), SCRIPT_TIMEOUT_MS);
+      script.addEventListener(
+        "load",
+        () => {
+          clearTimeout(timeoutId);
+          finalize(true);
+        },
+        { once: true },
+      );
+      script.addEventListener(
+        "error",
+        () => {
+          clearTimeout(timeoutId);
+          finalize(false);
+        },
+        { once: true },
+      );
+    });
 
   return async () => {
     if (globalThis.Html5Qrcode) return true;
     if (loaderPromise) return loaderPromise;
 
-    loaderPromise = new Promise((resolve) => {
-      const existingScript = document.querySelector(
-        "script[data-lib='html5-qrcode']",
-      );
-
-      if (existingScript) {
-        existingScript.addEventListener("load", () => resolve(true), {
-          once: true,
-        });
-        existingScript.addEventListener("error", () => resolve(false), {
-          once: true,
-        });
-        return;
+    loaderPromise = (async () => {
+      for (const url of QR_SCANNER_LIB_URLS) {
+        const loaded = await loadScriptFromUrl(url);
+        if (loaded && globalThis.Html5Qrcode) {
+          return true;
+        }
       }
-
-      const script = document.createElement("script");
-      script.src = QR_SCANNER_LIB_URL;
-      script.async = true;
-      script.dataset.lib = "html5-qrcode";
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.head.appendChild(script);
-    });
+      return false;
+    })();
 
     const loaded = await loaderPromise;
     if (!loaded) loaderPromise = null;
@@ -275,6 +322,12 @@ const toMillisFromUnknownTimestamp = (value) => {
     return Number(value.seconds) * 1000;
   }
   return 0;
+};
+
+const isCameraSecureContext = () => {
+  if (globalThis.isSecureContext) return true;
+  const host = String(globalThis.location?.hostname || "").toLowerCase();
+  return host === "localhost" || host === "127.0.0.1" || host === "::1";
 };
 
 const toIsoWeekTokenFromDateToken = (dateToken) => {
@@ -851,6 +904,22 @@ const getTeacherQrAttendanceModalController = (() => {
     };
 
     const startScanner = async (sessionId) => {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setStatus(
+          "Trình duyệt không hỗ trợ camera. Hãy nhập mã thủ công.",
+          "error",
+        );
+        return;
+      }
+
+      if (!isCameraSecureContext()) {
+        setStatus(
+          "Thiết bị di động yêu cầu HTTPS để mở camera. Hãy mở web qua HTTPS hoặc dùng Nhập mã thủ công.",
+          "error",
+        );
+        return;
+      }
+
       const isLoaded = await loadQrScannerLibrary();
       if (!state.isOpen || sessionId !== state.sessionId) return;
       if (!isLoaded || !globalThis.Html5Qrcode) {
@@ -861,39 +930,57 @@ const getTeacherQrAttendanceModalController = (() => {
         return;
       }
 
-      if (!navigator.mediaDevices?.getUserMedia) {
+      await stopScanner();
+      if (!state.isOpen || sessionId !== state.sessionId) return;
+
+      const cameraAttempts = [
+        {
+          camera: { facingMode: { exact: "environment" } },
+          config: { fps: 10, qrbox: { width: 220, height: 220 } },
+        },
+        {
+          camera: { facingMode: "environment" },
+          config: { fps: 10, qrbox: { width: 220, height: 220 } },
+        },
+        {
+          camera: { facingMode: "user" },
+          config: { fps: 8, qrbox: { width: 200, height: 200 } },
+        },
+      ];
+
+      let started = false;
+      for (const attempt of cameraAttempts) {
+        try {
+          state.scanner = new globalThis.Html5Qrcode("teacherQrReader");
+          await state.scanner.start(
+            attempt.camera,
+            attempt.config,
+            (decodedText) => {
+              handleDecodedRaw(decodedText);
+            },
+            () => {},
+          );
+          if (!state.isOpen || sessionId !== state.sessionId) {
+            await stopScanner();
+            return;
+          }
+          state.isRunning = true;
+          started = true;
+          break;
+        } catch {
+          await stopScanner();
+        }
+      }
+
+      if (!started) {
         setStatus(
-          "Trình duyệt không hỗ trợ camera. Hãy nhập mã thủ công.",
+          "Không thể mở camera trên thiết bị này. Hãy cấp quyền camera, dùng HTTPS, hoặc nhập mã thủ công.",
           "error",
         );
         return;
       }
 
-      await stopScanner();
-      if (!state.isOpen || sessionId !== state.sessionId) return;
-
-      try {
-        state.scanner = new globalThis.Html5Qrcode("teacherQrReader");
-        await state.scanner.start(
-          { facingMode: "environment" },
-          { fps: 10, qrbox: { width: 220, height: 220 } },
-          (decodedText) => {
-            handleDecodedRaw(decodedText);
-          },
-          () => {},
-        );
-        if (!state.isOpen || sessionId !== state.sessionId) {
-          await stopScanner();
-          return;
-        }
-        state.isRunning = true;
-        setStatus("Đưa mã QR vào giữa khung camera để quét.", "info");
-      } catch {
-        setStatus(
-          "Không thể mở camera. Hãy cấp quyền camera hoặc nhập mã thủ công.",
-          "error",
-        );
-      }
+      setStatus("Đưa mã QR vào giữa khung camera để quét.", "info");
     };
 
     refs.checkIn.addEventListener("change", syncWorkedPreview);

@@ -1412,55 +1412,81 @@ export const registerRenderCore = ({
     if (getCurrentUser()) renderSchedules();
   };
 
-  const applyRBAC = () => {
-    const currentRole = getCurrentRole();
-    const currentUser = getCurrentUser();
-    const adminOnlyElements = document.querySelectorAll(".admin-only");
-    adminOnlyElements.forEach((el) => {
-      el.style.display = currentRole === "admin" ? "flex" : "none";
+  const getRoleDisplay = (el, fallback = "block") =>
+    String(el?.dataset?.roleDisplay || fallback || "block");
+
+  const toggleRoleElements = (selector, isVisible, fallbackDisplay) => {
+    const elements = document.querySelectorAll(selector);
+    elements.forEach((el) => {
+      el.classList.toggle("hidden", !isVisible);
+      el.style.display = isVisible
+        ? getRoleDisplay(el, fallbackDisplay)
+        : "none";
     });
+  };
+
+  const updateFixedAdminElements = (isVisible) => {
     const fixedAdminOnlyElements =
       document.querySelectorAll(".fixed-admin-only");
     fixedAdminOnlyElements.forEach((el) => {
-      el.style.display =
-        currentRole === "admin" && isFixedAdmin() ? "block" : "none";
+      el.style.display = isVisible ? "block" : "none";
     });
-    const teacherOnlyElements = document.querySelectorAll(".teacher-only");
-    teacherOnlyElements.forEach((el) => {
-      el.classList.toggle("hidden", currentRole !== "teacher");
-    });
+  };
+
+  const renderTeacherQuickSummary = (summaryEl, teacherId) => {
+    if (!summaryEl || typeof getBoardTeacherAttendanceSummary !== "function") {
+      return;
+    }
+    const summary = getBoardTeacherAttendanceSummary(teacherId);
+    const workedText =
+      typeof formatWorkedMinutes === "function"
+        ? formatWorkedMinutes(summary.workedMinutes)
+        : formatHours(Number(summary.workedMinutes || 0) / 60);
+    summaryEl.innerHTML = `<span class="font-bold">30 ngày gần nhất:</span> ${summary.approved}/${summary.total} bản ghi đã duyệt • ${summary.pending} chờ duyệt • ${summary.rejected} từ chối • ${workedText}`;
+  };
+
+  const renderBoardHeaderByRole = (currentRole, currentUser, summaryEl) => {
+    const boardTitleEl = document.getElementById("boardTitle");
+    const boardSubtitleEl = document.getElementById("boardSubtitle");
+
+    if (currentRole === "teacher") {
+      if (boardTitleEl) {
+        boardTitleEl.innerText = `Lịch giảng dạy của ${String(currentUser?.name || "")}`;
+      }
+      if (boardSubtitleEl) {
+        boardSubtitleEl.innerText =
+          "Tạo lịch hoặc gửi đề xuất để admin duyệt. Quét QR để gửi giờ công.";
+      }
+      renderTeacherQuickSummary(summaryEl, currentUser?.id);
+      return;
+    }
+
+    if (boardTitleEl) {
+      boardTitleEl.innerText = "Lịch giảng dạy trung tâm";
+    }
+    if (boardSubtitleEl) {
+      boardSubtitleEl.innerText = "Đồng bộ Cloud theo thời gian thực";
+    }
+    if (summaryEl) {
+      summaryEl.innerHTML = "";
+    }
+  };
+
+  const applyRBAC = () => {
+    const currentRole = getCurrentRole();
+    const currentUser = getCurrentUser();
+    toggleRoleElements(".admin-only", currentRole === "admin", "flex");
+    updateFixedAdminElements(currentRole === "admin" && isFixedAdmin());
+    toggleRoleElements(".teacher-only", currentRole === "teacher", "block");
 
     const teacherAttendanceSummaryEl = document.getElementById(
       "teacherAttendanceQuickSummary",
     );
-
-    if (currentRole === "teacher") {
-      document.getElementById("boardTitle").innerText =
-        `Lịch giảng dạy của ${String(currentUser.name || "")}`;
-      document.getElementById("boardSubtitle").innerText =
-        "Tạo lịch hoặc gửi đề xuất để admin duyệt. Quét QR để gửi giờ công.";
-
-      if (
-        teacherAttendanceSummaryEl &&
-        typeof getBoardTeacherAttendanceSummary === "function"
-      ) {
-        const summary = getBoardTeacherAttendanceSummary(currentUser?.id);
-        const workedText =
-          typeof formatWorkedMinutes === "function"
-            ? formatWorkedMinutes(summary.workedMinutes)
-            : formatHours(Number(summary.workedMinutes || 0) / 60);
-        teacherAttendanceSummaryEl.innerHTML = `<span class="font-bold">30 ngày gần nhất:</span> ${summary.approved}/${summary.total} bản ghi đã duyệt • ${summary.pending} chờ duyệt • ${summary.rejected} từ chối • ${workedText}`;
-      }
-    } else {
-      document.getElementById("boardTitle").innerText =
-        "Lịch giảng dạy trung tâm";
-      document.getElementById("boardSubtitle").innerText =
-        "Đồng bộ Cloud theo thời gian thực";
-
-      if (teacherAttendanceSummaryEl) {
-        teacherAttendanceSummaryEl.innerHTML = "";
-      }
-    }
+    renderBoardHeaderByRole(
+      currentRole,
+      currentUser,
+      teacherAttendanceSummaryEl,
+    );
     if (typeof globalThis.syncScheduleFormByRole === "function") {
       globalThis.syncScheduleFormByRole();
     }
