@@ -1,3 +1,8 @@
+import {
+  STUDENT_GRADE_OPTIONS,
+  normalizeStudentGradeLevel,
+} from "./student-grade-utils.js";
+
 export const registerStudentAndClassForms = () => {
   const escapeHtml = (value) =>
     String(value || "")
@@ -7,26 +12,13 @@ export const registerStudentAndClassForms = () => {
       .replaceAll('"', "&quot;")
       .replaceAll("'", "&#39;");
 
-  const gradeOptions = [
-    "Lớp 6",
-    "Lớp 7",
-    "Lớp 8",
-    "Lớp 9",
-    "Lớp 10",
-    "Lớp 11",
-    "Lớp 12",
-    "Khác",
-  ];
-
   const openStudentFormModal = ({ student = null } = {}) => {
     const isEdit = !!student;
-    const currentGrade = String(student?.gradeLevel || "").trim();
-    const optionsHtml = gradeOptions
-      .map((grade) => {
-        const selected = grade === currentGrade ? "selected" : "";
-        return `<option value="${escapeHtml(grade)}" ${selected}>${escapeHtml(grade)}</option>`;
-      })
-      .join("");
+    const currentGrade = normalizeStudentGradeLevel(student?.gradeLevel);
+    const optionsHtml = STUDENT_GRADE_OPTIONS.map((grade) => {
+      const selected = grade === currentGrade ? "selected" : "";
+      return `<option value="${escapeHtml(grade)}" ${selected}>${escapeHtml(grade)}</option>`;
+    }).join("");
 
     return window.appFormModal({
       title: isEdit ? "Chỉnh sửa học sinh" : "Thêm học sinh",
@@ -54,14 +46,14 @@ export const registerStudentAndClassForms = () => {
       onSubmit: ({ values }) => {
         const name = String(values.name || "").trim();
         const parentPhone = String(values.parentPhone || "").trim();
-        const gradeLevel = String(values.gradeLevel || "").trim();
+        const gradeLevel = normalizeStudentGradeLevel(values.gradeLevel);
 
         if (!name) {
           alert("Vui lòng nhập tên học sinh.");
           return false;
         }
         if (!gradeLevel) {
-          alert("Vui lòng chọn lớp đang học.");
+          alert("Vui lòng chọn lớp từ Lớp 1 đến Lớp 12.");
           return false;
         }
 

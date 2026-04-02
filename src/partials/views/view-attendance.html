@@ -23,6 +23,7 @@
             class="text-xs font-bold bg-white border border-slate-200 rounded px-2 py-1 text-slate-700"
           >
             <option value="day">Theo ngày</option>
+            <option value="week">Theo tuần</option>
             <option value="month">Theo tháng</option>
           </select>
           <div id="attendanceDateWrap" class="flex items-center">
@@ -80,7 +81,7 @@
       Kỳ thống kê: Ngày
     </div>
 
-    <div class="grid grid-cols-2 md:grid-cols-6 gap-2">
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-2">
       <div class="rounded-lg border border-slate-200 bg-white px-3 py-2">
         <div class="text-[10px] font-bold uppercase text-slate-500">
           Tổng bản ghi
@@ -112,17 +113,6 @@
           0
         </div>
       </div>
-      <div class="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2">
-        <div class="text-[10px] font-bold uppercase text-indigo-700">
-          Giờ công duyệt
-        </div>
-        <div
-          id="attendanceStatHours"
-          class="text-base font-bold text-indigo-900"
-        >
-          0h
-        </div>
-      </div>
       <div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
         <div class="text-[10px] font-bold uppercase text-amber-700">
           Chờ duyệt
@@ -140,6 +130,58 @@
         </div>
         <div id="attendanceStatRate" class="text-base font-bold text-cyan-900">
           0%
+        </div>
+      </div>
+    </div>
+
+    <div
+      id="attendanceWeeklyPanel"
+      data-role-display="block"
+      class="admin-only hidden bg-white rounded-xl shadow-sm border border-slate-200 p-3"
+    >
+      <div
+        class="flex flex-col md:flex-row md:items-center md:justify-between gap-2"
+      >
+        <div>
+          <h3 class="text-sm font-bold text-slate-800">
+            Thống kê tuần (Admin)
+          </h3>
+          <p id="attendanceWeeklyLabel" class="text-[11px] text-slate-500">
+            Tuần --
+          </p>
+        </div>
+        <div class="grid grid-cols-3 gap-2 text-[11px]">
+          <div
+            class="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5"
+          >
+            <div class="font-bold text-slate-700">Bản ghi</div>
+            <div
+              id="attendanceWeeklyTotal"
+              class="text-sm font-bold text-slate-900"
+            >
+              0
+            </div>
+          </div>
+          <div
+            class="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1.5"
+          >
+            <div class="font-bold text-emerald-700">Đã duyệt</div>
+            <div
+              id="attendanceWeeklyApproved"
+              class="text-sm font-bold text-emerald-900"
+            >
+              0
+            </div>
+          </div>
+          <div class="rounded-lg border border-cyan-200 bg-cyan-50 px-2 py-1.5">
+            <div class="font-bold text-cyan-700">Tỉ lệ</div>
+            <div
+              id="attendanceWeeklyRate"
+              class="text-sm font-bold text-cyan-900"
+            >
+              0%
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -173,10 +215,6 @@
     <div
       class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"
     >
-      <div
-        id="attendanceSummary"
-        class="p-4 border-b border-slate-100 text-sm text-slate-600"
-      ></div>
       <div
         id="attendanceList"
         class="p-4 space-y-2 max-h-[calc(100vh-20rem)] overflow-y-auto custom-scrollbar bg-slate-50"

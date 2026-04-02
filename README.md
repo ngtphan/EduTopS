@@ -2,7 +2,7 @@
 
 Ứng dụng web quản lý vận hành trung tâm học tập: quản lý môn học, giáo viên, học sinh, lớp học, xếp lịch dạy, chấm công, đánh giá và xuất báo cáo Excel.
 
-Phiên bản hiện tại: v1.7.0
+Phiên bản hiện tại: v1.7.1
 
 ## 1. Tính năng chính
 

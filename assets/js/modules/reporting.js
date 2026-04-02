@@ -18,8 +18,6 @@ export const registerReportingExports = ({
   getWeekAttendanceOverview,
   getAttendancePeriodSelection,
   getAttendanceDashboardData,
-  getAttendancePeriodLabel,
-  formatWorkedMinutes,
 }) => {
   const ensureExcelLib = () => {
     if (typeof XLSX !== "undefined") return true;
@@ -232,29 +230,6 @@ export const registerReportingExports = ({
     return getLegacyAttendancePeriodSelection();
   };
 
-  const getAttendancePeriodLabelSafe = (period) => {
-    if (typeof getAttendancePeriodLabel === "function") {
-      return getAttendancePeriodLabel(period);
-    }
-    return getAttendancePeriodLabelLegacy(period);
-  };
-
-  const formatWorkedMinutesSafe = (minutes) => {
-    if (typeof formatWorkedMinutes === "function") {
-      return formatWorkedMinutes(minutes);
-    }
-    return formatHours(Number(minutes || 0) / 60);
-  };
-
-  const getAttendancePeriodLabelLegacy = ({ mode, week, month }) => {
-    if (mode === "month") {
-      if (!month) return "Thang chua chon";
-      const [year, monthNumber] = month.split("-");
-      return `Thang ${monthNumber}/${year}`;
-    }
-    return `Tuan ${week || "chua chon"}`;
-  };
-
   const getAttendanceReportRows = (schedules) =>
     schedules.map((sch, index) => {
       const teacher = getTeacherInfo(sch.teacherId);
@@ -284,6 +259,268 @@ export const registerReportingExports = ({
         noiDung: sch.topic || "",
       };
     });
+
+  const isMonthToken = (value) =>
+    /^\d{4}-\d{2}$/.test(String(value || "").trim());
+
+  const toMonthTokenFromDateToken = (dateToken) => {
+    const raw = String(dateToken || "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return "";
+    return raw.slice(0, 7);
+  };
+
+  const getMonthMeta = (monthToken) => {
+    if (!isMonthToken(monthToken)) {
+      return { label: "Thang chua xac dinh", daysInMonth: 0 };
+    }
+    const [yearRaw, monthRaw] = monthToken.split("-");
+    const year = Number(yearRaw);
+    const month = Number(monthRaw);
+    const daysInMonth = new Date(year, month, 0).getDate();
+    return {
+      label: `Thang ${String(month).padStart(2, "0")}/${year}`,
+      daysInMonth,
+    };
+  };
+
+  const getAttendanceStatusRank = (status) => {
+    if (status === "approved") return 3;
+    if (status === "pending") return 2;
+    if (status === "rejected") return 1;
+    return 0;
+  };
+
+  const ATTENDANCE_SHEET_PRINT_CONFIG = Object.freeze({
+    targetA4LandscapeWch: 132,
+    teacherColWch: 18,
+    approvedDaysColWch: 9,
+    dayColWchMin: 4,
+    dayColWchMax: 10,
+    showOnlyActiveDays: true,
+  });
+
+  const getAttendanceDayIndexes = ({ requests, monthToken, daysInMonth }) => {
+    const daySet = new Set();
+    (requests || []).forEach((item) => {
+      const attendanceDate = String(item?.attendanceDate || "").trim();
+      if (!attendanceDate.startsWith(`${monthToken}-`)) return;
+      const day = Number(attendanceDate.slice(8, 10));
+      if (!Number.isInteger(day) || day < 1 || day > daysInMonth) return;
+      daySet.add(day);
+    });
+
+    if (ATTENDANCE_SHEET_PRINT_CONFIG.showOnlyActiveDays && daySet.size > 0) {
+      return Array.from(daySet).sort((a, b) => a - b);
+    }
+
+    return Array.from({ length: daysInMonth }, (_, index) => index + 1);
+  };
+
+  const resolveAttendanceTimeDisplayMode = (dayCount) =>
+    dayCount <= 20 ? "full" : "compact";
+
+  const resolveAttendanceDayColumnWidth = (dayCount, displayMode) => {
+    if (dayCount <= 0) return ATTENDANCE_SHEET_PRINT_CONFIG.dayColWchMin;
+
+    const fixedWch =
+      ATTENDANCE_SHEET_PRINT_CONFIG.teacherColWch +
+      ATTENDANCE_SHEET_PRINT_CONFIG.approvedDaysColWch;
+    const dynamicWch =
+      (ATTENDANCE_SHEET_PRINT_CONFIG.targetA4LandscapeWch - fixedWch) /
+      dayCount;
+
+    const preferredByMode = displayMode === "full" ? 9 : 5;
+    const bounded = Math.max(
+      ATTENDANCE_SHEET_PRINT_CONFIG.dayColWchMin,
+      Math.min(
+        ATTENDANCE_SHEET_PRINT_CONFIG.dayColWchMax,
+        Math.floor(dynamicWch),
+      ),
+    );
+
+    return Math.min(preferredByMode, bounded);
+  };
+
+  const toHourToken = (timeToken) => {
+    const raw = String(timeToken || "").trim();
+    if (!/^\d{2}:\d{2}$/.test(raw)) return "--";
+    return raw.slice(0, 2);
+  };
+
+  const formatAttendanceTimeCell = ({
+    checkInTime,
+    checkOutTime,
+    displayMode,
+  }) => {
+    const inTime = String(checkInTime || "").trim();
+    const outTime = String(checkOutTime || "").trim();
+    if (!inTime && !outTime) return "D";
+
+    if (displayMode === "full") {
+      if (inTime && outTime) return `${inTime}/${outTime}`;
+      if (inTime) return `${inTime}/--`;
+      return `--/${outTime}`;
+    }
+
+    const inHour = toHourToken(inTime);
+    const outHour = toHourToken(outTime);
+    return `${inHour}-${outHour}`;
+  };
+
+  const buildCompactAttendanceMonthSheet = ({ monthToken, requests }) => {
+    const monthMeta = getMonthMeta(monthToken);
+    const daysInMonth = monthMeta.daysInMonth;
+    const teacherMap = new Map();
+    const dayIndexes = getAttendanceDayIndexes({
+      requests,
+      monthToken,
+      daysInMonth,
+    });
+    const dayHeaders = dayIndexes.map(String);
+    const timeDisplayMode = resolveAttendanceTimeDisplayMode(dayHeaders.length);
+    const dayColWch = resolveAttendanceDayColumnWidth(
+      dayHeaders.length,
+      timeDisplayMode,
+    );
+
+    (requests || []).forEach((item) => {
+      const attendanceDate = String(item?.attendanceDate || "").trim();
+      if (!attendanceDate.startsWith(`${monthToken}-`)) return;
+
+      const day = Number(attendanceDate.slice(8, 10));
+      if (!Number.isInteger(day) || day < 1 || day > daysInMonth) return;
+
+      const teacherId = String(item?.teacherId || "").trim() || "unknown";
+      const teacherName =
+        String(item?.teacherName || "").trim() ||
+        String(getTeacherInfo(teacherId).name || teacherId || "Khong ro");
+
+      if (!teacherMap.has(teacherId)) {
+        teacherMap.set(teacherId, {
+          teacherName,
+          dayMap: new Map(),
+        });
+      }
+
+      const entry = teacherMap.get(teacherId);
+      const candidate = {
+        status: String(item?.status || "pending"),
+        checkInTime: String(item?.checkInTime || "").trim(),
+        checkOutTime: String(item?.checkOutTime || "").trim(),
+        updatedAt: Math.max(
+          Number(item?.reviewedAt || 0),
+          Number(item?.createdAt || 0),
+        ),
+      };
+
+      const existing = entry.dayMap.get(day);
+      if (!existing) {
+        entry.dayMap.set(day, candidate);
+        return;
+      }
+
+      const existingRank = getAttendanceStatusRank(existing.status);
+      const candidateRank = getAttendanceStatusRank(candidate.status);
+      const shouldReplace =
+        candidateRank > existingRank ||
+        (candidateRank === existingRank &&
+          candidate.updatedAt > existing.updatedAt);
+
+      if (shouldReplace) {
+        entry.dayMap.set(day, candidate);
+      }
+    });
+
+    const headers = ["Giao vien", ...dayHeaders, "Ngay duyet"];
+
+    const rows = Array.from(teacherMap.values())
+      .sort((a, b) => a.teacherName.localeCompare(b.teacherName, "vi"))
+      .map((entry) => {
+        let approvedDays = 0;
+
+        const dayValues = dayIndexes.map((day) => {
+          const attendance = entry.dayMap.get(day);
+          if (!attendance) return "";
+          if (attendance.status === "approved") {
+            approvedDays += 1;
+            return formatAttendanceTimeCell({
+              checkInTime: attendance.checkInTime,
+              checkOutTime: attendance.checkOutTime,
+              displayMode: timeDisplayMode,
+            });
+          }
+          if (attendance.status === "pending") return "C";
+          if (attendance.status === "rejected") return "T";
+          return "";
+        });
+
+        return [entry.teacherName, ...dayValues, approvedDays];
+      });
+
+    const contentRows =
+      rows.length > 0
+        ? rows
+        : [["(Khong co du lieu)", ...dayHeaders.map(() => ""), 0]];
+
+    const generatedAt = new Date().toLocaleString("vi-VN");
+    const aoa = [
+      ["Bang cham cong thang (rut gon)"],
+      [monthMeta.label],
+      [
+        `Ky hieu: gioVao/gioRa (${timeDisplayMode === "full" ? "HH:MM/HH:MM" : "HH-HH"}) | D: da duyet (thieu gio) | C: cho duyet | T: tu choi | Xuat luc: ${generatedAt}`,
+      ],
+      [],
+      headers,
+      ...contentRows,
+    ];
+
+    const sanitizedAoa = aoa.map((row) =>
+      row.map((cell) => sanitizeExcelCell(cell ?? "")),
+    );
+    const ws = XLSX.utils.aoa_to_sheet(sanitizedAoa);
+    const colCount = headers.length;
+    const headerRowIndex = 4;
+
+    ws["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: Math.max(0, colCount - 1) } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: Math.max(0, colCount - 1) } },
+      { s: { r: 2, c: 0 }, e: { r: 2, c: Math.max(0, colCount - 1) } },
+    ];
+
+    ws["!autofilter"] = {
+      ref: XLSX.utils.encode_range({
+        s: { r: headerRowIndex, c: 0 },
+        e: {
+          r: Math.max(headerRowIndex, headerRowIndex + contentRows.length),
+          c: Math.max(0, colCount - 1),
+        },
+      }),
+    };
+
+    ws["!cols"] = [
+      { wch: ATTENDANCE_SHEET_PRINT_CONFIG.teacherColWch },
+      ...dayHeaders.map(() => ({ wch: dayColWch })),
+      { wch: ATTENDANCE_SHEET_PRINT_CONFIG.approvedDaysColWch },
+    ];
+
+    ws["!pageSetup"] = {
+      paperSize: 9,
+      orientation: "landscape",
+      fitToWidth: 1,
+      fitToHeight: 0,
+      horizontalCentered: true,
+    };
+    ws["!margins"] = {
+      left: 0.2,
+      right: 0.2,
+      top: 0.4,
+      bottom: 0.4,
+      header: 0.2,
+      footer: 0.2,
+    };
+
+    return ws;
+  };
 
   globalThis.exportTeachersExcel = () => {
     if (!ensureExcelLib()) return;
@@ -345,21 +582,34 @@ export const registerReportingExports = ({
   globalThis.exportAttendanceExcel = () => {
     if (!ensureExcelLib()) return;
     const period = getAttendancePeriodSelectionSafe();
-    const normalizedMode =
-      String(period?.mode || "").toLowerCase() === "month" ? "month" : "day";
-    const normalizedPeriod = {
-      ...period,
-      mode: normalizedMode,
-    };
+    const normalizedMode = String(period?.mode || "")
+      .trim()
+      .toLowerCase();
 
-    if (normalizedMode === "day" && !normalizedPeriod.date) {
+    if (normalizedMode === "day" && !String(period?.date || "").trim()) {
       showToast("Vui long chon ngay truoc khi xuat cham cong.", "warning");
       return;
     }
-    if (normalizedMode === "month" && !normalizedPeriod.month) {
+
+    let monthToken = "";
+    if (normalizedMode === "month") {
+      monthToken = String(period?.month || "").trim();
+    } else if (normalizedMode === "week") {
+      monthToken = getMonthTokenFromWeek(period?.week || getSelectedWeek());
+    } else {
+      monthToken = toMonthTokenFromDateToken(period?.date);
+    }
+
+    if (!isMonthToken(monthToken)) {
       showToast("Vui long chon thang truoc khi xuat cham cong.", "warning");
       return;
     }
+
+    const normalizedPeriod = {
+      ...period,
+      mode: "month",
+      month: monthToken,
+    };
 
     const dashboard =
       typeof getAttendanceDashboardData === "function"
@@ -370,124 +620,30 @@ export const registerReportingExports = ({
       return;
     }
 
-    const statusLabelMap = {
-      pending: "Cho duyet",
-      approved: "Da duyet",
-      rejected: "Tu choi",
-    };
+    const monthRequests = (dashboard.requests || []).filter((item) =>
+      String(item?.attendanceDate || "").startsWith(`${monthToken}-`),
+    );
+    if (monthRequests.length === 0) {
+      showToast("Khong co du lieu cham cong trong thang da chon.", "warning");
+      return;
+    }
 
-    const detailRows = (dashboard.requests || []).map((item, index) => {
-      const teacherEmail =
-        String(item.teacherEmail || "").trim() ||
-        String(getTeacherInfo(item.teacherId).email || "").trim();
-      return {
-        stt: index + 1,
-        ngay: item.attendanceDate,
-        giaoVien: item.teacherName,
-        email: teacherEmail,
-        gioVao: item.checkInTime,
-        gioRa: item.checkOutTime,
-        tongGio: formatWorkedMinutesSafe(item.workedMinutes),
-        trangThai: statusLabelMap[item.status] || "Cho duyet",
-        taoLuc: item.createdAt
-          ? new Date(item.createdAt).toLocaleString("vi-VN")
-          : "",
-        duyetLuc: item.reviewedAt
-          ? new Date(item.reviewedAt).toLocaleString("vi-VN")
-          : "",
-        nguoiDuyet: item.reviewedBy || "",
-        ghiChu: item.note || "",
-        ghiChuDuyet: item.reviewNote || "",
-      };
-    });
-
-    const summaryRows = (dashboard.teacherSummary || []).map((item, index) => ({
-      stt: index + 1,
-      giaoVien: item.teacherName,
-      soNgayChamCong: item.totalDays || item.totalRequests,
-      soNgayDaDuyet: item.approvedDays || item.approvedCount,
-      tongBanGhi: item.totalRequests,
-      daDuyet: item.approvedCount,
-      choDuyet: item.pendingCount,
-      tuChoi: item.rejectedCount,
-      tongGioDuyet: formatWorkedMinutesSafe(item.workedMinutes),
-    }));
-
-    const dailyRows = (dashboard.dailySummary || []).map((item, index) => ({
-      stt: index + 1,
-      ngay: item.attendanceDate,
-      tongBanGhi: item.totalRequests,
-      daDuyet: item.approvedCount,
-      choDuyet: item.pendingCount,
-      tuChoi: item.rejectedCount,
-      tongGioDuyet: formatWorkedMinutesSafe(item.workedMinutes),
-    }));
-
-    const periodLabel = getAttendancePeriodLabelSafe(normalizedPeriod);
     const wb = XLSX.utils.book_new();
 
-    appendSheetToWorkbook(wb, {
-      sheetName: "ChamCong_ChiTiet",
-      title: "Bao cao cham cong chi tiet",
-      subtitle: periodLabel,
-      columns: [
-        { key: "stt", label: "STT", width: 8 },
-        { key: "ngay", label: "Ngay", width: 12 },
-        { key: "giaoVien", label: "Giao vien", width: 24 },
-        { key: "email", label: "Email", width: 28 },
-        { key: "gioVao", label: "Gio vao", width: 10 },
-        { key: "gioRa", label: "Gio ra", width: 10 },
-        { key: "tongGio", label: "Tong gio", width: 12 },
-        { key: "trangThai", label: "Trang thai", width: 14 },
-        { key: "taoLuc", label: "Tao luc", width: 20 },
-        { key: "duyetLuc", label: "Duyet luc", width: 20 },
-        { key: "nguoiDuyet", label: "Nguoi duyet", width: 24 },
-        { key: "ghiChu", label: "Ghi chu", width: 30 },
-        { key: "ghiChuDuyet", label: "Ghi chu duyet", width: 30 },
-      ],
-      rows: detailRows,
+    const monthSheet = buildCompactAttendanceMonthSheet({
+      monthToken,
+      requests: monthRequests,
     });
+    XLSX.utils.book_append_sheet(
+      wb,
+      monthSheet,
+      sanitizeSheetName(`Thang_${monthToken}`),
+    );
 
-    appendSheetToWorkbook(wb, {
-      sheetName: "ChamCong_TongHop",
-      title: "Tong hop cham cong theo giao vien",
-      subtitle: periodLabel,
-      columns: [
-        { key: "stt", label: "STT", width: 8 },
-        { key: "giaoVien", label: "Giao vien", width: 24 },
-        { key: "soNgayChamCong", label: "So ngay cham cong", width: 16 },
-        { key: "soNgayDaDuyet", label: "So ngay da duyet", width: 16 },
-        { key: "tongBanGhi", label: "Tong ban ghi", width: 12 },
-        { key: "daDuyet", label: "Da duyet", width: 10 },
-        { key: "choDuyet", label: "Cho duyet", width: 10 },
-        { key: "tuChoi", label: "Tu choi", width: 10 },
-        { key: "tongGioDuyet", label: "Tong gio duyet", width: 16 },
-      ],
-      rows: summaryRows,
-    });
-
-    appendSheetToWorkbook(wb, {
-      sheetName: "ChamCong_TheoNgay",
-      title: "Tong hop cham cong theo ngay",
-      subtitle: periodLabel,
-      columns: [
-        { key: "stt", label: "STT", width: 8 },
-        { key: "ngay", label: "Ngay", width: 12 },
-        { key: "tongBanGhi", label: "Tong ban ghi", width: 12 },
-        { key: "daDuyet", label: "Da duyet", width: 10 },
-        { key: "choDuyet", label: "Cho duyet", width: 10 },
-        { key: "tuChoi", label: "Tu choi", width: 10 },
-        { key: "tongGioDuyet", label: "Tong gio duyet", width: 16 },
-      ],
-      rows: dailyRows,
-    });
-
-    const fileToken =
-      normalizedMode === "month"
-        ? `Thang_${sanitizeFileToken(normalizedPeriod.month, "Thang")}`
-        : `Ngay_${sanitizeFileToken(normalizedPeriod.date, "Ngay")}`;
-
-    exportWorkbook(wb, `BaoCao_ChamCong_${fileToken}.xlsx`);
+    exportWorkbook(
+      wb,
+      `BaoCao_ChamCong_TheoThang_${sanitizeFileToken(monthToken, "Thang")}.xlsx`,
+    );
     showToast("Da xuat bao cao cham cong thanh cong.", "success");
   };
 

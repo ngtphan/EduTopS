@@ -3,6 +3,10 @@ import {
   toSafeDomToken,
   sanitizeForStorage,
 } from "./security-utils.js";
+import {
+  STUDENT_GRADE_OPTIONS,
+  normalizeStudentGradeLevel,
+} from "./student-grade-utils.js";
 
 export const registerDataManagement = ({
   ADMIN_EMAIL,
@@ -93,55 +97,42 @@ export const registerDataManagement = ({
       if (isDialogCancelled(parentPhoneInput)) return;
       const parentPhone = parentPhoneInput || "";
 
-      const gradeChoices = [
-        "Lớp 6",
-        "Lớp 7",
-        "Lớp 8",
-        "Lớp 9",
-        "Lớp 10",
-        "Lớp 11",
-        "Lớp 12",
-        "Khác",
-      ];
-      const currentGrade = String(item.gradeLevel || "").trim();
+      const currentGrade = normalizeStudentGradeLevel(item.gradeLevel);
       let gradeLevel = "";
 
       if (typeof window.appSelect === "function") {
-        const options = gradeChoices.map((grade) => ({
+        const options = STUDENT_GRADE_OPTIONS.map((grade) => ({
           value: grade,
           label: grade,
         }));
-        if (currentGrade && !gradeChoices.includes(currentGrade)) {
-          options.unshift({
-            value: currentGrade,
-            label: `${currentGrade} (hiện tại)`,
-          });
-        }
         const selectedGrade = await window.appSelect(
           "Chỉnh sửa học sinh",
-          "Lớp đang học:",
+          "Lớp đang học (Lớp 1 - Lớp 12):",
           options,
-          currentGrade || "Lớp 6",
+          currentGrade || "Lớp 1",
         );
         if (isDialogCancelled(selectedGrade)) return;
-        gradeLevel = String(selectedGrade || "");
+        gradeLevel = normalizeStudentGradeLevel(selectedGrade);
       } else {
         const gradeInput = await window.appPrompt(
           "Chỉnh sửa học sinh",
-          "Lớp đang học (VD: Lớp 7, Lớp 8...):",
-          currentGrade,
+          "Lớp đang học (Lớp 1 - Lớp 12):",
+          currentGrade || "Lớp 1",
         );
         if (isDialogCancelled(gradeInput)) return;
-        gradeLevel = String(gradeInput || "");
+        gradeLevel = normalizeStudentGradeLevel(gradeInput);
       }
 
-      if (!String(gradeLevel).trim())
-        return alert("Thiếu thông tin lớp đang học.");
+      if (!gradeLevel) {
+        return alert(
+          "Lớp đang học không hợp lệ. Vui lòng chọn từ Lớp 1 đến Lớp 12.",
+        );
+      }
       await window.cloudSave("students", {
         ...item,
         name: name.trim(),
         parentPhone: String(parentPhone).trim(),
-        gradeLevel: String(gradeLevel).trim(),
+        gradeLevel,
       });
       return;
     }

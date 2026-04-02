@@ -292,11 +292,18 @@ const loadQrScannerLibrary = (() => {
 })();
 
 const normalizePeriodMode = (mode) =>
-  String(mode || "")
-    .trim()
-    .toLowerCase() === "month"
-    ? "month"
+  ["day", "week", "month"].includes(
+    String(mode || "")
+      .trim()
+      .toLowerCase(),
+  )
+    ? String(mode || "")
+        .trim()
+        .toLowerCase()
     : "day";
+
+const isIsoWeekToken = (value) =>
+  /^\d{4}-W\d{2}$/.test(String(value || "").trim());
 
 const toMonthFromDate = (dateToken) => {
   const raw = String(dateToken || "").trim();
@@ -419,6 +426,7 @@ const getTeachingContextForTeacherDate = ({ teacherId, attendanceDate }) => {
 const getAttendancePeriodSelection = () => {
   const periodSelect = document.getElementById("attendancePeriod");
   const dateInput = document.getElementById("attendanceDate");
+  const weekInput = document.getElementById("attendanceWeek");
   const monthInput = document.getElementById("attendanceMonth");
 
   const mode = normalizePeriodMode(periodSelect?.value || "day");
@@ -426,11 +434,18 @@ const getAttendancePeriodSelection = () => {
   const selectedDate = isIsoDateToken(dateInput?.value)
     ? String(dateInput.value)
     : fallbackDate;
+  const fallbackWeek = toIsoWeekTokenFromDateToken(selectedDate);
+  const selectedWeek = isIsoWeekToken(weekInput?.value)
+    ? String(weekInput.value).trim()
+    : fallbackWeek;
   const selectedMonth =
     String(monthInput?.value || "").trim() || toMonthFromDate(selectedDate);
 
   if (dateInput && dateInput.value !== selectedDate) {
     dateInput.value = selectedDate;
+  }
+  if (weekInput && weekInput.value !== selectedWeek) {
+    weekInput.value = selectedWeek;
   }
   if (monthInput && monthInput.value !== selectedMonth) {
     monthInput.value = selectedMonth;
@@ -442,12 +457,20 @@ const getAttendancePeriodSelection = () => {
   return {
     mode,
     date: selectedDate,
+    week: selectedWeek,
     month: selectedMonth,
   };
 };
 
 const getAttendancePeriodLabel = (selection) => {
   const mode = normalizePeriodMode(selection?.mode);
+  if (mode === "week") {
+    const weekToken = String(selection?.week || "").trim();
+    const match = /^(\d{4})-W(\d{2})$/.exec(weekToken);
+    if (!match) return "Tuần chưa chọn";
+    return `Tuần ${Number(match[2])}/${match[1]}`;
+  }
+
   if (mode === "month") {
     const [year, month] = String(selection?.month || "").split("-");
     if (!year || !month) return "Tháng chưa chọn";
@@ -463,7 +486,15 @@ const isRequestInSelection = (request, selection) => {
   const attendanceDate = String(request?.attendanceDate || "").trim();
   if (!attendanceDate) return false;
 
-  if (normalizePeriodMode(selection?.mode) === "month") {
+  const mode = normalizePeriodMode(selection?.mode);
+
+  if (mode === "week") {
+    const weekToken = String(selection?.week || "").trim();
+    if (!weekToken) return false;
+    return toIsoWeekTokenFromDateToken(attendanceDate) === weekToken;
+  }
+
+  if (mode === "month") {
     const monthToken = String(selection?.month || "").trim();
     return monthToken ? attendanceDate.startsWith(`${monthToken}-`) : false;
   }

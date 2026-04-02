@@ -540,150 +540,7 @@ export const registerRenderCore = ({
     summaryEl.className = "text-[11px] text-slate-500 mb-1.5";
   };
 
-  globalThis.handleClassSelection = () => {
-    const currentRole = getCurrentRole();
-    const currentUser = getCurrentUser();
-    const classId = document.getElementById("sch_classId").value;
-    const subjectId = document.getElementById("sch_subjectId")?.value || "";
-    const hintDiv = document.getElementById("sch_classHint");
-    const teacherSelect = document.getElementById("sch_teacherId");
-    const filterHint = document.getElementById("teacherFilterHint");
-    const studentWrap = document.getElementById("sch_studentPickerWrap");
-    const studentCheckboxes = document.getElementById("sch_studentCheckboxes");
-    if (!teacherSelect) return;
-    if (!classId) {
-      hintDiv?.classList.add("hidden");
-      teacherSelect.disabled = true;
-      teacherSelect.innerHTML =
-        '<option value="">-- Vui lòng chọn Nhóm/Lớp trước --</option>';
-      if (studentWrap) {
-        studentWrap.classList.add("hidden");
-        delete studentWrap.dataset.classId;
-      }
-      if (studentCheckboxes) {
-        studentCheckboxes.innerHTML = "";
-      }
-      filterHint?.classList.add("hidden");
-      if (typeof globalThis.syncScheduleFormByRole === "function") {
-        globalThis.syncScheduleFormByRole();
-      }
-      return;
-    }
-
-    const cls = getClassInfoSafe(classId);
-    if (cls) {
-      const prevSelectedIds = new Set(
-        Array.from(
-          document.querySelectorAll("#sch_studentCheckboxes input:checked"),
-        ).map((el) => String(el.value || "")),
-      );
-      const previousClassId = String(studentWrap?.dataset.classId || "");
-      const defaultSelectedIds =
-        previousClassId === String(cls.id) && prevSelectedIds.size > 0
-          ? prevSelectedIds
-          : new Set((cls.studentIds || []).map(String));
-
-      if (studentCheckboxes) {
-        studentCheckboxes.innerHTML = (cls.studentIds || [])
-          .map((id) => {
-            const student = getStudentInfo(id);
-            const checkedAttr = defaultSelectedIds.has(String(id))
-              ? "checked"
-              : "";
-            return `<label class="flex items-center gap-2 p-1.5 rounded border border-transparent hover:border-indigo-200 hover:bg-white cursor-pointer"><input type="checkbox" value="${safeAttr(id)}" ${checkedAttr} onchange="globalThis.updateScheduleStudentSelection()" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"><span class="text-[12px] text-slate-700 font-medium">${safeText(student.name)}</span></label>`;
-          })
-          .join("");
-      }
-      if (studentWrap) {
-        studentWrap.classList.remove("hidden");
-        studentWrap.dataset.classId = String(cls.id);
-      }
-
-      const studentChips = (cls.studentIds || [])
-        .map(
-          (id) =>
-            `<span class="text-[11px] font-medium px-2 py-0.5 rounded border bg-white border-indigo-200 text-slate-700">${safeText(getStudentInfo(id).name)}</span>`,
-        )
-        .join(" ");
-      if (hintDiv) {
-        hintDiv.innerHTML = `<div class="space-y-1"><div><span class="font-bold text-indigo-800">Nhóm lớp:</span> ${safeText(getClassDisplayName(cls))}</div><div><span class="font-bold text-indigo-800">Sĩ số ${safeText(String(cls.studentIds.length))} HS:</span></div><div class="flex flex-wrap gap-1">${studentChips || '<span class="text-[11px] italic text-slate-500">Chưa có học sinh.</span>'}</div></div>`;
-        hintDiv.classList.remove("hidden");
-      }
-      if (typeof globalThis.updateScheduleStudentSelection === "function") {
-        globalThis.updateScheduleStudentSelection();
-      }
-
-      if (currentRole === "teacher") {
-        const currentTeacher = getTeacherInfo(currentUser?.id);
-        const teacherName =
-          currentTeacher?.name || currentUser?.name || "Giáo viên";
-        const subjectSelected = subjectId.length > 0;
-        let hasSubjectMatch = true;
-        if (subjectSelected) {
-          hasSubjectMatch = (currentTeacher?.subjectIds || []).includes(
-            subjectId,
-          );
-        }
-
-        teacherSelect.disabled = true;
-        teacherSelect.innerHTML = `<option value="${safeAttr(String(currentUser?.id || ""))}">${safeText(teacherName)}</option>`;
-        teacherSelect.value = String(currentUser?.id || "");
-        if (filterHint) {
-          filterHint.classList.remove("hidden");
-          let teacherHint = "Chọn môn để kiểm tra chuyên môn";
-          if (subjectSelected) {
-            teacherHint = "Môn đã chọn không thuộc chuyên môn của bạn";
-            if (hasSubjectMatch) {
-              teacherHint = "Đã khóa theo giáo viên đăng nhập";
-            }
-          }
-          filterHint.innerText = teacherHint;
-        }
-        return;
-      }
-
-      if (!subjectId) {
-        teacherSelect.disabled = true;
-        teacherSelect.innerHTML =
-          '<option value="">-- Vui lòng chọn Môn học trước --</option>';
-        if (filterHint) {
-          filterHint.classList.remove("hidden");
-          filterHint.innerText = "Chọn môn để lọc giáo viên";
-        }
-        return;
-      }
-
-      const availableTeachers = globalThis.db.teachers.filter((t) =>
-        t.subjectIds.includes(subjectId),
-      );
-
-      teacherSelect.disabled = false;
-      filterHint?.classList.remove("hidden");
-      if (availableTeachers.length > 0) {
-        teacherSelect.innerHTML =
-          '<option value="">-- Chọn Giáo viên --</option>' +
-          availableTeachers
-            .map(
-              (t) =>
-                `<option value="${safeAttr(t.id)}">${safeText(t.name)}</option>`,
-            )
-            .join("");
-        if (filterHint) filterHint.innerText = "Đã lọc theo môn";
-      } else {
-        teacherSelect.innerHTML =
-          '<option value="">-- Không có GV chuyên môn này --</option>';
-        if (filterHint) {
-          filterHint.innerText = "Không có giáo viên phù hợp môn đã chọn";
-        }
-      }
-      return;
-    }
-
-    if (hintDiv) {
-      hintDiv.innerHTML =
-        '<span class="text-[11px] text-rose-700">Không tìm thấy nhóm/lớp cho lịch này. Vui lòng chọn lại.</span>';
-      hintDiv.classList.remove("hidden");
-    }
+  const clearClassStudentPicker = (studentWrap, studentCheckboxes) => {
     if (studentWrap) {
       studentWrap.classList.add("hidden");
       delete studentWrap.dataset.classId;
@@ -691,6 +548,151 @@ export const registerRenderCore = ({
     if (studentCheckboxes) {
       studentCheckboxes.innerHTML = "";
     }
+  };
+
+  const renderClassStudentPicker = (cls, studentWrap, studentCheckboxes) => {
+    const prevSelectedIds = new Set(
+      Array.from(
+        document.querySelectorAll("#sch_studentCheckboxes input:checked"),
+      ).map((el) => String(el.value || "")),
+    );
+    const previousClassId = String(studentWrap?.dataset.classId || "");
+    const defaultSelectedIds =
+      previousClassId === String(cls.id) && prevSelectedIds.size > 0
+        ? prevSelectedIds
+        : new Set((cls.studentIds || []).map(String));
+
+    if (studentCheckboxes) {
+      studentCheckboxes.innerHTML = (cls.studentIds || [])
+        .map((id) => {
+          const student = getStudentInfo(id);
+          const checkedAttr = defaultSelectedIds.has(String(id))
+            ? "checked"
+            : "";
+          return `<label class="flex items-center gap-2 p-1.5 rounded border border-transparent hover:border-indigo-200 hover:bg-white cursor-pointer"><input type="checkbox" value="${safeAttr(id)}" ${checkedAttr} onchange="globalThis.updateScheduleStudentSelection()" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"><span class="text-[12px] text-slate-700 font-medium">${safeText(student.name)}</span></label>`;
+        })
+        .join("");
+    }
+    if (studentWrap) {
+      studentWrap.classList.remove("hidden");
+      studentWrap.dataset.classId = String(cls.id);
+    }
+    if (typeof globalThis.updateScheduleStudentSelection === "function") {
+      globalThis.updateScheduleStudentSelection();
+    }
+  };
+
+  const renderClassHint = (hintDiv, cls) => {
+    if (!hintDiv) return;
+    const studentChips = (cls.studentIds || [])
+      .map(
+        (id) =>
+          `<span class="text-[11px] font-medium px-2 py-0.5 rounded border bg-white border-indigo-200 text-slate-700">${safeText(getStudentInfo(id).name)}</span>`,
+      )
+      .join(" ");
+    hintDiv.innerHTML = `<div class="space-y-1"><div><span class="font-bold text-indigo-800">Nhóm lớp:</span> ${safeText(getClassDisplayName(cls))}</div><div><span class="font-bold text-indigo-800">Sĩ số ${safeText(String(cls.studentIds.length))} HS:</span></div><div class="flex flex-wrap gap-1">${studentChips || '<span class="text-[11px] italic text-slate-500">Chưa có học sinh.</span>'}</div></div>`;
+    hintDiv.classList.remove("hidden");
+  };
+
+  const applyTeacherClassSelection = (
+    currentUser,
+    subjectId,
+    teacherSelect,
+    filterHint,
+  ) => {
+    const currentTeacher = getTeacherInfo(currentUser?.id);
+    const teacherName =
+      currentTeacher?.name || currentUser?.name || "Giáo viên";
+    const subjectSelected = subjectId.length > 0;
+    const hasSubjectMatch = subjectSelected
+      ? (currentTeacher?.subjectIds || []).includes(subjectId)
+      : true;
+
+    teacherSelect.disabled = true;
+    teacherSelect.innerHTML = `<option value="${safeAttr(String(currentUser?.id || ""))}">${safeText(teacherName)}</option>`;
+    teacherSelect.value = String(currentUser?.id || "");
+    if (!filterHint) return;
+
+    filterHint.classList.remove("hidden");
+    if (!subjectSelected) {
+      filterHint.innerText = "Chọn môn để kiểm tra chuyên môn";
+      return;
+    }
+    filterHint.innerText = hasSubjectMatch
+      ? "Đã khóa theo giáo viên đăng nhập"
+      : "Môn đã chọn không thuộc chuyên môn của bạn";
+  };
+
+  const applyAdminClassSelection = (subjectId, teacherSelect, filterHint) => {
+    if (!subjectId) {
+      teacherSelect.disabled = true;
+      teacherSelect.innerHTML =
+        '<option value="">-- Vui lòng chọn Môn học trước --</option>';
+      if (filterHint) {
+        filterHint.classList.remove("hidden");
+        filterHint.innerText = "Chọn môn để lọc giáo viên";
+      }
+      return;
+    }
+
+    const availableTeachers = globalThis.db.teachers.filter((t) =>
+      t.subjectIds.includes(subjectId),
+    );
+    teacherSelect.disabled = false;
+    filterHint?.classList.remove("hidden");
+    if (availableTeachers.length > 0) {
+      teacherSelect.innerHTML =
+        '<option value="">-- Chọn Giáo viên --</option>' +
+        availableTeachers
+          .map(
+            (t) =>
+              `<option value="${safeAttr(t.id)}">${safeText(t.name)}</option>`,
+          )
+          .join("");
+      if (filterHint) {
+        filterHint.innerText = "Đã lọc theo môn";
+      }
+      return;
+    }
+
+    teacherSelect.innerHTML =
+      '<option value="">-- Không có GV chuyên môn này --</option>';
+    if (filterHint) {
+      filterHint.innerText = "Không có giáo viên phù hợp môn đã chọn";
+    }
+  };
+
+  const handleClassSelectionWithoutClass = (
+    hintDiv,
+    teacherSelect,
+    filterHint,
+    studentWrap,
+    studentCheckboxes,
+  ) => {
+    hintDiv?.classList.add("hidden");
+    teacherSelect.disabled = true;
+    teacherSelect.innerHTML =
+      '<option value="">-- Vui lòng chọn Nhóm/Lớp trước --</option>';
+    clearClassStudentPicker(studentWrap, studentCheckboxes);
+    filterHint?.classList.add("hidden");
+    if (typeof globalThis.syncScheduleFormByRole === "function") {
+      globalThis.syncScheduleFormByRole();
+    }
+  };
+
+  const handleClassSelectionWithInvalidClass = (
+    hintDiv,
+    teacherSelect,
+    filterHint,
+    studentWrap,
+    studentCheckboxes,
+  ) => {
+    if (hintDiv) {
+      hintDiv.innerHTML =
+        '<span class="text-[11px] text-rose-700">Không tìm thấy nhóm/lớp cho lịch này. Vui lòng chọn lại.</span>';
+      hintDiv.classList.remove("hidden");
+    }
+    clearClassStudentPicker(studentWrap, studentCheckboxes);
     teacherSelect.disabled = true;
     teacherSelect.innerHTML =
       '<option value="">-- Nhóm/Lớp không hợp lệ --</option>';
@@ -700,29 +702,60 @@ export const registerRenderCore = ({
     }
   };
 
+  globalThis.handleClassSelection = () => {
+    const currentRole = getCurrentRole();
+    const currentUser = getCurrentUser();
+    const classId = document.getElementById("sch_classId")?.value || "";
+    const subjectId = document.getElementById("sch_subjectId")?.value || "";
+    const hintDiv = document.getElementById("sch_classHint");
+    const teacherSelect = document.getElementById("sch_teacherId");
+    const filterHint = document.getElementById("teacherFilterHint");
+    const studentWrap = document.getElementById("sch_studentPickerWrap");
+    const studentCheckboxes = document.getElementById("sch_studentCheckboxes");
+
+    if (!teacherSelect) return;
+    if (!classId) {
+      handleClassSelectionWithoutClass(
+        hintDiv,
+        teacherSelect,
+        filterHint,
+        studentWrap,
+        studentCheckboxes,
+      );
+      return;
+    }
+
+    const cls = getClassInfoSafe(classId);
+    if (!cls) {
+      handleClassSelectionWithInvalidClass(
+        hintDiv,
+        teacherSelect,
+        filterHint,
+        studentWrap,
+        studentCheckboxes,
+      );
+      return;
+    }
+
+    renderClassStudentPicker(cls, studentWrap, studentCheckboxes);
+    renderClassHint(hintDiv, cls);
+
+    if (currentRole === "teacher") {
+      applyTeacherClassSelection(
+        currentUser,
+        subjectId,
+        teacherSelect,
+        filterHint,
+      );
+      return;
+    }
+    applyAdminClassSelection(subjectId, teacherSelect, filterHint);
+  };
+
   const formatWeekLabel = (weekToken) => {
     const match = /^(\d{4})-W(\d{2})$/.exec(String(weekToken || ""));
     if (!match) return String(weekToken || "");
     return `Tuần ${Number(match[2])}, ${match[1]}`;
-  };
-
-  const getAttendanceBadgeMeta = (attendanceState) => {
-    if (attendanceState === "present") {
-      return {
-        className: "bg-emerald-50 text-emerald-700 border-emerald-200",
-        label: "Có mặt",
-      };
-    }
-    if (attendanceState === "absent") {
-      return {
-        className: "bg-rose-50 text-rose-700 border-rose-200",
-        label: "Vắng",
-      };
-    }
-    return {
-      className: "bg-slate-50 text-slate-600 border-slate-200",
-      label: "Chưa chấm",
-    };
   };
 
   globalThis.openTimetableScheduleDetail = async (scheduleId) => {
@@ -739,9 +772,6 @@ export const registerRenderCore = ({
     const subjectInfo = getScheduleSubjectInfo(schedule);
     const teacher = getTeacherInfo(schedule.teacherId);
     const approvalMeta = getScheduleApprovalMeta(schedule);
-    const attendanceMeta = getAttendanceBadgeMeta(
-      schedule.attendance?.status || "pending",
-    );
     const studentChips = getScheduleStudentIds(schedule, cls)
       .map(
         (studentId) =>
@@ -772,7 +802,6 @@ export const registerRenderCore = ({
 
         <div class="flex items-center gap-1.5 flex-wrap">
           <span class="text-[11px] font-bold px-2 py-0.5 rounded border ${approvalMeta.className}">${safeText(approvalMeta.label)}</span>
-          <span class="text-[11px] font-bold px-2 py-0.5 rounded border ${attendanceMeta.className}">${safeText(attendanceMeta.label)}</span>
           <span class="text-[11px] font-bold px-2 py-0.5 rounded border bg-slate-50 text-slate-700 border-slate-200">${safeText(formatHours(getDurationHours(schedule.startTime, schedule.endTime)))}</span>
         </div>
 
@@ -798,6 +827,86 @@ export const registerRenderCore = ({
       "Không thể mở popup chi tiết ở phiên này.",
       "Thông báo",
     );
+  };
+
+  const canCurrentUserEditSchedule = (schedule, currentRole, currentUser) =>
+    currentRole === "admin" ||
+    (currentRole === "teacher" &&
+      String(schedule?.teacherId) === String(currentUser?.id || ""));
+
+  const renderTimetableScheduleCard = (schedule, currentRole, currentUser) => {
+    const cls = getClassInfoSafe(schedule.classId);
+    const classLabel = getScheduleClassLabel(schedule, cls);
+    const subInfo = getScheduleSubjectInfo(schedule);
+    const teacher = getTeacherInfo(schedule.teacherId);
+    const approvalMeta = getScheduleApprovalMeta(schedule);
+    const canEditSchedule = canCurrentUserEditSchedule(
+      schedule,
+      currentRole,
+      currentUser,
+    );
+    const canOpenEvaluation = approvalMeta.status === "approved";
+    const subjectClass =
+      colorStyles[safeColorKey(subInfo.color)] ||
+      "bg-slate-100 text-slate-800 border-slate-200";
+    const editBtn = canEditSchedule
+      ? `<button onclick="event.stopPropagation(); globalThis.openScheduleEditor('${safeAttr(schedule.id)}')" class="text-slate-400 hover:text-indigo-600"><i data-lucide="pencil-line" class="w-3.5 h-3.5"></i></button>`
+      : "";
+    const deleteBtn =
+      currentRole === "admin"
+        ? `<button onclick="event.stopPropagation(); globalThis.deleteData('schedules', '${safeAttr(schedule.id)}')" class="text-slate-400 hover:text-rose-600"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>`
+        : "";
+
+    return `
+      <div onclick="globalThis.openTimetableScheduleDetail('${safeAttr(schedule.id)}')" class="rounded-lg border border-slate-200 bg-white p-2.5 mb-1.5 last:mb-0 cursor-pointer hover:border-indigo-300 hover:shadow-sm transition-all" title="Bấm để xem chi tiết ca dạy">
+        <div class="flex items-start justify-between gap-1.5">
+          <div class="min-w-0">
+            <div class="text-[11px] font-bold text-slate-800 truncate">${safeText(classLabel)}</div>
+            <div class="text-[10px] text-slate-500 truncate">${safeText(teacher.name)}</div>
+          </div>
+          <div class="flex items-center gap-1 shrink-0">
+            <button onclick="event.stopPropagation(); globalThis.openEvalModal('${safeAttr(schedule.id)}')" ${canOpenEvaluation ? "" : "disabled"} class="text-slate-400 hover:text-emerald-600 ${canOpenEvaluation ? "" : "opacity-40 cursor-not-allowed"}"><i data-lucide="clipboard-check" class="w-3.5 h-3.5"></i></button>
+            ${editBtn}
+            ${deleteBtn}
+          </div>
+        </div>
+        <div class="flex items-center gap-1 flex-wrap mt-1.5">
+          <span class="text-[10px] font-bold px-1.5 py-0.5 rounded border ${subjectClass}">${safeText(subInfo.name)}</span>
+        </div>
+        ${schedule.topic ? `<div class="text-[10px] text-slate-500 mt-1 line-clamp-2">${safeText(schedule.topic)}</div>` : ""}
+      </div>`;
+  };
+
+  const renderTimetableCellItems = (scheduleList, currentRole, currentUser) => {
+    let html = "";
+    for (const schedule of scheduleList) {
+      html += renderTimetableScheduleCard(schedule, currentRole, currentUser);
+    }
+    return html;
+  };
+
+  const getScheduleEvaluationCount = (evaluations) => {
+    let count = 0;
+    for (const value of Object.values(evaluations || {})) {
+      if (parseEvaluationRecord(value)) {
+        count += 1;
+      }
+    }
+    return count;
+  };
+
+  const renderScheduleStudentBadges = (scheduleStudentIds, evaluations) => {
+    let badges = "";
+    for (const id of scheduleStudentIds || []) {
+      const evalRecord = parseEvaluationRecord(evaluations?.[id]);
+      const levelMeta = evalRecord ? getEvalLevelMeta(evalRecord.level) : null;
+      const badgeClass = levelMeta
+        ? levelMeta.className
+        : "bg-slate-50 text-slate-600 border-slate-200";
+      const levelSuffix = levelMeta ? ` • ${safeText(levelMeta.label)}` : "";
+      badges += `<span class="text-[10px] font-medium px-2 py-0.5 rounded border ${badgeClass}">${safeText(getStudentInfo(id).name)}${levelSuffix}</span>`;
+    }
+    return badges;
   };
 
   const renderScheduleApprovalPanel = (week, currentRole) => {
@@ -947,53 +1056,11 @@ export const registerRenderCore = ({
                 return '<td class="p-1.5 border-b border-slate-100 align-top"><div class="h-14 rounded-md border border-dashed border-slate-200 bg-slate-50/60"></div></td>';
               }
 
-              const items = list
-                .map((sch) => {
-                  const cls = getClassInfoSafe(sch.classId);
-                  const classLabel = getScheduleClassLabel(sch, cls);
-                  const subInfo = getScheduleSubjectInfo(sch);
-                  const teacher = getTeacherInfo(sch.teacherId);
-                  const approvalMeta = getScheduleApprovalMeta(sch);
-                  const canEditSchedule =
-                    currentRole === "admin" ||
-                    (currentRole === "teacher" &&
-                      String(sch.teacherId) === String(currentUser?.id || ""));
-                  const canOpenEvaluation = approvalMeta.status === "approved";
-                  const attendanceState = sch.attendance?.status || "pending";
-                  const attendanceMeta =
-                    getAttendanceBadgeMeta(attendanceState);
-                  const subjectClass =
-                    colorStyles[safeColorKey(subInfo.color)] ||
-                    "bg-slate-100 text-slate-800 border-slate-200";
-                  const editBtn = canEditSchedule
-                    ? `<button onclick="event.stopPropagation(); globalThis.openScheduleEditor('${safeAttr(sch.id)}')" class="text-slate-400 hover:text-indigo-600"><i data-lucide="pencil-line" class="w-3.5 h-3.5"></i></button>`
-                    : "";
-                  const deleteBtn =
-                    currentRole === "admin"
-                      ? `<button onclick="event.stopPropagation(); globalThis.deleteData('schedules', '${safeAttr(sch.id)}')" class="text-slate-400 hover:text-rose-600"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>`
-                      : "";
-
-                  return `
-                    <div onclick="globalThis.openTimetableScheduleDetail('${safeAttr(sch.id)}')" class="rounded-lg border border-slate-200 bg-white p-2.5 mb-1.5 last:mb-0 cursor-pointer hover:border-indigo-300 hover:shadow-sm transition-all" title="Bấm để xem chi tiết ca dạy">
-                      <div class="flex items-start justify-between gap-1.5">
-                        <div class="min-w-0">
-                          <div class="text-[11px] font-bold text-slate-800 truncate">${safeText(classLabel)}</div>
-                          <div class="text-[10px] text-slate-500 truncate">${safeText(teacher.name)}</div>
-                        </div>
-                        <div class="flex items-center gap-1 shrink-0">
-                          <button onclick="event.stopPropagation(); globalThis.openEvalModal('${safeAttr(sch.id)}')" ${canOpenEvaluation ? "" : "disabled"} class="text-slate-400 hover:text-emerald-600 ${canOpenEvaluation ? "" : "opacity-40 cursor-not-allowed"}"><i data-lucide="clipboard-check" class="w-3.5 h-3.5"></i></button>
-                          ${editBtn}
-                          ${deleteBtn}
-                        </div>
-                      </div>
-                      <div class="flex items-center gap-1 flex-wrap mt-1.5">
-                        <span class="text-[10px] font-bold px-1.5 py-0.5 rounded border ${subjectClass}">${safeText(subInfo.name)}</span>
-                        <span class="text-[10px] font-bold px-1.5 py-0.5 rounded border ${attendanceMeta.className}">${attendanceMeta.label}</span>
-                      </div>
-                      ${sch.topic ? `<div class="text-[10px] text-slate-500 mt-1 line-clamp-2">${safeText(sch.topic)}</div>` : ""}
-                    </div>`;
-                })
-                .join("");
+              const items = renderTimetableCellItems(
+                list,
+                currentRole,
+                currentUser,
+              );
 
               return `<td class="p-1.5 border-b border-slate-100 align-top">${items}</td>`;
             })
@@ -1049,10 +1116,11 @@ export const registerRenderCore = ({
         const subInfo = getScheduleSubjectInfo(sch);
         const scheduleStudentIds = getScheduleStudentIds(sch, cls);
         const approvalMeta = getScheduleApprovalMeta(sch);
-        const canEditSchedule =
-          currentRole === "admin" ||
-          (currentRole === "teacher" &&
-            String(sch.teacherId) === String(currentUser?.id || ""));
+        const canEditSchedule = canCurrentUserEditSchedule(
+          sch,
+          currentRole,
+          currentUser,
+        );
         const canOpenEvaluation = approvalMeta.status === "approved";
         const colorClass =
           colorStyles[safeColorKey(subInfo.color)] ||
@@ -1060,44 +1128,14 @@ export const registerRenderCore = ({
         const stripeColor =
           dotColors[safeColorKey(subInfo.color)] || "bg-slate-400";
         const teacher = getTeacherInfo(sch.teacherId);
-        const evalCount = Object.keys(sch.evaluations || {}).filter((k) => {
-          const evalRecord = parseEvaluationRecord(sch.evaluations[k]);
-          return !!evalRecord;
-        }).length;
+        const evalCount = getScheduleEvaluationCount(sch.evaluations);
         const isDone =
           scheduleStudentIds.length > 0 &&
           evalCount === scheduleStudentIds.length;
-        const attendanceState = sch.attendance?.status || "pending";
-        let attendanceMeta = {
-          label: "Chưa chấm công",
-          className: "bg-slate-50 text-slate-600 border-slate-200",
-        };
-        if (attendanceState === "present") {
-          attendanceMeta = {
-            label: "Đã chấm công",
-            className: "bg-emerald-50 text-emerald-700 border-emerald-200",
-          };
-        } else if (attendanceState === "absent") {
-          attendanceMeta = {
-            label: "Vắng",
-            className: "bg-rose-50 text-rose-700 border-rose-200",
-          };
-        }
-        const badges = scheduleStudentIds
-          .map((id) => {
-            const evalRecord = parseEvaluationRecord(sch.evaluations?.[id]);
-            const levelMeta = evalRecord
-              ? getEvalLevelMeta(evalRecord.level)
-              : null;
-            const badgeClass = levelMeta
-              ? levelMeta.className
-              : "bg-slate-50 text-slate-600 border-slate-200";
-            const levelSuffix = levelMeta
-              ? ` • ${safeText(levelMeta.label)}`
-              : "";
-            return `<span class="text-[10px] font-medium px-2 py-0.5 rounded border ${badgeClass}">${safeText(getStudentInfo(id).name)}${levelSuffix}</span>`;
-          })
-          .join(" ");
+        const badges = renderScheduleStudentBadges(
+          scheduleStudentIds,
+          sch.evaluations,
+        );
         const deleteBtnHtml =
           currentRole === "admin"
             ? `<button onclick="globalThis.deleteData('schedules', '${safeAttr(sch.id)}')" class="p-2 w-full sm:w-auto flex justify-center items-center text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`
@@ -1123,7 +1161,6 @@ export const registerRenderCore = ({
                             <div class="flex items-center gap-2 mb-1.5 flex-wrap"><span class="bg-slate-100 text-slate-800 border border-slate-200 text-[11px] font-bold px-2 py-0.5 rounded uppercase tracking-wide">${safeText(classLabel)}</span>${cls?.groupName ? `<span class="bg-indigo-50 text-indigo-700 border border-indigo-200 text-[11px] font-bold px-2 py-0.5 rounded">${safeText(getClassGroupName(cls))}</span>` : ""}<span class="text-[11px] font-bold px-2 py-0.5 rounded border ${colorClass}">${safeText(subInfo.name)}</span>${sch.topic ? `<span class="text-slate-400 text-xs">|</span> <span class="text-slate-500 italic text-xs truncate max-w-[150px]">${safeText(sch.topic)}</span>` : ""}</div>
                             <div class="text-sm font-medium text-slate-700 bg-slate-50 self-start px-2 py-0.5 rounded flex items-center gap-1.5 mb-2 border border-slate-100"><i data-lucide="graduation-cap" class="w-3.5 h-3.5 text-slate-400"></i> GV: ${safeText(teacher.name)}</div>
                                 <div class="flex items-center gap-1.5 flex-wrap mb-2">
-                                  <div class="text-[10px] font-bold px-2 py-0.5 rounded border self-start ${attendanceMeta.className}">${attendanceMeta.label}</div>
                                   <div class="text-[10px] font-bold px-2 py-0.5 rounded border self-start ${approvalMeta.className}">${approvalMeta.label}</div>
                                 </div>
                                 ${approvalNote}
@@ -1157,16 +1194,19 @@ export const registerRenderCore = ({
       approvalSummaryEl: document.getElementById("attendanceApprovalSummary"),
       approvalBadgeEl: document.getElementById("attendanceApprovalBadge"),
       approvalListEl: document.getElementById("attendanceApprovalList"),
-      summaryEl: document.getElementById("attendanceSummary"),
       listEl: document.getElementById("attendanceList"),
       sessionsEl: document.getElementById("attendanceStatSessions"),
       presentEl: document.getElementById("attendanceStatPresent"),
       absentEl: document.getElementById("attendanceStatAbsent"),
-      hoursEl: document.getElementById("attendanceStatHours"),
       pendingEl: document.getElementById("attendanceStatPending"),
       rateEl: document.getElementById("attendanceStatRate"),
+      weeklyPanelEl: document.getElementById("attendanceWeeklyPanel"),
+      weeklyLabelEl: document.getElementById("attendanceWeeklyLabel"),
+      weeklyTotalEl: document.getElementById("attendanceWeeklyTotal"),
+      weeklyApprovedEl: document.getElementById("attendanceWeeklyApproved"),
+      weeklyRateEl: document.getElementById("attendanceWeeklyRate"),
     };
-    if (!controls.summaryEl || !controls.listEl) return;
+    if (!controls.listEl) return;
 
     const statusMetaMap = {
       pending: {
@@ -1183,11 +1223,6 @@ export const registerRenderCore = ({
       },
     };
 
-    const formatWorkedMinutesSafe = (minutes) =>
-      typeof formatWorkedMinutes === "function"
-        ? formatWorkedMinutes(minutes)
-        : formatHours(Number(minutes || 0) / 60);
-
     const toDateLabel = (dateToken) => {
       const [year, month, day] = String(dateToken || "").split("-");
       if (!year || !month || !day) return String(dateToken || "");
@@ -1198,42 +1233,64 @@ export const registerRenderCore = ({
       typeof getAttendancePeriodSelection === "function"
         ? getAttendancePeriodSelection()
         : {
-            mode:
-              String(controls.periodSelect?.value || "")
-                .trim()
-                .toLowerCase() === "month"
-                ? "month"
-                : "day",
+            mode: String(controls.periodSelect?.value || "")
+              .trim()
+              .toLowerCase(),
             date: String(controls.dateInput?.value || "").trim(),
+            week: String(controls.weekInput?.value || "").trim(),
             month: String(controls.monthInput?.value || "").trim(),
           };
 
+    const normalizeMode = (mode) =>
+      ["day", "week", "month"].includes(
+        String(mode || "")
+          .trim()
+          .toLowerCase(),
+      )
+        ? String(mode || "")
+            .trim()
+            .toLowerCase()
+        : "day";
+
+    const isIsoWeekToken = (value) =>
+      /^\d{4}-W\d{2}$/.test(String(value || "").trim());
+
+    const toIsoWeekTokenFromDateToken = (dateToken) => {
+      const raw = String(dateToken || "").trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return "";
+      const [year, month, day] = raw.split("-").map(Number);
+      const date = new Date(Date.UTC(year, month - 1, day));
+      const dayNum = date.getUTCDay() || 7;
+      date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+      const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+      const weekNo = Math.ceil(((date - yearStart) / 86400000 + 1) / 7);
+      return `${date.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
+    };
+
     const applySelection = (selection) => {
-      if (controls.periodSelect) controls.periodSelect.value = selection.mode;
+      const mode = normalizeMode(selection?.mode);
+      if (controls.periodSelect) controls.periodSelect.value = mode;
       if (controls.dateInput && selection.date) {
         controls.dateInput.value = selection.date;
-      }
-      if (controls.monthInput && selection.month) {
-        controls.monthInput.value = selection.month;
       }
       if (controls.weekInput && selection.week) {
         controls.weekInput.value = selection.week;
       }
+      if (controls.monthInput && selection.month) {
+        controls.monthInput.value = selection.month;
+      }
 
       if (controls.dateWrap) {
-        controls.dateWrap.classList.toggle("hidden", selection.mode !== "day");
-        controls.dateWrap.classList.toggle("flex", selection.mode === "day");
+        controls.dateWrap.classList.toggle("hidden", mode !== "day");
+        controls.dateWrap.classList.toggle("flex", mode === "day");
       }
       if (controls.weekWrap) {
-        controls.weekWrap.classList.add("hidden");
-        controls.weekWrap.classList.remove("flex");
+        controls.weekWrap.classList.toggle("hidden", mode !== "week");
+        controls.weekWrap.classList.toggle("flex", mode === "week");
       }
       if (controls.monthWrap) {
-        controls.monthWrap.classList.toggle(
-          "hidden",
-          selection.mode !== "month",
-        );
-        controls.monthWrap.classList.toggle("flex", selection.mode === "month");
+        controls.monthWrap.classList.toggle("hidden", mode !== "month");
+        controls.monthWrap.classList.toggle("flex", mode === "month");
       }
     };
 
@@ -1249,7 +1306,6 @@ export const registerRenderCore = ({
               approvedCount: 0,
               rejectedCount: 0,
               pendingCount: 0,
-              totalWorkedMinutes: 0,
               approvalRate: "0%",
             },
             teacherSummary: [],
@@ -1265,7 +1321,6 @@ export const registerRenderCore = ({
       const approvedCount = Number(stats?.approvedCount || 0);
       const rejectedCount = Number(stats?.rejectedCount || 0);
       const pendingCount = Number(stats?.pendingCount || 0);
-      const totalWorkedMinutes = Number(stats?.totalWorkedMinutes || 0);
       const approvalRate = String(stats?.approvalRate || "0%");
 
       if (controls.sessionsEl)
@@ -1273,28 +1328,266 @@ export const registerRenderCore = ({
       if (controls.presentEl) controls.presentEl.innerText = `${approvedCount}`;
       if (controls.absentEl) controls.absentEl.innerText = `${rejectedCount}`;
       if (controls.pendingEl) controls.pendingEl.innerText = `${pendingCount}`;
-      if (controls.hoursEl) {
-        controls.hoursEl.innerText =
-          formatWorkedMinutesSafe(totalWorkedMinutes);
-      }
       if (controls.rateEl) controls.rateEl.innerText = approvalRate;
     };
 
-    const renderTeacherSummary = (teacherSummary) => {
-      const summaryRows = (teacherSummary || [])
-        .slice(0, 8)
-        .map((item) => {
-          const totalDays = Number(item.totalDays || item.totalRequests || 0);
-          const approvedDays = Number(
-            item.approvedDays || item.approvedCount || 0,
-          );
-          return `<div class="text-xs bg-slate-50 border border-slate-200 rounded px-2 py-1"><span class="font-bold text-slate-700">${safeText(item.teacherName)}</span>: ${approvedDays}/${totalDays} ngày duyệt • ${item.pendingCount} chờ • ${item.rejectedCount} từ chối • ${formatWorkedMinutesSafe(item.workedMinutes)}</div>`;
-        })
-        .join(" ");
+    const renderDetailDisclosure = (detailItems) => {
+      if (!detailItems.length) return "";
+      let detailLinesHtml = "";
+      detailItems.forEach((line) => {
+        detailLinesHtml += `<div>${line}</div>`;
+      });
+      return `<details class="mt-1"><summary class="text-[10px] text-slate-500 cursor-pointer select-none">Chi tiết</summary><div class="mt-1 text-[10px] text-slate-500 space-y-1">${detailLinesHtml}</div></details>`;
+    };
 
-      controls.summaryEl.innerHTML =
-        summaryRows ||
-        '<span class="text-sm text-slate-400">Chưa có dữ liệu chấm công trong kỳ đang chọn.</span>';
+    const ATTENDANCE_DAY_CARD_WIDTH_CLASS = "w-full sm:w-[290px] xl:w-[320px]";
+
+    const isMonthToken = (value) =>
+      /^\d{4}-\d{2}$/.test(String(value || "").trim());
+
+    const getMonthDateTokens = (monthToken) => {
+      const normalized = String(monthToken || "").trim();
+      if (!isMonthToken(normalized)) return [];
+      const [yearRaw, monthRaw] = normalized.split("-");
+      const year = Number(yearRaw);
+      const month = Number(monthRaw);
+      if (!year || !month) return [];
+
+      const daysInMonth = new Date(year, month, 0).getDate();
+      const result = [];
+      for (let day = 1; day <= daysInMonth; day += 1) {
+        result.push(
+          `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
+        );
+      }
+      return result;
+    };
+
+    const renderCompactPendingItem = (item) => {
+      const noteSuffix = item.note ? ` • ${safeText(item.note)}` : "";
+      return `
+            <div class="rounded-lg border border-amber-200 bg-white p-2.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div class="min-w-0">
+                <div class="text-[12px] font-bold text-slate-800 truncate">${safeText(item.teacherName)} • ${safeText(toDateLabel(item.attendanceDate))}</div>
+                <div class="text-[11px] text-slate-500 truncate">${safeText(item.checkInTime)} - ${safeText(item.checkOutTime)}${noteSuffix}</div>
+              </div>
+              <div class="flex items-center gap-1.5 shrink-0">
+                <button onclick="globalThis.reviewAttendanceRequest('${safeAttr(item.id)}', 'reject')" class="text-[11px] font-bold px-2 py-1 rounded border border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100">Từ chối</button>
+                <button onclick="globalThis.reviewAttendanceRequest('${safeAttr(item.id)}', 'approve')" class="text-[11px] font-bold px-2 py-1 rounded border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100">Duyệt</button>
+              </div>
+            </div>`;
+    };
+
+    const renderAttendanceDayItem = (item, currentRole) => {
+      const statusMeta = statusMetaMap[item.status] || statusMetaMap.pending;
+      const createdAtText = item.createdAt
+        ? new Date(item.createdAt).toLocaleString("vi-VN")
+        : "";
+      const reviewedAtText = item.reviewedAt
+        ? new Date(item.reviewedAt).toLocaleString("vi-VN")
+        : "";
+      const compactTeachingInfo =
+        String(item.teachingSubjectsText || "").trim() ||
+        "Không có dữ liệu môn dạy trong ngày.";
+      const adminActions =
+        currentRole === "admin" && item.status === "pending"
+          ? `<div class="flex items-center gap-1.5 mt-2"><button onclick="globalThis.reviewAttendanceRequest('${safeAttr(item.id)}', 'reject')" class="text-[11px] font-bold px-2 py-1 rounded border border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100">Từ chối</button><button onclick="globalThis.reviewAttendanceRequest('${safeAttr(item.id)}', 'approve')" class="text-[11px] font-bold px-2 py-1 rounded border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100">Duyệt</button></div>`
+          : "";
+
+      const detailItems = [
+        createdAtText ? `Tạo: ${safeText(createdAtText)}` : "",
+        reviewedAtText ? `Duyệt: ${safeText(reviewedAtText)}` : "",
+        item.reviewNote ? `Ghi chú duyệt: ${safeText(item.reviewNote)}` : "",
+      ].filter(Boolean);
+
+      const noteLine = item.note
+        ? `<div class="text-[10px] text-slate-500 mt-1 italic truncate">${safeText(item.note)}</div>`
+        : "";
+
+      return `
+            <div class="${ATTENDANCE_DAY_CARD_WIDTH_CLASS} bg-white border border-slate-200 rounded-lg p-2.5 flex flex-col gap-1.5">
+              <div class="min-w-0">
+                <div class="flex items-center justify-between gap-2">
+                  <div class="text-[12px] font-bold text-slate-800 truncate">${safeText(toDateLabel(item.attendanceDate))}</div>
+                  <span class="text-[10px] px-2 py-0.5 rounded border font-bold shrink-0 ${statusMeta.className}">${statusMeta.label}</span>
+                </div>
+                <div class="text-[11px] text-slate-500 truncate">${safeText(item.checkInTime)} - ${safeText(item.checkOutTime)}</div>
+                <div class="text-[11px] text-slate-500 truncate">${safeText(compactTeachingInfo)}</div>
+                ${noteLine}
+                ${renderDetailDisclosure(detailItems)}
+              </div>
+              ${adminActions}
+            </div>`;
+    };
+
+    const renderAttendanceDayPlaceholder = (dateToken) => `
+            <div class="${ATTENDANCE_DAY_CARD_WIDTH_CLASS} bg-slate-50 border border-slate-200 rounded-lg p-2.5 flex flex-col gap-1.5">
+              <div class="min-w-0">
+                <div class="flex items-center justify-between gap-2">
+                  <div class="text-[12px] font-bold text-slate-700 truncate">${safeText(toDateLabel(dateToken))}</div>
+                  <span class="text-[10px] px-2 py-0.5 rounded border font-bold shrink-0 bg-slate-100 text-slate-500 border-slate-200">Trống</span>
+                </div>
+                <div class="text-[11px] text-slate-400 truncate">--:-- - --:--</div>
+                <div class="text-[11px] text-slate-400 truncate">Chưa có bản ghi chấm công</div>
+              </div>
+            </div>`;
+
+    const compareAttendanceItems = (a, b) => {
+      const dateDiff = String(b.attendanceDate || "").localeCompare(
+        String(a.attendanceDate || ""),
+      );
+      if (dateDiff !== 0) return dateDiff;
+      return String(a.checkInTime || "").localeCompare(
+        String(b.checkInTime || ""),
+      );
+    };
+
+    const compareTeacherGroups = (a, b) =>
+      String(a.teacherName || "").localeCompare(
+        String(b.teacherName || ""),
+        "vi",
+      );
+
+    const groupAttendanceByTeacher = (requests) => {
+      const grouped = new Map();
+      for (const item of requests || []) {
+        const teacherKey = String(
+          item?.teacherId || item?.teacherName || "unknown",
+        );
+        if (!grouped.has(teacherKey)) {
+          grouped.set(teacherKey, {
+            teacherName: String(item?.teacherName || "Giáo viên"),
+            requests: [],
+            approvedCount: 0,
+            pendingCount: 0,
+            rejectedCount: 0,
+          });
+        }
+
+        const group = grouped.get(teacherKey);
+        group.requests.push(item);
+        if (item.status === "approved") {
+          group.approvedCount += 1;
+        } else if (item.status === "rejected") {
+          group.rejectedCount += 1;
+        } else {
+          group.pendingCount += 1;
+        }
+      }
+
+      const groups = Array.from(grouped.values());
+      for (const group of groups) {
+        group.requests.sort(compareAttendanceItems);
+      }
+
+      groups.sort(compareTeacherGroups);
+
+      return groups;
+    };
+
+    const buildTeacherAttendanceDayRows = (group, currentRole, selection) => {
+      const mode = normalizeMode(selection?.mode);
+      if (mode !== "month") {
+        return (group.requests || [])
+          .map((item) => renderAttendanceDayItem(item, currentRole))
+          .join("");
+      }
+
+      const byDate = new Map();
+      for (const request of group.requests || []) {
+        const key = String(request?.attendanceDate || "").trim();
+        if (key && !byDate.has(key)) {
+          byDate.set(key, request);
+        }
+      }
+
+      const monthDates = getMonthDateTokens(selection?.month);
+      let monthRows = "";
+      for (const dateToken of monthDates) {
+        const request = byDate.get(dateToken);
+        monthRows += request
+          ? renderAttendanceDayItem(request, currentRole)
+          : renderAttendanceDayPlaceholder(dateToken);
+      }
+      return monthRows;
+    };
+
+    const renderTeacherAttendanceGroup = (group, currentRole, selection) => {
+      const totalCount = Number(group.requests?.length || 0);
+      const latestDate = group.requests[0]?.attendanceDate
+        ? toDateLabel(group.requests[0].attendanceDate)
+        : "";
+      const dayRows = buildTeacherAttendanceDayRows(
+        group,
+        currentRole,
+        selection,
+      );
+
+      return `
+        <details class="group rounded-lg border border-slate-200 bg-white open:shadow-sm" ${totalCount <= 2 ? "open" : ""}>
+          <summary class="list-none cursor-pointer px-3 py-2.5 flex items-center justify-between gap-2 hover:bg-slate-50 rounded-lg">
+            <div class="min-w-0">
+              <div class="text-sm font-bold text-slate-800 truncate">${safeText(group.teacherName)}</div>
+              <div class="text-[11px] text-slate-500 truncate">${totalCount} ngày • ${safeText(latestDate ? `Mới nhất: ${latestDate}` : "")}</div>
+            </div>
+            <div class="flex items-center gap-1.5 text-[10px] font-bold shrink-0">
+              <span class="px-2 py-0.5 rounded border border-emerald-200 bg-emerald-50 text-emerald-700">Duyệt ${group.approvedCount}</span>
+              <span class="px-2 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700">Chờ ${group.pendingCount}</span>
+              <span class="px-2 py-0.5 rounded border border-rose-200 bg-rose-50 text-rose-700">Từ chối ${group.rejectedCount}</span>
+            </div>
+          </summary>
+          <div class="px-3 pb-3 pt-2 flex flex-wrap gap-2 border-t border-slate-100 bg-slate-50">${dayRows}</div>
+        </details>`;
+    };
+
+    const getWeeklySelection = (selection) => {
+      const explicitWeek = String(selection?.week || "").trim();
+      if (isIsoWeekToken(explicitWeek)) {
+        return { ...selection, mode: "week", week: explicitWeek };
+      }
+
+      const weekFromInput = String(controls.weekInput?.value || "").trim();
+      if (isIsoWeekToken(weekFromInput)) {
+        return { ...selection, mode: "week", week: weekFromInput };
+      }
+
+      const fromDate = toIsoWeekTokenFromDateToken(selection?.date);
+      if (isIsoWeekToken(fromDate)) {
+        return { ...selection, mode: "week", week: fromDate };
+      }
+
+      return { ...selection, mode: "week", week: "" };
+    };
+
+    const renderWeeklyPanel = (selection, currentRole) => {
+      if (
+        !controls.weeklyPanelEl ||
+        !controls.weeklyLabelEl ||
+        !controls.weeklyTotalEl ||
+        !controls.weeklyApprovedEl ||
+        !controls.weeklyRateEl
+      ) {
+        return;
+      }
+
+      if (currentRole !== "admin") {
+        controls.weeklyPanelEl.classList.add("hidden");
+        return;
+      }
+
+      const weekSelection = getWeeklySelection(selection);
+      const weekDashboard = getDashboard(weekSelection);
+      const weekToken = String(weekSelection.week || "").trim();
+      const weekMatch = /^(\d{4})-W(\d{2})$/.exec(weekToken);
+      controls.weeklyLabelEl.innerText = weekMatch
+        ? `Tuần ${Number(weekMatch[2])}/${weekMatch[1]}`
+        : "Tuần chưa chọn";
+      controls.weeklyTotalEl.innerText = `${Number(weekDashboard?.stats?.totalRequests || 0)}`;
+      controls.weeklyApprovedEl.innerText = `${Number(weekDashboard?.stats?.approvedCount || 0)}`;
+      controls.weeklyRateEl.innerText = String(
+        weekDashboard?.stats?.approvalRate || "0%",
+      );
+      controls.weeklyPanelEl.classList.remove("hidden");
     };
 
     const renderApprovalPanel = (pendingRequests, periodLabel, currentRole) => {
@@ -1318,62 +1611,22 @@ export const registerRenderCore = ({
       controls.approvalSummaryEl.innerText = `${periodLabel} có ${pendingRequests.length} yêu cầu chờ duyệt.`;
       controls.approvalBadgeEl.innerText = `${pendingRequests.length}`;
       controls.approvalListEl.innerHTML = pendingRequests
-        .map(
-          (item) => `
-            <div class="rounded-lg border border-amber-200 bg-white p-2.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-              <div>
-                <div class="text-[12px] font-bold text-slate-800">${safeText(item.teacherName)} • ${safeText(toDateLabel(item.attendanceDate))}</div>
-                <div class="text-[11px] text-slate-500">${safeText(item.checkInTime)} - ${safeText(item.checkOutTime)} • ${safeText(formatWorkedMinutesSafe(item.workedMinutes))}</div>
-                <div class="text-[11px] text-slate-500">Môn dạy: ${safeText(item.teachingSubjectsText || "Không có dữ liệu môn dạy trong ngày.")}</div>
-                ${item.note ? `<div class="text-[10px] text-slate-500 italic mt-1">${safeText(item.note)}</div>` : ""}
-              </div>
-              <div class="flex items-center gap-1.5 shrink-0">
-                <button onclick="globalThis.reviewAttendanceRequest('${safeAttr(item.id)}', 'reject')" class="text-[11px] font-bold px-2 py-1 rounded border border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100">Từ chối</button>
-                <button onclick="globalThis.reviewAttendanceRequest('${safeAttr(item.id)}', 'approve')" class="text-[11px] font-bold px-2 py-1 rounded border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100">Duyệt</button>
-              </div>
-            </div>`,
-        )
+        .map((item) => renderCompactPendingItem(item))
         .join("");
     };
 
-    const renderAttendanceList = (requests, currentRole) => {
+    const renderAttendanceList = (requests, currentRole, selection) => {
       if ((requests || []).length === 0) {
         controls.listEl.innerHTML =
           '<div class="text-sm text-slate-400">Không có bản ghi chấm công trong kỳ đã chọn.</div>';
         return;
       }
 
-      controls.listEl.innerHTML = requests
-        .map((item) => {
-          const statusMeta =
-            statusMetaMap[item.status] || statusMetaMap.pending;
-          const createdAtText = item.createdAt
-            ? new Date(item.createdAt).toLocaleString("vi-VN")
-            : "";
-          const reviewedAtText = item.reviewedAt
-            ? new Date(item.reviewedAt).toLocaleString("vi-VN")
-            : "";
-          const adminActions =
-            currentRole === "admin" && item.status === "pending"
-              ? `<div class="flex items-center gap-1.5 mt-2 sm:mt-0"><button onclick="globalThis.reviewAttendanceRequest('${safeAttr(item.id)}', 'reject')" class="text-[11px] font-bold px-2 py-1 rounded border border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100">Từ chối</button><button onclick="globalThis.reviewAttendanceRequest('${safeAttr(item.id)}', 'approve')" class="text-[11px] font-bold px-2 py-1 rounded border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100">Duyệt</button></div>`
-              : "";
-
-          return `
-            <div class="bg-white border border-slate-200 rounded-lg p-3 flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-              <div>
-                <div class="text-sm font-bold text-slate-800">${safeText(item.teacherName)} • ${safeText(toDateLabel(item.attendanceDate))}</div>
-                <div class="text-[11px] text-slate-500">Giờ vào: ${safeText(item.checkInTime)} • Giờ ra: ${safeText(item.checkOutTime)} • ${safeText(formatWorkedMinutesSafe(item.workedMinutes))}</div>
-                <div class="text-[11px] text-slate-500">Môn dạy trong ngày: ${safeText(item.teachingSubjectsText || "Không có dữ liệu môn dạy trong ngày.")}</div>
-                ${item.note ? `<div class="text-[11px] text-slate-500 mt-1 italic">${safeText(item.note)}</div>` : ""}
-                <div class="text-[10px] text-slate-400 mt-1.5">Tạo: ${safeText(createdAtText || "N/A")}${reviewedAtText ? ` • Duyệt: ${safeText(reviewedAtText)}` : ""}</div>
-                ${item.reviewNote ? `<div class="text-[10px] text-slate-500 mt-1">Ghi chú duyệt: ${safeText(item.reviewNote)}</div>` : ""}
-              </div>
-              <div class="flex flex-col items-start sm:items-end gap-2 shrink-0">
-                <span class="text-[10px] px-2 py-0.5 rounded border font-bold ${statusMeta.className}">${statusMeta.label}</span>
-                ${adminActions}
-              </div>
-            </div>`;
-        })
+      const teacherGroups = groupAttendanceByTeacher(requests);
+      controls.listEl.innerHTML = teacherGroups
+        .map((group) =>
+          renderTeacherAttendanceGroup(group, currentRole, selection),
+        )
         .join("");
     };
 
@@ -1387,14 +1640,14 @@ export const registerRenderCore = ({
     }
 
     renderStats(dashboard.stats || {});
-    renderTeacherSummary(dashboard.teacherSummary || []);
     const currentRole = getCurrentRole();
+    renderWeeklyPanel(selection, currentRole);
     renderApprovalPanel(
       dashboard.pendingRequests || [],
       periodLabel,
       currentRole,
     );
-    renderAttendanceList(dashboard.requests || [], currentRole);
+    renderAttendanceList(dashboard.requests || [], currentRole, selection);
   };
 
   const renderAll = () => {
