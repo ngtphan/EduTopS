@@ -39,7 +39,7 @@ import {
 } from "./modules/features/attendance/attendance-feature.js";
 import { sanitizeForStorage, isSafeDocId } from "./modules/security-utils.js";
 
-const APP_VERSION = "v1.7.1";
+const APP_VERSION = "v1.8";
 
 const injectPartial = async (hostId, filePath) => {
   const host = document.getElementById(hostId);
@@ -305,7 +305,7 @@ const buildAutoClassGroups = () => {
     .map(([gradeLevel, studentIds]) => ({
       id: `grade_${toClassToken(gradeLevel)}`,
       name: gradeLevel,
-      groupName: "Tự động",
+      groupName: "",
       studentIds,
       defaultDays: [],
     }))

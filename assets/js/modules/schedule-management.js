@@ -52,7 +52,7 @@ const buildAutoClassGroups = () => {
     .map(([gradeLevel, studentIds]) => ({
       id: `grade_${toClassToken(gradeLevel)}`,
       name: gradeLevel,
-      groupName: "Tự động",
+      groupName: "",
       studentIds,
       defaultDays: [],
     }))
@@ -1041,6 +1041,7 @@ export const registerScheduleFormsAndFilters = ({
   renderAttendance,
 }) => {
   const teacherSelect = document.getElementById("sch_teacherId");
+  const teacherMultiHelp = document.getElementById("teacherMultiSelectHelp");
   const subjectSelect = document.getElementById("sch_subjectId");
   const roleHint = document.getElementById("scheduleFormRoleHint");
   const startTimeSelect = document.getElementById("sch_start");
@@ -1101,15 +1102,22 @@ export const registerScheduleFormsAndFilters = ({
 
     if (role === "teacher") {
       const teacherName = user?.name || "Giáo viên";
+      teacherSelect.multiple = false;
+      teacherSelect.size = 1;
       teacherSelect.innerHTML = `<option value="${String(user?.id || "")}">${teacherName}</option>`;
       teacherSelect.value = String(user?.id || "");
       teacherSelect.disabled = true;
+      if (teacherMultiHelp) teacherMultiHelp.classList.add("hidden");
       if (roleHint) {
         roleHint.innerText =
           "Giáo viên gửi lịch/đề xuất sẽ ở trạng thái chờ admin duyệt.";
       }
       return;
     }
+
+    teacherSelect.multiple = true;
+    teacherSelect.size = 5;
+    if (teacherMultiHelp) teacherMultiHelp.classList.remove("hidden");
 
     if (roleHint) {
       roleHint.innerText = "Admin tạo lịch sẽ được áp dụng ngay.";
@@ -1131,20 +1139,33 @@ export const registerScheduleFormsAndFilters = ({
       document.querySelectorAll("#sch_studentCheckboxes input:checked"),
     ).map((el) => String(el.value || ""));
 
+  const getSelectedTeacherIdsFromForm = () => {
+    const role = getCurrentRole();
+    const currentUser = getCurrentUser();
+    if (role === "teacher") {
+      return [String(currentUser?.id || "")].filter(Boolean);
+    }
+
+    const teacherEl = document.getElementById("sch_teacherId");
+    if (!teacherEl) return [];
+
+    return Array.from(teacherEl.selectedOptions || [])
+      .map((option) => String(option.value || "").trim())
+      .filter(Boolean);
+  };
+
   document
     .getElementById("scheduleForm")
     .addEventListener("submit", async (e) => {
       e.preventDefault();
       const role = getCurrentRole();
       const currentUser = getCurrentUser();
-      const teacherId =
-        role === "teacher"
-          ? String(currentUser?.id || "")
-          : document.getElementById("sch_teacherId").value;
-      if (!teacherId) return alert("Chọn Giáo viên!");
+      const teacherIds = uniqIds(getSelectedTeacherIdsFromForm());
+      if (teacherIds.length === 0) {
+        return alert("Chọn ít nhất 1 giáo viên!");
+      }
 
-      const newSch = {
-        id: "sch_" + Date.now(),
+      const baseSchedule = {
         week: document.getElementById("sch_week").value,
         dayOfWeek: document.getElementById("sch_day").value,
         startTime: document.getElementById("sch_start").value,
@@ -1152,7 +1173,6 @@ export const registerScheduleFormsAndFilters = ({
         location: document.getElementById("sch_location").value,
         classId: document.getElementById("sch_classId").value,
         subjectId: document.getElementById("sch_subjectId").value,
-        teacherId,
         topic: document.getElementById("sch_topic").value,
         evaluations: {},
         attendance: {
@@ -1187,11 +1207,10 @@ export const registerScheduleFormsAndFilters = ({
               },
       };
 
-      const selectedClass = resolveClassById(newSch.classId);
-      newSch.classLabel = selectedClass?.name || "";
-      newSch.studentIds = uniqIds(getSelectedStudentIdsFromForm());
+      const selectedClass = resolveClassById(baseSchedule.classId);
+      const selectedStudentIds = uniqIds(getSelectedStudentIdsFromForm());
 
-      if (newSch.studentIds.length === 0) {
+      if (selectedStudentIds.length === 0) {
         return alert("Vui lòng chọn ít nhất 1 học sinh trước khi lưu lịch.");
       }
 
@@ -1200,7 +1219,7 @@ export const registerScheduleFormsAndFilters = ({
           (t) => String(t.id) === String(currentUser?.id || ""),
         );
         const hasSubjectMatch = (teacher?.subjectIds || []).includes(
-          newSch.subjectId,
+          baseSchedule.subjectId,
         );
         if (!hasSubjectMatch) {
           return alert(
@@ -1209,8 +1228,18 @@ export const registerScheduleFormsAndFilters = ({
         }
       }
 
-      if (!validateSchedulePatch(newSch, newSch)) {
-        return;
+      const schedulesToCreate = teacherIds.map((teacherId, index) => ({
+        ...baseSchedule,
+        id: `sch_${Date.now()}_${index}`,
+        teacherId,
+        classLabel: selectedClass?.name || "",
+        studentIds: selectedStudentIds,
+      }));
+
+      for (const scheduleItem of schedulesToCreate) {
+        if (!validateSchedulePatch(scheduleItem, scheduleItem)) {
+          return;
+        }
       }
 
       const btn = document.getElementById("btnSubmitSchedule");
@@ -1218,9 +1247,12 @@ export const registerScheduleFormsAndFilters = ({
         '<i class="w-4 h-4 animate-spin border-2 border-white border-t-transparent rounded-full"></i> Đang lưu...';
       btn.disabled = true;
 
-      await window.cloudSave("schedules", newSch);
-      document.getElementById("filterWeek").value = newSch.week;
-      document.getElementById("attendanceWeek").value = newSch.week;
+      for (const scheduleItem of schedulesToCreate) {
+        await window.cloudSave("schedules", scheduleItem);
+      }
+
+      document.getElementById("filterWeek").value = baseSchedule.week;
+      document.getElementById("attendanceWeek").value = baseSchedule.week;
       document.getElementById("sch_classId").value = "";
       document.getElementById("sch_subjectId").value = "";
       document.getElementById("sch_topic").value = "";
@@ -1234,6 +1266,10 @@ export const registerScheduleFormsAndFilters = ({
 
       if (role === "teacher") {
         alert("Đã gửi lịch. Vui lòng chờ admin duyệt trước khi áp dụng.");
+      } else if (schedulesToCreate.length > 1) {
+        alert(
+          `Đã tạo ${schedulesToCreate.length} ca cùng khung giờ cho ${schedulesToCreate.length} giáo viên.`,
+        );
       }
       window.switchTab("board");
     });

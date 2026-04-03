@@ -56,7 +56,7 @@ export const registerRenderCore = ({
       .map(([gradeLevel, studentIds]) => ({
         id: `grade_${toClassToken(gradeLevel)}`,
         name: gradeLevel,
-        groupName: "Tự động",
+        groupName: "",
         studentIds,
         defaultDays: [],
       }))
@@ -170,8 +170,7 @@ export const registerRenderCore = ({
     };
   };
 
-  const getClassGroupName = (cls) =>
-    String(cls?.groupName || "Nhóm mặc định").trim();
+  const getClassGroupName = (cls) => String(cls?.groupName || "").trim();
 
   const getClassDefaultDays = (cls) =>
     Array.from(new Set((cls?.defaultDays || []).map(String)))
@@ -184,8 +183,11 @@ export const registerRenderCore = ({
     return days.map((d) => formatDayOfWeek(d)).join(", ");
   };
 
-  const getClassDisplayName = (cls) =>
-    `${String(cls?.name || "Lớp").trim()} - ${getClassGroupName(cls)}`;
+  const getClassDisplayName = (cls) => {
+    const className = String(cls?.name || "Lớp").trim();
+    const groupName = getClassGroupName(cls);
+    return groupName ? `${className} - ${groupName}` : className;
+  };
 
   const getClassStudentPreview = (cls, limit = 3) => {
     const names = (cls?.studentIds || [])
@@ -523,30 +525,57 @@ export const registerRenderCore = ({
     const checkboxContainer = document.getElementById("sch_studentCheckboxes");
     const summaryEl = document.getElementById("sch_studentSummary");
     const countBadge = document.getElementById("sch_selectedStudentCount");
+    const statsEl = document.getElementById("sch_studentStats");
     if (!studentWrap || !checkboxContainer || !summaryEl || !countBadge) return;
 
     const all = checkboxContainer.querySelectorAll("input[type='checkbox']");
     const checked = checkboxContainer.querySelectorAll(
       "input[type='checkbox']:checked",
     );
-    countBadge.innerText = `${checked.length}/${all.length}`;
+    const totalCount = all.length;
+    const selectedCount = checked.length;
+    const className = String(studentWrap.dataset.className || "Lớp đã chọn");
+
+    countBadge.innerText = `${selectedCount}/${totalCount}`;
+
+    if (statsEl) {
+      const remaining = Math.max(totalCount - selectedCount, 0);
+      statsEl.innerHTML = `
+        <div class="rounded-lg border border-indigo-100 bg-indigo-50 px-2.5 py-2">
+          <div class="text-[10px] uppercase font-bold text-indigo-700">Sĩ số lớp</div>
+          <div class="text-sm font-bold text-indigo-900 mt-0.5">${safeText(String(totalCount))} HS</div>
+        </div>
+        <div class="rounded-lg border border-emerald-100 bg-emerald-50 px-2.5 py-2">
+          <div class="text-[10px] uppercase font-bold text-emerald-700">Đã chọn</div>
+          <div class="text-sm font-bold text-emerald-900 mt-0.5">${safeText(String(selectedCount))} HS</div>
+        </div>
+        <div class="rounded-lg border border-amber-100 bg-amber-50 px-2.5 py-2">
+          <div class="text-[10px] uppercase font-bold text-amber-700">Chưa chọn</div>
+          <div class="text-sm font-bold text-amber-900 mt-0.5">${safeText(String(remaining))} HS</div>
+        </div>`;
+    }
+
     if (checked.length === 0) {
-      summaryEl.innerText =
-        "Chưa chọn học sinh nào cho ca này. Vui lòng chọn ít nhất 1 học sinh.";
+      summaryEl.innerText = `${className}: chưa chọn học sinh nào. Vui lòng chọn ít nhất 1 học sinh.`;
       summaryEl.className = "text-[11px] text-rose-600 mb-1.5 font-medium";
       return;
     }
-    summaryEl.innerText = `Đã chọn ${checked.length} học sinh cho ca dạy.`;
+    summaryEl.innerText = `${className}: đã chọn ${selectedCount}/${totalCount} học sinh cho ca dạy.`;
     summaryEl.className = "text-[11px] text-slate-500 mb-1.5";
   };
 
   const clearClassStudentPicker = (studentWrap, studentCheckboxes) => {
+    const statsEl = document.getElementById("sch_studentStats");
     if (studentWrap) {
       studentWrap.classList.add("hidden");
       delete studentWrap.dataset.classId;
+      delete studentWrap.dataset.className;
     }
     if (studentCheckboxes) {
       studentCheckboxes.innerHTML = "";
+    }
+    if (statsEl) {
+      statsEl.innerHTML = "";
     }
   };
 
@@ -569,13 +598,18 @@ export const registerRenderCore = ({
           const checkedAttr = defaultSelectedIds.has(String(id))
             ? "checked"
             : "";
-          return `<label class="flex items-center gap-2 p-1.5 rounded border border-transparent hover:border-indigo-200 hover:bg-white cursor-pointer"><input type="checkbox" value="${safeAttr(id)}" ${checkedAttr} onchange="globalThis.updateScheduleStudentSelection()" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"><span class="text-[12px] text-slate-700 font-medium">${safeText(student.name)}</span></label>`;
+          const gradeLabel = getStudentGradeLevel(student);
+          const parentPhone = student?.parentPhone
+            ? ` • PH: ${safeText(student.parentPhone)}`
+            : "";
+          return `<label class="block cursor-pointer"><input type="checkbox" value="${safeAttr(id)}" ${checkedAttr} onchange="globalThis.updateScheduleStudentSelection()" class="peer sr-only"><div class="rounded-lg border border-slate-200 bg-white p-2 transition-all peer-checked:border-indigo-300 peer-checked:bg-indigo-50 hover:border-indigo-200"><div class="text-[12px] font-bold text-slate-800">${safeText(student.name)}</div><div class="text-[11px] text-slate-500 mt-0.5">${safeText(gradeLabel)}${parentPhone}</div></div></label>`;
         })
         .join("");
     }
     if (studentWrap) {
       studentWrap.classList.remove("hidden");
       studentWrap.dataset.classId = String(cls.id);
+      studentWrap.dataset.className = getClassDisplayName(cls);
     }
     if (typeof globalThis.updateScheduleStudentSelection === "function") {
       globalThis.updateScheduleStudentSelection();
@@ -608,6 +642,8 @@ export const registerRenderCore = ({
       ? (currentTeacher?.subjectIds || []).includes(subjectId)
       : true;
 
+    teacherSelect.multiple = false;
+    teacherSelect.size = 1;
     teacherSelect.disabled = true;
     teacherSelect.innerHTML = `<option value="${safeAttr(String(currentUser?.id || ""))}">${safeText(teacherName)}</option>`;
     teacherSelect.value = String(currentUser?.id || "");
@@ -624,6 +660,14 @@ export const registerRenderCore = ({
   };
 
   const applyAdminClassSelection = (subjectId, teacherSelect, filterHint) => {
+    const selectedTeacherIds = new Set(
+      Array.from(teacherSelect.selectedOptions || [])
+        .map((option) => String(option.value || ""))
+        .filter(Boolean),
+    );
+    teacherSelect.multiple = true;
+    teacherSelect.size = 5;
+
     if (!subjectId) {
       teacherSelect.disabled = true;
       teacherSelect.innerHTML =
@@ -638,19 +682,29 @@ export const registerRenderCore = ({
     const availableTeachers = globalThis.db.teachers.filter((t) =>
       t.subjectIds.includes(subjectId),
     );
-    teacherSelect.disabled = false;
+    teacherSelect.disabled = availableTeachers.length === 0;
     filterHint?.classList.remove("hidden");
     if (availableTeachers.length > 0) {
-      teacherSelect.innerHTML =
-        '<option value="">-- Chọn Giáo viên --</option>' +
-        availableTeachers
-          .map(
-            (t) =>
-              `<option value="${safeAttr(t.id)}">${safeText(t.name)}</option>`,
-          )
-          .join("");
+      teacherSelect.innerHTML = availableTeachers
+        .map(
+          (t) =>
+            `<option value="${safeAttr(t.id)}">${safeText(t.name)}</option>`,
+        )
+        .join("");
+
+      let restored = false;
+      Array.from(teacherSelect.options).forEach((option) => {
+        if (selectedTeacherIds.has(String(option.value || ""))) {
+          option.selected = true;
+          restored = true;
+        }
+      });
+      if (!restored && teacherSelect.options.length > 0) {
+        teacherSelect.options[0].selected = true;
+      }
+
       if (filterHint) {
-        filterHint.innerText = "Đã lọc theo môn";
+        filterHint.innerText = "Đã lọc theo môn, có thể chọn nhiều giáo viên";
       }
       return;
     }

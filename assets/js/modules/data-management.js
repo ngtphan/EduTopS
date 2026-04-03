@@ -289,9 +289,120 @@ export const registerDataManagement = ({
     }
   };
 
+  const normalizeIdList = (ids) =>
+    Array.from(
+      new Set((ids || []).map((itemId) => String(itemId || "").trim())),
+    ).filter(Boolean);
+
+  const getEffectiveScheduleStudentIds = (schedule) => {
+    if (Array.isArray(schedule?.studentIds) && schedule.studentIds.length > 0) {
+      return normalizeIdList(schedule.studentIds);
+    }
+    const classItem = window.db.classes.find(
+      (cls) => String(cls.id) === String(schedule?.classId || ""),
+    );
+    return normalizeIdList(classItem?.studentIds || []);
+  };
+
+  const deleteStudentWithCascade = async (studentId) => {
+    try {
+      const normalizedStudentId = String(studentId || "").trim();
+      if (!normalizedStudentId) return;
+
+      const student = window.db.students.find(
+        (item) => String(item.id) === normalizedStudentId,
+      );
+      if (!student) return;
+
+      const linkedClasses = window.db.classes.filter((cls) =>
+        (cls.studentIds || []).some(
+          (itemId) => String(itemId) === normalizedStudentId,
+        ),
+      );
+
+      const linkedSchedules = window.db.schedules.filter((schedule) => {
+        const effectiveStudentIds = getEffectiveScheduleStudentIds(schedule);
+        const hasStudent = effectiveStudentIds.includes(normalizedStudentId);
+        const hasEvaluation = Object.hasOwn(
+          schedule?.evaluations || {},
+          normalizedStudentId,
+        );
+        return hasStudent || hasEvaluation;
+      });
+
+      let updatedClassCount = 0;
+      for (const cls of linkedClasses) {
+        const nextStudentIds = normalizeIdList(
+          (cls.studentIds || []).filter(
+            (itemId) => String(itemId) !== normalizedStudentId,
+          ),
+        );
+        if (nextStudentIds.length === (cls.studentIds || []).length) continue;
+
+        await window.cloudSave("classes", {
+          ...cls,
+          studentIds: nextStudentIds,
+        });
+        updatedClassCount += 1;
+      }
+
+      let updatedScheduleCount = 0;
+      let deletedScheduleCount = 0;
+      for (const schedule of linkedSchedules) {
+        const currentStudentIds = getEffectiveScheduleStudentIds(schedule);
+        const nextStudentIds = currentStudentIds.filter(
+          (itemId) => String(itemId) !== normalizedStudentId,
+        );
+
+        const nextEvaluations = { ...(schedule.evaluations || {}) };
+        const hasEvaluation = Object.hasOwn(
+          nextEvaluations,
+          normalizedStudentId,
+        );
+        if (hasEvaluation) {
+          delete nextEvaluations[normalizedStudentId];
+        }
+
+        if (nextStudentIds.length === 0) {
+          await window.cloudDelete("schedules", schedule.id);
+          deletedScheduleCount += 1;
+          continue;
+        }
+
+        const studentChanged =
+          nextStudentIds.length !== currentStudentIds.length;
+        if (!studentChanged && !hasEvaluation) continue;
+
+        await window.cloudSave("schedules", {
+          ...schedule,
+          studentIds: nextStudentIds,
+          evaluations: nextEvaluations,
+        });
+        updatedScheduleCount += 1;
+      }
+
+      await window.cloudDelete("students", normalizedStudentId);
+
+      const studentName = String(student.name || normalizedStudentId);
+      const summaryParts = [
+        `Đã xóa học sinh ${studentName}.`,
+        `Lớp cập nhật: ${updatedClassCount}`,
+        `Ca cập nhật: ${updatedScheduleCount}`,
+      ];
+      if (deletedScheduleCount > 0) {
+        summaryParts.push(`Ca tự xóa do trống sĩ số: ${deletedScheduleCount}`);
+      }
+      alert(summaryParts.join(" "));
+    } catch (error) {
+      console.error("Xóa học sinh thất bại:", error);
+      alert("Xóa học sinh thất bại. Vui lòng thử lại sau.");
+    }
+  };
+
   window.deleteData = async (table, id) => {
     if (getCurrentRole() !== "admin")
       return alert("Bạn không có quyền thực hiện thao tác này!");
+
     const shouldDelete = await window.appConfirm(
       "Bạn có chắc chắn muốn xóa dữ liệu này?",
       "Xác nhận xóa",
@@ -309,12 +420,6 @@ export const registerDataManagement = ({
         window.db.schedules.some((s) => s.teacherId === id)
       )
         return alert("Không thể xóa GV đang có lịch!");
-      if (
-        table === "students" &&
-        (window.db.classes.some((c) => c.studentIds.includes(id)) ||
-          window.db.schedules.some((s) => (s.studentIds || []).includes(id)))
-      )
-        return alert("Không thể xóa HS đang học Lớp!");
       if (
         table === "classes" &&
         window.db.schedules.some((s) => s.classId === id)
@@ -346,6 +451,11 @@ export const registerDataManagement = ({
             await window.cloudDelete("accounts", acc.id);
           }
         }
+        return;
+      }
+
+      if (table === "students") {
+        await deleteStudentWithCascade(id);
         return;
       }
 
