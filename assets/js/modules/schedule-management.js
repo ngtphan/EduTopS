@@ -1042,6 +1042,8 @@ export const registerScheduleFormsAndFilters = ({
 }) => {
   const teacherSelect = document.getElementById("sch_teacherId");
   const teacherMultiHelp = document.getElementById("teacherMultiSelectHelp");
+  const classSelect = document.getElementById("sch_classId");
+  const classMultiHelp = document.getElementById("classMultiSelectHelp");
   const subjectSelect = document.getElementById("sch_subjectId");
   const roleHint = document.getElementById("scheduleFormRoleHint");
   const startTimeSelect = document.getElementById("sch_start");
@@ -1098,7 +1100,7 @@ export const registerScheduleFormsAndFilters = ({
   const syncScheduleFormByRole = () => {
     const role = getCurrentRole();
     const user = getCurrentUser();
-    if (!teacherSelect) return;
+    if (!teacherSelect || !classSelect) return;
 
     if (role === "teacher") {
       const teacherName = user?.name || "Giáo viên";
@@ -1108,6 +1110,19 @@ export const registerScheduleFormsAndFilters = ({
       teacherSelect.value = String(user?.id || "");
       teacherSelect.disabled = true;
       if (teacherMultiHelp) teacherMultiHelp.classList.add("hidden");
+
+      const previousSelectedClassIds = uniqIds(
+        Array.from(classSelect.selectedOptions || []).map((option) =>
+          String(option.value || "").trim(),
+        ),
+      );
+      classSelect.multiple = false;
+      classSelect.size = 1;
+      if (previousSelectedClassIds.length > 0) {
+        classSelect.value = previousSelectedClassIds[0];
+      }
+      if (classMultiHelp) classMultiHelp.classList.add("hidden");
+
       if (roleHint) {
         roleHint.innerText =
           "Giáo viên gửi lịch/đề xuất sẽ ở trạng thái chờ admin duyệt.";
@@ -1118,6 +1133,10 @@ export const registerScheduleFormsAndFilters = ({
     teacherSelect.multiple = true;
     teacherSelect.size = 5;
     if (teacherMultiHelp) teacherMultiHelp.classList.remove("hidden");
+
+    classSelect.multiple = true;
+    classSelect.size = 6;
+    if (classMultiHelp) classMultiHelp.classList.remove("hidden");
 
     if (roleHint) {
       roleHint.innerText = "Admin tạo lịch sẽ được áp dụng ngay.";
@@ -1138,6 +1157,20 @@ export const registerScheduleFormsAndFilters = ({
     Array.from(
       document.querySelectorAll("#sch_studentCheckboxes input:checked"),
     ).map((el) => String(el.value || ""));
+
+  const getSelectedClassIdsFromForm = () => {
+    const classEl = document.getElementById("sch_classId");
+    if (!classEl) return [];
+
+    if (classEl.multiple) {
+      return Array.from(classEl.selectedOptions || [])
+        .map((option) => String(option.value || "").trim())
+        .filter(Boolean);
+    }
+
+    const singleClassId = String(classEl.value || "").trim();
+    return singleClassId ? [singleClassId] : [];
+  };
 
   const getSelectedTeacherIdsFromForm = () => {
     const role = getCurrentRole();
@@ -1165,13 +1198,55 @@ export const registerScheduleFormsAndFilters = ({
         return alert("Chọn ít nhất 1 giáo viên!");
       }
 
+      const selectedClassIds = uniqIds(getSelectedClassIdsFromForm());
+      if (selectedClassIds.length === 0) {
+        return alert("Chọn ít nhất 1 nhóm/lớp!");
+      }
+      if (role === "teacher" && selectedClassIds.length > 1) {
+        return alert("Giáo viên chỉ được tạo lịch cho 1 nhóm/lớp mỗi lần.");
+      }
+
+      const selectedClasses = selectedClassIds
+        .map((classId) => resolveClassById(classId))
+        .filter(Boolean);
+      if (selectedClasses.length !== selectedClassIds.length) {
+        return alert("Có nhóm/lớp không hợp lệ. Vui lòng chọn lại.");
+      }
+
+      const selectedStudentIds = uniqIds(getSelectedStudentIdsFromForm());
+
+      if (selectedStudentIds.length === 0) {
+        return alert("Vui lòng chọn ít nhất 1 học sinh trước khi lưu lịch.");
+      }
+
+      const classToStudentIds = new Map();
+      const classesWithoutStudents = [];
+      selectedClasses.forEach((classItem) => {
+        const classStudentIds = uniqIds(classItem?.studentIds || []);
+        const classStudentSet = new Set(classStudentIds.map(String));
+        const filteredIds = selectedStudentIds.filter((studentId) =>
+          classStudentSet.has(String(studentId)),
+        );
+        if (filteredIds.length === 0) {
+          classesWithoutStudents.push(
+            String(classItem?.name || classItem?.id || "Không xác định"),
+          );
+        }
+        classToStudentIds.set(String(classItem.id), filteredIds);
+      });
+
+      if (classesWithoutStudents.length > 0) {
+        return alert(
+          `Những nhóm/lớp sau chưa có học sinh được chọn: ${classesWithoutStudents.join(", ")}. Vui lòng kiểm tra lại.`,
+        );
+      }
+
       const baseSchedule = {
         week: document.getElementById("sch_week").value,
         dayOfWeek: document.getElementById("sch_day").value,
         startTime: document.getElementById("sch_start").value,
         endTime: document.getElementById("sch_end").value,
         location: document.getElementById("sch_location").value,
-        classId: document.getElementById("sch_classId").value,
         subjectId: document.getElementById("sch_subjectId").value,
         topic: document.getElementById("sch_topic").value,
         evaluations: {},
@@ -1207,13 +1282,6 @@ export const registerScheduleFormsAndFilters = ({
               },
       };
 
-      const selectedClass = resolveClassById(baseSchedule.classId);
-      const selectedStudentIds = uniqIds(getSelectedStudentIdsFromForm());
-
-      if (selectedStudentIds.length === 0) {
-        return alert("Vui lòng chọn ít nhất 1 học sinh trước khi lưu lịch.");
-      }
-
       if (role === "teacher") {
         const teacher = window.db.teachers.find(
           (t) => String(t.id) === String(currentUser?.id || ""),
@@ -1228,13 +1296,22 @@ export const registerScheduleFormsAndFilters = ({
         }
       }
 
-      const schedulesToCreate = teacherIds.map((teacherId, index) => ({
-        ...baseSchedule,
-        id: `sch_${Date.now()}_${index}`,
-        teacherId,
-        classLabel: selectedClass?.name || "",
-        studentIds: selectedStudentIds,
-      }));
+      const creationSeed = Date.now();
+      const schedulesToCreate = [];
+      selectedClasses.forEach((selectedClass, classIndex) => {
+        const classStudentIds =
+          classToStudentIds.get(String(selectedClass.id)) || [];
+        teacherIds.forEach((teacherId, teacherIndex) => {
+          schedulesToCreate.push({
+            ...baseSchedule,
+            id: `sch_${creationSeed}_${classIndex}_${teacherIndex}`,
+            teacherId,
+            classId: String(selectedClass.id),
+            classLabel: selectedClass?.name || "",
+            studentIds: classStudentIds,
+          });
+        });
+      });
 
       for (const scheduleItem of schedulesToCreate) {
         if (!validateSchedulePatch(scheduleItem, scheduleItem)) {
@@ -1253,7 +1330,14 @@ export const registerScheduleFormsAndFilters = ({
 
       document.getElementById("filterWeek").value = baseSchedule.week;
       document.getElementById("attendanceWeek").value = baseSchedule.week;
-      document.getElementById("sch_classId").value = "";
+      const classEl = document.getElementById("sch_classId");
+      if (classEl?.multiple) {
+        Array.from(classEl.options || []).forEach((option) => {
+          option.selected = false;
+        });
+      } else if (classEl) {
+        classEl.value = "";
+      }
       document.getElementById("sch_subjectId").value = "";
       document.getElementById("sch_topic").value = "";
       window.handleClassSelection();
@@ -1268,7 +1352,7 @@ export const registerScheduleFormsAndFilters = ({
         alert("Đã gửi lịch. Vui lòng chờ admin duyệt trước khi áp dụng.");
       } else if (schedulesToCreate.length > 1) {
         alert(
-          `Đã tạo ${schedulesToCreate.length} ca cùng khung giờ cho ${schedulesToCreate.length} giáo viên.`,
+          `Đã tạo ${schedulesToCreate.length} ca cùng khung giờ cho ${teacherIds.length} giáo viên và ${selectedClasses.length} nhóm/lớp.`,
         );
       }
       window.switchTab("board");

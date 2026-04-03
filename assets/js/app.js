@@ -38,8 +38,50 @@ import {
   registerAttendanceFeature,
 } from "./modules/features/attendance/attendance-feature.js";
 import { sanitizeForStorage, isSafeDocId } from "./modules/security-utils.js";
+import { APP_CONFIG, getConfigByPath } from "./config/app-config.js";
 
-const APP_VERSION = "v1.8.2";
+const APP_VERSION = String(APP_CONFIG.version || "v0.0.0").trim();
+
+const getAppConfigValue = (path, fallbackValue = "") =>
+  getConfigByPath(path, fallbackValue);
+
+const applyAppConfigBindings = (root = document) => {
+  const applyTextBinding = (selector, attrName, setter) => {
+    root.querySelectorAll(selector).forEach((element) => {
+      const configPath = String(element.getAttribute(attrName) || "").trim();
+      if (!configPath) return;
+      const configuredValue = getAppConfigValue(configPath, "");
+      const nextValue = String(configuredValue || "").trim();
+      if (!nextValue) return;
+      setter(element, nextValue);
+    });
+  };
+
+  applyTextBinding(
+    "[data-config-text]",
+    "data-config-text",
+    (element, value) => {
+      element.textContent = value;
+    },
+  );
+
+  applyTextBinding(
+    "[data-config-placeholder]",
+    "data-config-placeholder",
+    (element, value) => {
+      if ("placeholder" in element) {
+        element.placeholder = value;
+      }
+    },
+  );
+
+  const pageTitle = String(getAppConfigValue("branding.pageTitle", "")).trim();
+  if (pageTitle) {
+    document.title = pageTitle;
+  }
+};
+
+globalThis.APP_CONFIG = APP_CONFIG;
 
 const injectPartial = async (hostId, filePath) => {
   const host = document.getElementById(hostId);
@@ -77,6 +119,7 @@ const mountLayoutPartials = async () => {
 
 try {
   await mountLayoutPartials();
+  applyAppConfigBindings(document);
 } catch (error) {
   console.error("Lỗi tải layout partials:", error);
   document.body.innerHTML =
@@ -91,20 +134,12 @@ if (headerAppVersion) {
 }
 
 // -------------------------------------------------------------
-// CẤU HÌNH FIREBASE CHÍNH THỨC CỦA BẠN (EDUTOPS)
+// CẤU HÌNH FIREBASE
 // -------------------------------------------------------------
-const fallbackFirebaseConfig = {
-  apiKey: "AIzaSyCQyeYypgYspNtJK5dYv7TNGtX80engR2U",
-  authDomain: "edutops-8f3ac.firebaseapp.com",
-  projectId: "edutops-8f3ac",
-  storageBucket: "edutops-8f3ac.firebasestorage.app",
-  messagingSenderId: "955439571406",
-  appId: "1:955439571406:web:47acd32eac072d9fa68b9f",
-  measurementId: "G-R7W8X9R46Q",
-};
+const fallbackFirebaseConfig = getAppConfigValue("firebase.fallbackConfig", {});
 
 let firebaseConfig = fallbackFirebaseConfig;
-let appId = "edutops-app";
+let appId = String(getAppConfigValue("firebase.defaultAppId", "edutops-app"));
 let isCanvasEnv = false;
 
 if (typeof __firebase_config !== "undefined") {
@@ -191,8 +226,10 @@ const syncState = {
 };
 const syncErrorNotified = new Set();
 
-const ADMIN_EMAIL = "ngoctaiphan.edu@gmail.com";
 const normalizeEmail = (email) => (email || "").trim().toLowerCase();
+const ADMIN_EMAIL = normalizeEmail(
+  getAppConfigValue("auth.fixedAdminEmail", "ngoctaiphan.edu@gmail.com"),
+);
 const isFixedAdmin = () =>
   normalizeEmail(currentUser?.email) === normalizeEmail(ADMIN_EMAIL);
 
@@ -209,6 +246,10 @@ const EVAL_LEVELS = {
     label: "Cần theo dõi",
     className: "bg-rose-50 text-rose-700 border-rose-200",
   },
+  absent: {
+    label: "Vắng",
+    className: "bg-red-50 text-red-700 border-red-200",
+  },
 };
 
 const parseEvaluationRecord = (raw) => {
@@ -217,8 +258,26 @@ const parseEvaluationRecord = (raw) => {
     const note = raw.trim();
     return note ? { level: "fair", note } : null;
   }
-  if (typeof raw === "object" && raw.level) {
-    return { level: raw.level, note: raw.note || "" };
+  if (typeof raw === "object") {
+    const rawLevel = String(raw.level || "").trim();
+    const note = String(raw.note || "").trim();
+    const absent = raw.absent === true || rawLevel === "absent";
+    let normalizedLevel = "fair";
+    if (absent) {
+      normalizedLevel = "absent";
+    } else if (
+      rawLevel === "good" ||
+      rawLevel === "fair" ||
+      rawLevel === "watch"
+    ) {
+      normalizedLevel = rawLevel;
+    }
+
+    if (!rawLevel && !note && !absent) {
+      return null;
+    }
+
+    return { level: normalizedLevel, note, absent };
   }
   return null;
 };

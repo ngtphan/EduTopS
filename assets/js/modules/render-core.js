@@ -1,4 +1,5 @@
 import { escapeHtml, escapeAttr } from "./security-utils.js";
+import { getConfigByPath } from "../config/app-config.js";
 
 export const registerRenderCore = ({
   colorStyles,
@@ -30,6 +31,24 @@ export const registerRenderCore = ({
   const safeAttr = (value) => escapeAttr(value);
   const safeColorKey = (value) =>
     Object.hasOwn(colorStyles, value) ? value : "blue";
+  const getConfigValue = (path, fallbackValue = "") =>
+    getConfigByPath(path, fallbackValue);
+  const normalizeKeyword = (value) =>
+    String(value || "")
+      .normalize("NFD")
+      .replaceAll(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim();
+  const includesKeyword = (value, keyword) => {
+    if (!keyword) return true;
+    return normalizeKeyword(value).includes(keyword);
+  };
+  const getSearchKeyword = (inputId) =>
+    normalizeKeyword(document.getElementById(inputId)?.value || "");
+  const toCountLabel = (filteredCount, totalCount) =>
+    filteredCount === totalCount
+      ? `${totalCount}`
+      : `${filteredCount}/${totalCount}`;
   const toClassToken = (value) =>
     String(value || "")
       .trim()
@@ -281,7 +300,35 @@ export const registerRenderCore = ({
     const teacherListCount = document.getElementById("teacherListCount");
     if (!teacherList) return;
 
-    teacherList.innerHTML = globalThis.db.teachers
+    const keyword = getSearchKeyword("masterTeacherSearchInput");
+    const filteredTeachers = globalThis.db.teachers.filter((teacher) => {
+      if (!keyword) return true;
+      const subjectNames = (teacher.subjectIds || [])
+        .map((subjectId) => getSubjectInfo(subjectId).name)
+        .join(" ");
+
+      return (
+        includesKeyword(teacher.name, keyword) ||
+        includesKeyword(teacher.email, keyword) ||
+        includesKeyword(teacher.phone, keyword) ||
+        includesKeyword(subjectNames, keyword)
+      );
+    });
+
+    if (filteredTeachers.length === 0) {
+      teacherList.innerHTML =
+        '<div class="rounded-lg border border-dashed border-slate-300 bg-white px-3 py-5 text-center text-xs text-slate-500">Không tìm thấy giáo viên phù hợp bộ lọc hiện tại.</div>';
+      if (teacherListCount) {
+        teacherListCount.innerText = toCountLabel(
+          0,
+          globalThis.db.teachers.length,
+        );
+      }
+      refreshIcons();
+      return;
+    }
+
+    teacherList.innerHTML = filteredTeachers
       .map((tea) => {
         const subjectsTags = tea.subjectIds
           .map((id) => {
@@ -312,7 +359,10 @@ export const registerRenderCore = ({
       })
       .join("");
     if (teacherListCount) {
-      teacherListCount.innerText = `${globalThis.db.teachers.length}`;
+      teacherListCount.innerText = toCountLabel(
+        filteredTeachers.length,
+        globalThis.db.teachers.length,
+      );
     }
     refreshIcons();
   };
@@ -326,26 +376,52 @@ export const registerRenderCore = ({
     const secondaryEmptyHint = document.getElementById(
       "accountSecondaryEmptyHint",
     );
+    const accountSearchEmptyHint = document.getElementById(
+      "accountSearchEmptyHint",
+    );
     const adminCount = document.getElementById("accountAdminCount");
     const pendingCount = document.getElementById("accountPendingCount");
     const grantedCount = document.getElementById("accountGrantedCount");
     if (!pendingList || !grantedList || !adminList) return;
 
-    const adminAccounts = globalThis.db.accounts.filter(
+    const keyword = getSearchKeyword("masterAccountSearchInput");
+
+    const adminAccountsRaw = globalThis.db.accounts.filter(
       (acc) =>
         acc.role === "admin" && normalizeEmail(acc.email) !== ADMIN_EMAIL,
     );
 
-    const teacherAccounts = globalThis.db.accounts.filter(
+    const teacherAccountsRaw = globalThis.db.accounts.filter(
       (acc) => acc.role === "teacher",
     );
     const teacherAccountEmails = new Set(
-      teacherAccounts.map((acc) => normalizeEmail(acc.email)),
+      teacherAccountsRaw.map((acc) => normalizeEmail(acc.email)),
     );
 
-    const availableTeachers = globalThis.db.teachers.filter((tea) => {
+    const availableTeachersRaw = globalThis.db.teachers.filter((tea) => {
       const email = normalizeEmail(tea.email);
       return email && email !== ADMIN_EMAIL && !teacherAccountEmails.has(email);
+    });
+
+    const accountMatchesKeyword = (name, email, roleLabel = "") =>
+      includesKeyword(name, keyword) ||
+      includesKeyword(email, keyword) ||
+      includesKeyword(roleLabel, keyword);
+
+    const availableTeachers = availableTeachersRaw.filter((teacher) =>
+      accountMatchesKeyword(teacher.name, teacher.email, "chua cap quyen"),
+    );
+    const adminAccounts = adminAccountsRaw.filter((account) =>
+      accountMatchesKeyword(account.name, account.email, "admin"),
+    );
+    const teacherAccounts = teacherAccountsRaw.filter((account) => {
+      const teacher =
+        globalThis.db.teachers.find((t) => t.id === account.teacherId) ||
+        globalThis.db.teachers.find(
+          (t) => normalizeEmail(t.email) === normalizeEmail(account.email),
+        );
+      const teacherName = teacher ? teacher.name : account.name || "Giáo viên";
+      return accountMatchesKeyword(teacherName, account.email, "teacher");
     });
 
     const pendingCards = availableTeachers
@@ -407,23 +483,47 @@ export const registerRenderCore = ({
 
     const hasPendingTeachers = availableTeachers.length > 0;
     const hasSubAdmins = adminAccounts.length > 0;
+    const hasGrantedAccounts = teacherAccounts.length > 0;
 
-    pendingList.innerHTML = hasPendingTeachers ? pendingCards : "";
-    adminList.innerHTML = hasSubAdmins ? adminCards : "";
+    pendingList.innerHTML = hasPendingTeachers
+      ? pendingCards
+      : '<div class="text-[11px] text-slate-400 italic p-1">Không có giáo viên phù hợp.</div>';
+    adminList.innerHTML = hasSubAdmins
+      ? adminCards
+      : '<div class="text-[11px] text-slate-400 italic p-1">Không có admin phụ phù hợp.</div>';
 
     grantedList.innerHTML =
       grantedCards ||
-      '<div class="text-[11px] text-slate-400 italic p-1">Chưa có tài khoản giáo viên nào.</div>';
+      '<div class="text-[11px] text-slate-400 italic p-1">Không có tài khoản giáo viên phù hợp.</div>';
 
-    adminCount.innerText = `${adminAccounts.length}`;
-    pendingCount.innerText = `${availableTeachers.length}`;
-    grantedCount.innerText = `${teacherAccounts.length}`;
+    adminCount.innerText = toCountLabel(
+      adminAccounts.length,
+      adminAccountsRaw.length,
+    );
+    pendingCount.innerText = toCountLabel(
+      availableTeachers.length,
+      availableTeachersRaw.length,
+    );
+    grantedCount.innerText = toCountLabel(
+      teacherAccounts.length,
+      teacherAccountsRaw.length,
+    );
 
-    pendingCard?.classList.toggle("hidden", !hasPendingTeachers);
-    adminCard?.classList.toggle("hidden", !hasSubAdmins);
+    pendingCard?.classList.toggle("hidden", !hasPendingTeachers && !keyword);
+    adminCard?.classList.toggle("hidden", !hasSubAdmins && !keyword);
     secondaryEmptyHint?.classList.toggle(
       "hidden",
-      hasPendingTeachers || hasSubAdmins,
+      hasPendingTeachers || hasSubAdmins || hasGrantedAccounts,
+    );
+
+    if (secondaryEmptyHint && keyword) {
+      secondaryEmptyHint.innerText =
+        "Không có giáo viên chờ cấp quyền hoặc admin phụ phù hợp từ khóa tìm kiếm.";
+    }
+
+    accountSearchEmptyHint?.classList.toggle(
+      "hidden",
+      hasPendingTeachers || hasSubAdmins || hasGrantedAccounts || !keyword,
     );
 
     refreshIcons();
@@ -433,16 +533,33 @@ export const registerRenderCore = ({
     const studentList = document.getElementById("studentList");
     if (!studentList) return;
 
-    studentList.innerHTML = globalThis.db.students
-      .map((stu) => {
-        const latest = getLatestStudentEvaluation(stu.id);
-        const gradeLabel = safeText(
-          String(stu.gradeLevel || stu.classLevel || "Chưa phân lớp"),
-        );
-        const evalBadge = latest
-          ? `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded border ${getEvalLevelMeta(latest.level).className}">${getEvalLevelMeta(latest.level).label}</span>`
-          : '<span class="text-[10px] text-slate-400 italic">Chưa đánh giá</span>';
-        return `
+    const keyword = getSearchKeyword("masterStudentSearchInput");
+    const filteredStudents = globalThis.db.students.filter((student) => {
+      if (!keyword) return true;
+      const gradeLabel = String(
+        student.gradeLevel || student.classLevel || "Chưa phân lớp",
+      );
+      return (
+        includesKeyword(student.name, keyword) ||
+        includesKeyword(student.parentPhone, keyword) ||
+        includesKeyword(gradeLabel, keyword)
+      );
+    });
+
+    if (filteredStudents.length === 0) {
+      studentList.innerHTML =
+        '<div class="rounded-lg border border-dashed border-slate-300 bg-white px-3 py-5 text-center text-xs text-slate-500">Không tìm thấy học sinh phù hợp bộ lọc hiện tại.</div>';
+    } else {
+      studentList.innerHTML = filteredStudents
+        .map((stu) => {
+          const latest = getLatestStudentEvaluation(stu.id);
+          const gradeLabel = safeText(
+            String(stu.gradeLevel || stu.classLevel || "Chưa phân lớp"),
+          );
+          const evalBadge = latest
+            ? `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded border ${getEvalLevelMeta(latest.level).className}">${getEvalLevelMeta(latest.level).label}</span>`
+            : '<span class="text-[10px] text-slate-400 italic">Chưa đánh giá</span>';
+          return `
                 <div class="bg-white border border-slate-200 p-3 rounded-lg shadow-sm flex justify-between items-center group hover:border-blue-200">
                     <div>
                       <div class="text-sm font-bold text-slate-800">${safeText(stu.name)} <span class="text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded px-1.5 py-0.5 ml-1">${gradeLabel}</span></div>
@@ -454,8 +571,9 @@ export const registerRenderCore = ({
                       <button onclick="globalThis.deleteData('students', '${safeAttr(stu.id)}')" title="Xóa học sinh" class="text-slate-300 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                     </div>
                 </div>`;
-      })
-      .join("");
+        })
+        .join("");
+    }
     const studentCheckboxes = document.getElementById("cls_studentCheckboxes");
     if (studentCheckboxes) {
       studentCheckboxes.innerHTML = globalThis.db.students
@@ -495,10 +613,22 @@ export const registerRenderCore = ({
     }
 
     if (scheduleClassSelect) {
-      const selectedClassId = scheduleClassSelect.value;
+      const selectedClassIds = new Set(
+        Array.from(scheduleClassSelect.selectedOptions || [])
+          .map((option) => String(option.value || "").trim())
+          .filter(Boolean),
+      );
+      const previousSingleClassId = Array.from(selectedClassIds)[0] || "";
       if (sortedClasses.length === 0) {
         scheduleClassSelect.innerHTML =
           '<option value="">-- Chưa có nhóm/lớp từ hồ sơ học sinh --</option>';
+      } else if (scheduleClassSelect.multiple) {
+        scheduleClassSelect.innerHTML = sortedClasses
+          .map(
+            (cls) =>
+              `<option value="${safeAttr(cls.id)}">${safeText(getClassDisplayName(cls))} | ${safeText(String(cls.studentIds.length))} HS: ${safeText(getClassStudentPreview(cls, 2))}</option>`,
+          )
+          .join("");
       } else {
         scheduleClassSelect.innerHTML =
           '<option value="">-- Chọn Nhóm/Lớp --</option>' +
@@ -509,15 +639,58 @@ export const registerRenderCore = ({
             )
             .join("");
       }
-      if (
-        selectedClassId &&
-        sortedClasses.some((cls) => String(cls.id) === String(selectedClassId))
-      ) {
-        scheduleClassSelect.value = selectedClassId;
+
+      if (scheduleClassSelect.multiple) {
+        Array.from(scheduleClassSelect.options || []).forEach((option) => {
+          option.selected = selectedClassIds.has(String(option.value || ""));
+        });
+      } else {
+        const selectedClassId = String(previousSingleClassId || "").trim();
+        if (
+          selectedClassId &&
+          sortedClasses.some(
+            (cls) => String(cls.id) === String(selectedClassId),
+          )
+        ) {
+          scheduleClassSelect.value = selectedClassId;
+        }
       }
     }
 
     refreshIcons();
+  };
+
+  const getSelectedClassIdsForCreateForm = () => {
+    const classSelect = document.getElementById("sch_classId");
+    if (!classSelect) return [];
+
+    if (classSelect.multiple) {
+      return Array.from(classSelect.selectedOptions || [])
+        .map((option) => String(option.value || "").trim())
+        .filter(Boolean);
+    }
+
+    const selectedClassId = String(classSelect.value || "").trim();
+    return selectedClassId ? [selectedClassId] : [];
+  };
+
+  const areIdSetsEqual = (a, b) => {
+    if (a.size !== b.size) return false;
+    for (const id of a) {
+      if (!b.has(id)) return false;
+    }
+    return true;
+  };
+
+  const getUniqueStudentIdsFromClasses = (classes) => {
+    const idSet = new Set();
+    (classes || []).forEach((cls) => {
+      (cls?.studentIds || []).forEach((studentId) => {
+        const normalizedId = String(studentId || "").trim();
+        if (normalizedId) idSet.add(normalizedId);
+      });
+    });
+    return Array.from(idSet);
   };
 
   globalThis.updateScheduleStudentSelection = () => {
@@ -569,6 +742,7 @@ export const registerRenderCore = ({
     if (studentWrap) {
       studentWrap.classList.add("hidden");
       delete studentWrap.dataset.classId;
+      delete studentWrap.dataset.classIds;
       delete studentWrap.dataset.className;
     }
     if (studentCheckboxes) {
@@ -579,20 +753,45 @@ export const registerRenderCore = ({
     }
   };
 
-  const renderClassStudentPicker = (cls, studentWrap, studentCheckboxes) => {
+  const renderClassStudentPicker = (
+    selectedClasses,
+    studentWrap,
+    studentCheckboxes,
+  ) => {
     const prevSelectedIds = new Set(
       Array.from(
         document.querySelectorAll("#sch_studentCheckboxes input:checked"),
       ).map((el) => String(el.value || "")),
     );
-    const previousClassId = String(studentWrap?.dataset.classId || "");
+
+    const currentClassIds = new Set(
+      (selectedClasses || []).map((cls) => String(cls?.id || "")).filter(Boolean),
+    );
+
+    const previousClassIds = new Set(
+      String(studentWrap?.dataset.classIds || "")
+        .split(",")
+        .map((value) => String(value || "").trim())
+        .filter(Boolean),
+    );
+
+    const combinedStudentIds = getUniqueStudentIdsFromClasses(selectedClasses);
+
     const defaultSelectedIds =
-      previousClassId === String(cls.id) && prevSelectedIds.size > 0
+      areIdSetsEqual(previousClassIds, currentClassIds) &&
+      prevSelectedIds.size > 0
         ? prevSelectedIds
-        : new Set((cls.studentIds || []).map(String));
+        : new Set(combinedStudentIds);
+
+    const classNameMap = new Map(
+      (selectedClasses || []).map((cls) => [
+        String(cls?.id || ""),
+        getClassDisplayName(cls),
+      ]),
+    );
 
     if (studentCheckboxes) {
-      studentCheckboxes.innerHTML = (cls.studentIds || [])
+      studentCheckboxes.innerHTML = combinedStudentIds
         .map((id) => {
           const student = getStudentInfo(id);
           const checkedAttr = defaultSelectedIds.has(String(id))
@@ -602,29 +801,52 @@ export const registerRenderCore = ({
           const parentPhone = student?.parentPhone
             ? ` • PH: ${safeText(student.parentPhone)}`
             : "";
-          return `<label class="block cursor-pointer"><input type="checkbox" value="${safeAttr(id)}" ${checkedAttr} onchange="globalThis.updateScheduleStudentSelection()" class="peer sr-only"><div class="rounded-lg border border-slate-200 bg-white p-2 transition-all peer-checked:border-indigo-300 peer-checked:bg-indigo-50 hover:border-indigo-200"><div class="text-[12px] font-bold text-slate-800">${safeText(student.name)}</div><div class="text-[11px] text-slate-500 mt-0.5">${safeText(gradeLabel)}${parentPhone}</div></div></label>`;
+          const memberClassNames = (selectedClasses || [])
+            .filter((cls) => (cls?.studentIds || []).map(String).includes(String(id)))
+            .map((cls) => classNameMap.get(String(cls?.id || "")) || "")
+            .filter(Boolean)
+            .join(", ");
+          return `<label class="block cursor-pointer"><input type="checkbox" value="${safeAttr(id)}" ${checkedAttr} onchange="globalThis.updateScheduleStudentSelection()" class="peer sr-only"><div class="rounded-lg border border-slate-200 bg-white p-2 transition-all peer-checked:border-indigo-300 peer-checked:bg-indigo-50 hover:border-indigo-200"><div class="text-[12px] font-bold text-slate-800">${safeText(student.name)}</div><div class="text-[11px] text-slate-500 mt-0.5">${safeText(gradeLabel)}${parentPhone}</div><div class="text-[10px] text-indigo-600 mt-1 line-clamp-1">${safeText(memberClassNames || "Không xác định lớp")}</div></div></label>`;
         })
         .join("");
     }
+
+    const classNameSummary =
+      (selectedClasses || []).length <= 1
+        ? getClassDisplayName((selectedClasses || [])[0] || {})
+        : `${selectedClasses.length} nhóm/lớp đã chọn`;
+
     if (studentWrap) {
       studentWrap.classList.remove("hidden");
-      studentWrap.dataset.classId = String(cls.id);
-      studentWrap.dataset.className = getClassDisplayName(cls);
+      studentWrap.dataset.classIds = Array.from(currentClassIds).join(",");
+      studentWrap.dataset.className = classNameSummary;
     }
+
     if (typeof globalThis.updateScheduleStudentSelection === "function") {
       globalThis.updateScheduleStudentSelection();
     }
   };
 
-  const renderClassHint = (hintDiv, cls) => {
+  const renderClassHint = (hintDiv, selectedClasses) => {
     if (!hintDiv) return;
-    const studentChips = (cls.studentIds || [])
+
+    const uniqueStudentIds = getUniqueStudentIdsFromClasses(selectedClasses);
+    const classChips = (selectedClasses || [])
+      .map(
+        (cls) =>
+          `<span class="text-[11px] font-bold px-2 py-0.5 rounded border bg-white border-indigo-200 text-indigo-700">${safeText(getClassDisplayName(cls))} (${safeText(String((cls?.studentIds || []).length))} HS)</span>`,
+      )
+      .join(" ");
+    const studentChips = uniqueStudentIds
+      .slice(0, 20)
       .map(
         (id) =>
           `<span class="text-[11px] font-medium px-2 py-0.5 rounded border bg-white border-indigo-200 text-slate-700">${safeText(getStudentInfo(id).name)}</span>`,
       )
       .join(" ");
-    hintDiv.innerHTML = `<div class="space-y-1"><div><span class="font-bold text-indigo-800">Nhóm lớp:</span> ${safeText(getClassDisplayName(cls))}</div><div><span class="font-bold text-indigo-800">Sĩ số ${safeText(String(cls.studentIds.length))} HS:</span></div><div class="flex flex-wrap gap-1">${studentChips || '<span class="text-[11px] italic text-slate-500">Chưa có học sinh.</span>'}</div></div>`;
+    const hiddenCount = Math.max(uniqueStudentIds.length - 20, 0);
+
+    hintDiv.innerHTML = `<div class="space-y-1"><div><span class="font-bold text-indigo-800">Nhóm lớp đã chọn:</span> ${safeText(String((selectedClasses || []).length))}</div><div class="flex flex-wrap gap-1">${classChips}</div><div><span class="font-bold text-indigo-800">Tổng sĩ số hợp nhất:</span> ${safeText(String(uniqueStudentIds.length))} HS</div><div class="flex flex-wrap gap-1">${studentChips || '<span class="text-[11px] italic text-slate-500">Chưa có học sinh.</span>'}</div>${hiddenCount > 0 ? `<div class="text-[11px] text-slate-500">... và ${safeText(String(hiddenCount))} học sinh khác</div>` : ""}</div>`;
     hintDiv.classList.remove("hidden");
   };
 
@@ -759,7 +981,7 @@ export const registerRenderCore = ({
   globalThis.handleClassSelection = () => {
     const currentRole = getCurrentRole();
     const currentUser = getCurrentUser();
-    const classId = document.getElementById("sch_classId")?.value || "";
+    const selectedClassIds = getSelectedClassIdsForCreateForm();
     const subjectId = document.getElementById("sch_subjectId")?.value || "";
     const hintDiv = document.getElementById("sch_classHint");
     const teacherSelect = document.getElementById("sch_teacherId");
@@ -768,7 +990,7 @@ export const registerRenderCore = ({
     const studentCheckboxes = document.getElementById("sch_studentCheckboxes");
 
     if (!teacherSelect) return;
-    if (!classId) {
+    if (selectedClassIds.length === 0) {
       handleClassSelectionWithoutClass(
         hintDiv,
         teacherSelect,
@@ -779,8 +1001,10 @@ export const registerRenderCore = ({
       return;
     }
 
-    const cls = getClassInfoSafe(classId);
-    if (!cls) {
+    const selectedClasses = selectedClassIds
+      .map((classId) => getClassInfoSafe(classId))
+      .filter(Boolean);
+    if (selectedClasses.length !== selectedClassIds.length) {
       handleClassSelectionWithInvalidClass(
         hintDiv,
         teacherSelect,
@@ -791,8 +1015,8 @@ export const registerRenderCore = ({
       return;
     }
 
-    renderClassStudentPicker(cls, studentWrap, studentCheckboxes);
-    renderClassHint(hintDiv, cls);
+    renderClassStudentPicker(selectedClasses, studentWrap, studentCheckboxes);
+    renderClassHint(hintDiv, selectedClasses);
 
     if (currentRole === "teacher") {
       applyTeacherClassSelection(
@@ -1025,54 +1249,54 @@ export const registerRenderCore = ({
       .join("");
   };
 
-  const resolveBoardFilterWeek = () => {
-    const filterWeekInput = document.getElementById("filterWeek");
-    const attendanceWeekInput = document.getElementById("attendanceWeek");
-    const rawFilterWeek = String(filterWeekInput?.value || "").trim();
-    const availableWeeks = Array.from(
-      new Set(
-        globalThis.db.schedules
-          .map((schedule) => String(schedule?.week || "").trim())
-          .filter(Boolean),
-      ),
-    ).sort((a, b) => b.localeCompare(a));
-    const filterWeek = rawFilterWeek || availableWeeks[0] || "";
+  const filterSchedulesByKeyword = (schedules, keyword) => {
+    if (!keyword) return schedules;
+    return schedules.filter((schedule) => {
+      const cls = getClassInfoSafe(schedule.classId);
+      const classLabel = getScheduleClassLabel(schedule, cls);
+      const subject = getScheduleSubjectInfo(schedule);
+      const teacher = getTeacherInfo(schedule.teacherId);
+      const studentNames = getScheduleStudentIds(schedule, cls)
+        .map((studentId) => getStudentInfo(studentId).name)
+        .filter(Boolean)
+        .join(" ");
 
-    return {
-      filterWeek,
-      filterWeekInput,
-      attendanceWeekInput,
-    };
-  };
+      const aggregateSearchText = [
+        classLabel,
+        subject.name,
+        teacher.name,
+        schedule.location,
+        schedule.topic,
+        formatDayOfWeek(schedule.dayOfWeek),
+        schedule.startTime,
+        schedule.endTime,
+        studentNames,
+      ].join(" ");
 
-  const syncBoardWeekInputs = ({
-    filterWeek,
-    filterWeekInput,
-    attendanceWeekInput,
-  }) => {
-    if (filterWeekInput && filterWeekInput.value !== filterWeek) {
-      filterWeekInput.value = filterWeek;
-    }
-    if (attendanceWeekInput && attendanceWeekInput.value !== filterWeek) {
-      attendanceWeekInput.value = filterWeek;
-    }
-  };
-
-  const sortSchedulesByDayAndTime = (schedules) =>
-    schedules.slice().sort((a, b) => {
-      const dayDiff = Number(a.dayOfWeek || 0) - Number(b.dayOfWeek || 0);
-      if (dayDiff !== 0) return dayDiff;
-      return String(a.startTime || "").localeCompare(String(b.startTime || ""));
+      return includesKeyword(aggregateSearchText, keyword);
     });
+  };
+
+  const getScheduleEmptyMessage = ({
+    scheduleKeyword,
+    currentRole,
+    weekLabel,
+  }) => {
+    if (scheduleKeyword) {
+      return `${weekLabel} không có lịch khớp từ khóa tìm kiếm.`;
+    }
+    if (currentRole === "teacher") {
+      return `${weekLabel} bạn không có ca dạy.`;
+    }
+    return `${weekLabel} chưa có lịch.`;
+  };
 
   const renderSchedules = () => {
     const currentUser = getCurrentUser();
     const currentRole = getCurrentRole();
     if (!currentUser) return;
-    const boardWeekState = resolveBoardFilterWeek();
-    const { filterWeek } = boardWeekState;
-    syncBoardWeekInputs(boardWeekState);
-
+    const filterWeek = document.getElementById("filterWeek").value;
+    const scheduleKeyword = getSearchKeyword("boardScheduleSearchInput");
     const container = document.getElementById("scheduleContainer");
     if (!container) return;
 
@@ -1080,26 +1304,25 @@ export const registerRenderCore = ({
 
     let filtered = globalThis.db.schedules.filter((s) => s.week === filterWeek);
     if (currentRole === "teacher") {
-      filtered = filtered.filter(
-        (s) => String(s.teacherId || "") === String(currentUser?.id || ""),
-      );
+      filtered = filtered.filter((s) => s.teacherId === currentUser.id);
     }
 
-    filtered = sortSchedulesByDayAndTime(filtered);
+    filtered = filterSchedulesByKeyword(filtered, scheduleKeyword);
 
     const scheduleViewMode =
       document.getElementById("scheduleViewMode")?.value === "timetable"
         ? "timetable"
         : "list";
-    const weekLabel = formatWeekLabel(filterWeek || "") || "Tuần chưa chọn";
+    const weekLabel = formatWeekLabel(filterWeek);
 
     if (filtered.length === 0) {
       const emptyIcon = currentRole === "teacher" ? "coffee" : "inbox";
       const safeWeekLabel = safeText(weekLabel);
-      const emptyMessage =
-        currentRole === "teacher"
-          ? `${safeWeekLabel} bạn không có ca dạy.`
-          : `${safeWeekLabel} chưa có lịch.`;
+      const emptyMessage = getScheduleEmptyMessage({
+        scheduleKeyword,
+        currentRole,
+        weekLabel: safeWeekLabel,
+      });
       container.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-slate-400 py-20"><i data-lucide="${emptyIcon}" class="w-16 h-16 mb-4 opacity-30"></i><p class="text-lg font-bold text-slate-600">${emptyMessage}</p></div>`;
       refreshIcons();
       return;
@@ -1751,7 +1974,45 @@ export const registerRenderCore = ({
     renderAttendanceList(dashboard.requests || [], currentRole, selection);
   };
 
+  const createFrameRunner = (callback) => {
+    let frameId = null;
+    return () => {
+      if (frameId !== null) return;
+      frameId = globalThis.requestAnimationFrame(() => {
+        frameId = null;
+        callback();
+      });
+    };
+  };
+
+  const bindSearchInput = (inputId, handler) => {
+    const input = document.getElementById(inputId);
+    if (!input || input.dataset.boundSearchInput === "1") return;
+    input.addEventListener("input", handler);
+    input.dataset.boundSearchInput = "1";
+  };
+
+  const bindSearchInputs = () => {
+    bindSearchInput(
+      "masterTeacherSearchInput",
+      createFrameRunner(() => renderTeachers()),
+    );
+    bindSearchInput(
+      "masterStudentSearchInput",
+      createFrameRunner(() => renderStudents()),
+    );
+    bindSearchInput(
+      "masterAccountSearchInput",
+      createFrameRunner(() => renderAccounts()),
+    );
+    bindSearchInput(
+      "boardScheduleSearchInput",
+      createFrameRunner(() => renderSchedules()),
+    );
+  };
+
   const renderAll = () => {
+    bindSearchInputs();
     renderSubjects();
     renderTeachers();
     renderStudents();
@@ -1802,24 +2063,40 @@ export const registerRenderCore = ({
   const renderBoardHeaderByRole = (currentRole, currentUser, summaryEl) => {
     const boardTitleEl = document.getElementById("boardTitle");
     const boardSubtitleEl = document.getElementById("boardSubtitle");
+    const teacherTitlePrefix = getConfigValue(
+      "board.teacherTitlePrefix",
+      "Lịch giảng dạy của",
+    );
+    const teacherSubtitle = getConfigValue(
+      "board.teacherSubtitle",
+      "Tạo lịch hoặc gửi đề xuất để admin duyệt. Quét QR để gửi giờ công.",
+    );
+    const adminTitle = getConfigValue(
+      "board.adminTitle",
+      "Lịch giảng dạy trung tâm",
+    );
+    const adminSubtitle = getConfigValue(
+      "board.adminSubtitle",
+      "Đồng bộ Cloud theo thời gian thực",
+    );
 
     if (currentRole === "teacher") {
       if (boardTitleEl) {
-        boardTitleEl.innerText = `Lịch giảng dạy của ${String(currentUser?.name || "")}`;
+        boardTitleEl.innerText =
+          `${teacherTitlePrefix} ${String(currentUser?.name || "")}`.trim();
       }
       if (boardSubtitleEl) {
-        boardSubtitleEl.innerText =
-          "Tạo lịch hoặc gửi đề xuất để admin duyệt. Quét QR để gửi giờ công.";
+        boardSubtitleEl.innerText = teacherSubtitle;
       }
       renderTeacherQuickSummary(summaryEl, currentUser?.id);
       return;
     }
 
     if (boardTitleEl) {
-      boardTitleEl.innerText = "Lịch giảng dạy trung tâm";
+      boardTitleEl.innerText = adminTitle;
     }
     if (boardSubtitleEl) {
-      boardSubtitleEl.innerText = "Đồng bộ Cloud theo thời gian thực";
+      boardSubtitleEl.innerText = adminSubtitle;
     }
     if (summaryEl) {
       summaryEl.innerHTML = "";

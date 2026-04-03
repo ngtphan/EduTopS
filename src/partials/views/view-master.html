@@ -264,6 +264,20 @@
                 >0</span
               >
             </div>
+            <div class="mb-2">
+              <div
+                class="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200"
+              >
+                <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400"></i>
+                <input
+                  id="masterTeacherSearchInput"
+                  type="text"
+                  data-config-placeholder="ui.placeholders.teacherSearch"
+                  placeholder="Tìm giáo viên theo tên, email, SĐT..."
+                  class="w-full text-xs bg-transparent focus:outline-none text-slate-700"
+                />
+              </div>
+            </div>
             <div
               class="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-2"
               id="teacherList"
@@ -286,13 +300,40 @@
         <h2 class="font-bold text-slate-800 text-sm">Học sinh</h2>
       </div>
       <div class="p-3 border-b border-slate-100 bg-blue-50/30 shrink-0">
-        <button
-          id="btnOpenStudentCreateModal"
-          type="button"
-          class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-sm font-bold shadow-sm flex items-center justify-center gap-1.5"
-        >
-          <i data-lucide="user-plus" class="w-4 h-4"></i> Thêm học sinh
-        </button>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <button
+            id="btnOpenStudentCreateModal"
+            type="button"
+            class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-sm font-bold shadow-sm flex items-center justify-center gap-1.5"
+          >
+            <i data-lucide="user-plus" class="w-4 h-4"></i> Thêm học sinh
+          </button>
+          <button
+            id="btnOpenBulkStudentClassUpdateModal"
+            type="button"
+            class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-lg text-sm font-bold shadow-sm flex items-center justify-center gap-1.5"
+          >
+            <i data-lucide="arrow-up-right" class="w-4 h-4"></i> Cập nhật lớp
+            đồng loạt
+          </button>
+        </div>
+        <div class="mt-2 text-[11px] text-slate-500">
+          Chọn lớp nguồn, lớp đích và bỏ chọn các học sinh cần ở lại lớp.
+        </div>
+        <div class="mt-2">
+          <div
+            class="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-blue-200"
+          >
+            <i data-lucide="search" class="w-3.5 h-3.5 text-blue-400"></i>
+            <input
+              id="masterStudentSearchInput"
+              type="text"
+              data-config-placeholder="ui.placeholders.studentSearch"
+              placeholder="Tìm học sinh theo tên, SĐT phụ huynh, lớp..."
+              class="w-full text-xs bg-transparent focus:outline-none text-slate-700"
+            />
+          </div>
+        </div>
       </div>
       <div
         class="flex-1 min-h-0 overflow-y-auto p-3 custom-scrollbar space-y-2"
@@ -324,7 +365,9 @@
                 Admin cố định
               </div>
               <div class="text-xs text-slate-700 font-medium mt-0.5">
-                ngoctaiphan.edu@gmail.com
+                <span data-config-text="auth.fixedAdminEmail"
+                  >ngoctaiphan.edu@gmail.com</span
+                >
               </div>
             </div>
 
@@ -373,6 +416,26 @@
                 class="text-[10px] px-2 py-0.5 rounded-full border border-amber-200 bg-amber-50 text-amber-700 font-bold"
                 >GV đã cấp: <span id="accountGrantedCount">0</span></span
               >
+            </div>
+
+            <div
+              class="rounded-lg border border-slate-200 bg-white p-2 flex items-center gap-2"
+            >
+              <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400"></i>
+              <input
+                id="masterAccountSearchInput"
+                type="text"
+                data-config-placeholder="ui.placeholders.accountSearch"
+                placeholder="Tìm tài khoản theo tên, email, vai trò..."
+                class="w-full text-xs bg-transparent focus:outline-none text-slate-700"
+              />
+            </div>
+
+            <div
+              id="accountSearchEmptyHint"
+              class="hidden rounded-lg border border-dashed border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-500 italic"
+            >
+              Không có kết quả phù hợp với từ khóa tìm kiếm.
             </div>
 
             <div
