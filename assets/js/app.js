@@ -39,7 +39,7 @@ import {
 } from "./modules/features/attendance/attendance-feature.js";
 import { sanitizeForStorage, isSafeDocId } from "./modules/security-utils.js";
 
-const APP_VERSION = "v1.8";
+const APP_VERSION = "v1.8.2";
 
 const injectPartial = async (hostId, filePath) => {
   const host = document.getElementById(hostId);

@@ -1025,11 +1025,54 @@ export const registerRenderCore = ({
       .join("");
   };
 
+  const resolveBoardFilterWeek = () => {
+    const filterWeekInput = document.getElementById("filterWeek");
+    const attendanceWeekInput = document.getElementById("attendanceWeek");
+    const rawFilterWeek = String(filterWeekInput?.value || "").trim();
+    const availableWeeks = Array.from(
+      new Set(
+        globalThis.db.schedules
+          .map((schedule) => String(schedule?.week || "").trim())
+          .filter(Boolean),
+      ),
+    ).sort((a, b) => b.localeCompare(a));
+    const filterWeek = rawFilterWeek || availableWeeks[0] || "";
+
+    return {
+      filterWeek,
+      filterWeekInput,
+      attendanceWeekInput,
+    };
+  };
+
+  const syncBoardWeekInputs = ({
+    filterWeek,
+    filterWeekInput,
+    attendanceWeekInput,
+  }) => {
+    if (filterWeekInput && filterWeekInput.value !== filterWeek) {
+      filterWeekInput.value = filterWeek;
+    }
+    if (attendanceWeekInput && attendanceWeekInput.value !== filterWeek) {
+      attendanceWeekInput.value = filterWeek;
+    }
+  };
+
+  const sortSchedulesByDayAndTime = (schedules) =>
+    schedules.slice().sort((a, b) => {
+      const dayDiff = Number(a.dayOfWeek || 0) - Number(b.dayOfWeek || 0);
+      if (dayDiff !== 0) return dayDiff;
+      return String(a.startTime || "").localeCompare(String(b.startTime || ""));
+    });
+
   const renderSchedules = () => {
     const currentUser = getCurrentUser();
     const currentRole = getCurrentRole();
     if (!currentUser) return;
-    const filterWeek = document.getElementById("filterWeek").value;
+    const boardWeekState = resolveBoardFilterWeek();
+    const { filterWeek } = boardWeekState;
+    syncBoardWeekInputs(boardWeekState);
+
     const container = document.getElementById("scheduleContainer");
     if (!container) return;
 
@@ -1037,14 +1080,18 @@ export const registerRenderCore = ({
 
     let filtered = globalThis.db.schedules.filter((s) => s.week === filterWeek);
     if (currentRole === "teacher") {
-      filtered = filtered.filter((s) => s.teacherId === currentUser.id);
+      filtered = filtered.filter(
+        (s) => String(s.teacherId || "") === String(currentUser?.id || ""),
+      );
     }
+
+    filtered = sortSchedulesByDayAndTime(filtered);
 
     const scheduleViewMode =
       document.getElementById("scheduleViewMode")?.value === "timetable"
         ? "timetable"
         : "list";
-    const weekLabel = formatWeekLabel(filterWeek);
+    const weekLabel = formatWeekLabel(filterWeek || "") || "Tuần chưa chọn";
 
     if (filtered.length === 0) {
       const emptyIcon = currentRole === "teacher" ? "coffee" : "inbox";
