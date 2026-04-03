@@ -527,9 +527,8 @@ export const registerDataManagement = ({
       const levelInput = document.querySelector(
         `input[name='eval_level_${fieldToken}']:checked`,
       );
-      const isAbsent = !!document.getElementById(
-        `eval_absent_${fieldToken}`,
-      )?.checked;
+      const isAbsent = !!document.getElementById(`eval_absent_${fieldToken}`)
+        ?.checked;
       const level = levelInput ? levelInput.value : "fair";
       const normalizedLevel =
         level === "good" || level === "fair" || level === "watch"

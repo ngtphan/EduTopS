@@ -765,7 +765,9 @@ export const registerRenderCore = ({
     );
 
     const currentClassIds = new Set(
-      (selectedClasses || []).map((cls) => String(cls?.id || "")).filter(Boolean),
+      (selectedClasses || [])
+        .map((cls) => String(cls?.id || ""))
+        .filter(Boolean),
     );
 
     const previousClassIds = new Set(
@@ -802,7 +804,9 @@ export const registerRenderCore = ({
             ? ` • PH: ${safeText(student.parentPhone)}`
             : "";
           const memberClassNames = (selectedClasses || [])
-            .filter((cls) => (cls?.studentIds || []).map(String).includes(String(id)))
+            .filter((cls) =>
+              (cls?.studentIds || []).map(String).includes(String(id)),
+            )
             .map((cls) => classNameMap.get(String(cls?.id || "")) || "")
             .filter(Boolean)
             .join(", ");
