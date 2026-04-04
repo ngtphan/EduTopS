@@ -19,6 +19,18 @@ Quy uoc version: Semantic Versioning (MAJOR.MINOR.PATCH)
 
 - Chua co.
 
+## [v1.11.9] - 2026-04-04
+
+### Changed
+
+- Dong bo module dang nhap Google sang cung nguon SDK `firebase/auth` voi phan con lai cua ung dung de tranh sai lech context auth.
+- Bo sung fallback tu popup sang redirect khi trinh duyet chan popup/khong ho tro popup auth.
+- Nang cap map thong bao loi dang nhap de hien thi ro nhom loi `invalid action`, `operation-not-allowed`, `unauthorized-domain`.
+
+### Fixed
+
+- Giam loi dang nhap Google voi thong diep `The requested action is invalid.` bang cach bat va xu ly redirect-result/error code on dinh hon.
+
 ## [v1.11.8] - 2026-04-04
 
 ### Added
