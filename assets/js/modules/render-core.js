@@ -5,6 +5,12 @@ import {
   getScheduleTeacherIds,
   isTeacherAssignedToSchedule,
 } from "@/entities/schedule/model/teacher-assignment";
+import {
+  formatWeekTokenLabel,
+  isIsoWeekToken,
+  normalizeWeekToken,
+  toIsoWeekTokenFromDateToken,
+} from "@/shared/lib/week-token";
 
 export const registerRenderCore = ({
   colorStyles,
@@ -1201,10 +1207,14 @@ export const registerRenderCore = ({
     applyAdminClassSelection(subjectId, teacherSelect, filterHint);
   };
 
-  const formatWeekLabel = (weekToken) => {
-    const match = /^(\d{4})-W(\d{2})$/.exec(String(weekToken || ""));
-    if (!match) return String(weekToken || "");
-    return `Tuần ${Number(match[2])}, ${match[1]}`;
+  const formatWeekLabel = (weekToken) =>
+    formatWeekTokenLabel(weekToken, String(weekToken || ""));
+
+  const formatWeekPeriodLabel = (weekToken) => {
+    const normalized = normalizeWeekToken(weekToken);
+    if (!normalized) return "Tuần chưa chọn";
+    const [year, weekNo] = normalized.split("-W");
+    return `Tuần ${Number(weekNo)}/${year}`;
   };
 
   globalThis.openTimetableScheduleDetail = async (scheduleId) => {
@@ -1365,7 +1375,9 @@ export const registerRenderCore = ({
     const badgeEl = document.getElementById("scheduleApprovalBadge");
     if (!panel || !listEl || !summaryEl || !badgeEl) return;
 
-    if (currentRole !== "admin" || !week) {
+    const normalizedWeek = normalizeWeekToken(week);
+
+    if (currentRole !== "admin" || !normalizedWeek) {
       panel.classList.add("hidden");
       return;
     }
@@ -1373,7 +1385,8 @@ export const registerRenderCore = ({
     const pendingSchedules = globalThis.db.schedules
       .filter(
         (sch) =>
-          sch.week === week && getScheduleApprovalStatus(sch) === "pending",
+          normalizeWeekToken(sch.week) === normalizedWeek &&
+          getScheduleApprovalStatus(sch) === "pending",
       )
       .sort((a, b) => {
         const dayDiff = Number(a.dayOfWeek) - Number(b.dayOfWeek);
@@ -1391,7 +1404,7 @@ export const registerRenderCore = ({
     panel.classList.remove("hidden");
 
     badgeEl.innerText = `${pendingSchedules.length}`;
-    summaryEl.innerText = `${formatWeekLabel(week)} • ${pendingSchedules.length} yêu cầu cần duyệt`;
+    summaryEl.innerText = `${formatWeekLabel(normalizedWeek)} • ${pendingSchedules.length} yêu cầu cần duyệt`;
 
     listEl.innerHTML = pendingSchedules
       .map((sch) => {
@@ -1466,14 +1479,20 @@ export const registerRenderCore = ({
     const currentUser = getCurrentUser();
     const currentRole = getCurrentRole();
     if (!currentUser) return;
-    const filterWeek = document.getElementById("filterWeek").value;
+    const filterWeekInput = document.getElementById("filterWeek");
+    const filterWeek = normalizeWeekToken(filterWeekInput?.value);
+    if (filterWeekInput && filterWeek && filterWeekInput.value !== filterWeek) {
+      filterWeekInput.value = filterWeek;
+    }
     const scheduleKeyword = getSearchKeyword("boardScheduleSearchInput");
     const container = document.getElementById("scheduleContainer");
     if (!container) return;
 
     renderScheduleApprovalPanel(filterWeek, currentRole);
 
-    let filtered = globalThis.db.schedules.filter((s) => s.week === filterWeek);
+    let filtered = globalThis.db.schedules.filter(
+      (s) => normalizeWeekToken(s.week) === filterWeek,
+    );
     if (currentRole === "teacher") {
       filtered = filtered.filter((s) =>
         isTeacherAssignedToSchedule(s, currentUser.id),
@@ -1749,21 +1768,6 @@ export const registerRenderCore = ({
             .toLowerCase()
         : "day";
 
-    const isIsoWeekToken = (value) =>
-      /^\d{4}-W\d{2}$/.test(String(value || "").trim());
-
-    const toIsoWeekTokenFromDateToken = (dateToken) => {
-      const raw = String(dateToken || "").trim();
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return "";
-      const [year, month, day] = raw.split("-").map(Number);
-      const date = new Date(Date.UTC(year, month - 1, day));
-      const dayNum = date.getUTCDay() || 7;
-      date.setUTCDate(date.getUTCDate() + 4 - dayNum);
-      const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
-      const weekNo = Math.ceil(((date - yearStart) / 86400000 + 1) / 7);
-      return `${date.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
-    };
-
     const applySelection = (selection) => {
       const mode = normalizeMode(selection?.mode);
       if (controls.periodSelect) controls.periodSelect.value = mode;
@@ -2038,12 +2042,12 @@ export const registerRenderCore = ({
     };
 
     const getWeeklySelection = (selection) => {
-      const explicitWeek = String(selection?.week || "").trim();
+      const explicitWeek = normalizeWeekToken(selection?.week);
       if (isIsoWeekToken(explicitWeek)) {
         return { ...selection, mode: "week", week: explicitWeek };
       }
 
-      const weekFromInput = String(controls.weekInput?.value || "").trim();
+      const weekFromInput = normalizeWeekToken(controls.weekInput?.value);
       if (isIsoWeekToken(weekFromInput)) {
         return { ...selection, mode: "week", week: weekFromInput };
       }
@@ -2074,11 +2078,8 @@ export const registerRenderCore = ({
 
       const weekSelection = getWeeklySelection(selection);
       const weekDashboard = getDashboard(weekSelection);
-      const weekToken = String(weekSelection.week || "").trim();
-      const weekMatch = /^(\d{4})-W(\d{2})$/.exec(weekToken);
-      controls.weeklyLabelEl.innerText = weekMatch
-        ? `Tuần ${Number(weekMatch[2])}/${weekMatch[1]}`
-        : "Tuần chưa chọn";
+      const weekToken = normalizeWeekToken(weekSelection.week);
+      controls.weeklyLabelEl.innerText = formatWeekPeriodLabel(weekToken);
       controls.weeklyTotalEl.innerText = `${Number(weekDashboard?.stats?.totalRequests || 0)}`;
       controls.weeklyApprovedEl.innerText = `${Number(weekDashboard?.stats?.approvedCount || 0)}`;
       controls.weeklyRateEl.innerText = String(

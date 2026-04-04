@@ -12,6 +12,7 @@ import {
   hasScheduleConflictIdentity as hasScheduleConflictIdentityEntity,
 } from "@/entities/schedule/model/conflict-key";
 import { pickConflictTarget } from "@/features/schedule-merge/model/pick-conflict-target";
+import { normalizeWeekToken } from "@/shared/lib/week-token";
 
 const SCHEDULE_EDITABLE_FIELDS = [
   "week",
@@ -38,6 +39,11 @@ const isValidTimeRange = (startTime, endTime) =>
 const isValidDayValue = (day) => {
   const dayNum = Number(day);
   return Number.isInteger(dayNum) && dayNum >= 2 && dayNum <= 8;
+};
+
+const normalizeWeekOrKeepRaw = (value) => {
+  const raw = String(value || "").trim();
+  return normalizeWeekToken(raw) || raw;
 };
 
 const toClassToken = (value) =>
@@ -244,7 +250,7 @@ const getWeekOptions = (defaultWeek = "") => {
     document.getElementById("sch_week")?.value,
     document.getElementById("filterWeek")?.value,
     document.getElementById("attendanceWeek")?.value,
-  ];
+  ].map((value) => normalizeWeekOrKeepRaw(value));
   return uniqueSortedValues(weekValues).map((week) => ({
     value: week,
     label: week,
@@ -1879,8 +1885,17 @@ export const registerScheduleFormsAndFilters = ({
   };
 
   const resetScheduleCreateForm = (weekValue) => {
-    document.getElementById("filterWeek").value = weekValue;
-    document.getElementById("attendanceWeek").value = weekValue;
+    const normalizedWeek =
+      normalizeWeekToken(weekValue) ||
+      normalizeWeekToken(document.getElementById("filterWeek")?.value);
+    const filterWeekInput = document.getElementById("filterWeek");
+    if (filterWeekInput && normalizedWeek) {
+      filterWeekInput.value = normalizedWeek;
+    }
+    const attendanceWeekInput = document.getElementById("attendanceWeek");
+    if (attendanceWeekInput && normalizedWeek) {
+      attendanceWeekInput.value = normalizedWeek;
+    }
     const classEl = document.getElementById("sch_classId");
     if (classEl?.multiple) {
       Array.from(classEl.options || []).forEach((option) => {
@@ -1976,29 +1991,56 @@ export const registerScheduleFormsAndFilters = ({
       globalThis.switchTab("board");
     });
 
-  const handleBoardWeekChange = () => {
-    const attendanceWeekInput = document.getElementById("attendanceWeek");
-    if (attendanceWeekInput) {
-      attendanceWeekInput.value = document.getElementById("filterWeek").value;
+  const getNormalizedWeekValue = (inputId) =>
+    normalizeWeekToken(document.getElementById(inputId)?.value);
+
+  const applyNormalizedWeekValue = (inputId, weekValue) => {
+    const input = document.getElementById(inputId);
+    if (!input) return "";
+    const normalizedWeek = normalizeWeekToken(weekValue);
+    if (!normalizedWeek) return "";
+    if (input.value !== normalizedWeek) {
+      input.value = normalizedWeek;
     }
+    return normalizedWeek;
+  };
+
+  const refreshBoardAndAttendance = () => {
     renderSchedules();
     renderMasterOverview();
     renderAttendance();
   };
 
-  const filterWeekInput = document.getElementById("filterWeek");
-  filterWeekInput?.addEventListener("change", handleBoardWeekChange);
-  filterWeekInput?.addEventListener("input", handleBoardWeekChange);
+  const handleBoardWeekChange = () => {
+    const selectedWeek = getNormalizedWeekValue("filterWeek");
+    if (!selectedWeek) return;
+    applyNormalizedWeekValue("filterWeek", selectedWeek);
+    applyNormalizedWeekValue("attendanceWeek", selectedWeek);
+    refreshBoardAndAttendance();
+  };
 
-  document.getElementById("attendanceWeek")?.addEventListener("change", () => {
-    const week = document.getElementById("attendanceWeek")?.value || "";
-    if (week) {
-      document.getElementById("filterWeek").value = week;
-      renderSchedules();
+  const handleAttendanceWeekChange = () => {
+    const selectedWeek = getNormalizedWeekValue("attendanceWeek");
+    if (!selectedWeek) {
+      renderMasterOverview();
+      renderAttendance();
+      return;
     }
-    renderMasterOverview();
-    renderAttendance();
-  });
+    applyNormalizedWeekValue("attendanceWeek", selectedWeek);
+    applyNormalizedWeekValue("filterWeek", selectedWeek);
+    refreshBoardAndAttendance();
+  };
+
+  const bindWeekInputListeners = (inputId, handler) => {
+    const input = document.getElementById(inputId);
+    if (!input || input.dataset.boundWeekFilterInput === "1") return;
+    input.addEventListener("change", handler);
+    input.addEventListener("input", handler);
+    input.dataset.boundWeekFilterInput = "1";
+  };
+
+  bindWeekInputListeners("filterWeek", handleBoardWeekChange);
+  bindWeekInputListeners("attendanceWeek", handleAttendanceWeekChange);
 
   document.getElementById("attendanceDate")?.addEventListener("change", () => {
     renderMasterOverview();
@@ -2035,17 +2077,20 @@ export const registerScheduleFormsAndFilters = ({
     ?.addEventListener("change", () => {
       const mode = document.getElementById("attendancePeriod")?.value;
       if (mode === "week") {
-        const week = document.getElementById("attendanceWeek")?.value || "";
+        const week =
+          getNormalizedWeekValue("attendanceWeek") ||
+          getNormalizedWeekValue("filterWeek");
         if (week) {
-          document.getElementById("filterWeek").value = week;
+          applyNormalizedWeekValue("attendanceWeek", week);
+          applyNormalizedWeekValue("filterWeek", week);
           renderSchedules();
         }
       } else if (mode === "day") {
         const selectedDate = document.getElementById("attendanceDate")?.value;
         if (selectedDate) {
-          const fallbackWeek = document.getElementById("filterWeek")?.value;
-          if (fallbackWeek && document.getElementById("attendanceWeek")) {
-            document.getElementById("attendanceWeek").value = fallbackWeek;
+          const fallbackWeek = getNormalizedWeekValue("filterWeek");
+          if (fallbackWeek) {
+            applyNormalizedWeekValue("attendanceWeek", fallbackWeek);
           }
         }
       }

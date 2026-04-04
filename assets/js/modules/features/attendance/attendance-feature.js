@@ -1,5 +1,9 @@
 ﻿import { normalizeScheduleApprovalStatus } from "@/entities/schedule/model/approval";
 import { isTeacherAssignedToSchedule } from "@/entities/schedule/model/teacher-assignment";
+import {
+  normalizeWeekToken,
+  toIsoWeekTokenFromDateToken,
+} from "@/shared/lib/week-token";
 
 const FIXED_ATTENDANCE_QR_TOKEN = "EDUTOPS_FIXED_ATTENDANCE_QR_V1";
 const QR_SCANNER_LIB_URLS = [
@@ -305,9 +309,6 @@ const normalizePeriodMode = (mode) =>
         .toLowerCase()
     : "day";
 
-const isIsoWeekToken = (value) =>
-  /^\d{4}-W\d{2}$/.test(String(value || "").trim());
-
 const toMonthFromDate = (dateToken) => {
   const raw = String(dateToken || "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return "";
@@ -338,17 +339,6 @@ const isCameraSecureContext = () => {
   if (globalThis.isSecureContext) return true;
   const host = String(globalThis.location?.hostname || "").toLowerCase();
   return host === "localhost" || host === "127.0.0.1" || host === "::1";
-};
-
-const toIsoWeekTokenFromDateToken = (dateToken) => {
-  if (!isIsoDateToken(dateToken)) return "";
-  const [year, month, day] = String(dateToken).split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  const dayNum = date.getUTCDay() || 7;
-  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
-  const weekNo = Math.ceil(((date - yearStart) / 86400000 + 1) / 7);
-  return `${date.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
 };
 
 const toDayOfWeekValueFromDateToken = (dateToken) => {
@@ -390,7 +380,7 @@ const getTeachingContextForTeacherDate = ({ teacherId, attendanceDate }) => {
 
   const sessions = (globalThis.db.schedules || [])
     .filter((item) => isTeacherAssignedToSchedule(item, teacherId))
-    .filter((item) => String(item.week || "") === weekToken)
+    .filter((item) => normalizeWeekToken(item.week) === weekToken)
     .filter((item) => String(item.dayOfWeek || "") === dayToken)
     .filter((item) => getScheduleApprovalStatus(item) === "approved")
     .sort((a, b) =>
@@ -432,10 +422,10 @@ const getAttendancePeriodSelection = () => {
   const selectedDate = isIsoDateToken(dateInput?.value)
     ? String(dateInput.value)
     : fallbackDate;
-  const fallbackWeek = toIsoWeekTokenFromDateToken(selectedDate);
-  const selectedWeek = isIsoWeekToken(weekInput?.value)
-    ? String(weekInput.value).trim()
-    : fallbackWeek;
+  const fallbackWeek = normalizeWeekToken(
+    toIsoWeekTokenFromDateToken(selectedDate),
+  );
+  const selectedWeek = normalizeWeekToken(weekInput?.value) || fallbackWeek;
   const selectedMonth =
     String(monthInput?.value || "").trim() || toMonthFromDate(selectedDate);
 
@@ -463,7 +453,7 @@ const getAttendancePeriodSelection = () => {
 const getAttendancePeriodLabel = (selection) => {
   const mode = normalizePeriodMode(selection?.mode);
   if (mode === "week") {
-    const weekToken = String(selection?.week || "").trim();
+    const weekToken = normalizeWeekToken(selection?.week);
     const match = /^(\d{4})-W(\d{2})$/.exec(weekToken);
     if (!match) return "Tuần chưa chọn";
     return `Tuần ${Number(match[2])}/${match[1]}`;
@@ -487,7 +477,7 @@ const isRequestInSelection = (request, selection) => {
   const mode = normalizePeriodMode(selection?.mode);
 
   if (mode === "week") {
-    const weekToken = String(selection?.week || "").trim();
+    const weekToken = normalizeWeekToken(selection?.week);
     if (!weekToken) return false;
     return toIsoWeekTokenFromDateToken(attendanceDate) === weekToken;
   }

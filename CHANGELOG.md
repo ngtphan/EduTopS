@@ -19,6 +19,22 @@ Quy uoc version: Semantic Versioning (MAJOR.MINOR.PATCH)
 
 - Chua co.
 
+## [v1.11.7] - 2026-04-04
+
+### Added
+
+- Them helper dung chung `src/shared/lib/week-token.ts` + unit test de chuan hoa week token, format label va tinh ISO week tu date token.
+
+### Changed
+
+- Dong bo toan bo luong loc/xu ly tuan trong `app.js`, `schedule-management.js`, `render-core.js`, `attendance-feature.js` sang normalize week token truoc khi so sanh.
+- Chuan hoa gia tri `type=week` khi dong bo giua `filterWeek` va `attendanceWeek`, bo sung bind listener idempotent cho `change` + `input` de giam loi khi thao tac nhanh.
+
+### Fixed
+
+- Sua triet de loi loc tim theo tuan khong on dinh (khong ra lich/ra sai lich) do lech dinh dang token tuan va cac diem so sanh chuoi truc tiep.
+- Sua cong thuc lay tuan mac dinh ve ISO week de tranh sai lech theo nam/tuan, giam nguy co loi tiem an ve sau.
+
 ## [v1.11.6] - 2026-04-04
 
 ### Changed

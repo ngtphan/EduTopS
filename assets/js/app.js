@@ -38,6 +38,10 @@ import {
 } from "./modules/features/attendance/attendance-feature.js";
 import { normalizeScheduleApprovalStatus } from "@/entities/schedule/model/approval";
 import { getScheduleTeacherIds } from "@/entities/schedule/model/teacher-assignment";
+import {
+  normalizeWeekToken,
+  toIsoWeekTokenFromDate,
+} from "@/shared/lib/week-token";
 import { sanitizeForStorage, isSafeDocId } from "./modules/security-utils.js";
 import { APP_CONFIG, getConfigByPath } from "./config/app-config.js";
 
@@ -321,10 +325,16 @@ const formatHours = (hours) => {
 };
 
 const getSelectedWeek = () => {
-  const weekFromAttendance = document.getElementById("attendanceWeek")?.value;
-  const weekFromBoard = document.getElementById("filterWeek")?.value;
+  const weekFromAttendance = normalizeWeekToken(
+    document.getElementById("attendanceWeek")?.value,
+  );
+  const weekFromBoard = normalizeWeekToken(
+    document.getElementById("filterWeek")?.value,
+  );
   return weekFromAttendance || weekFromBoard || "";
 };
+
+globalThis.normalizeWeekToken = normalizeWeekToken;
 
 const formatDayOfWeek = (dayOfWeek) =>
   String(dayOfWeek) === "8" ? "Chủ nhật" : `Thứ ${dayOfWeek}`;
@@ -373,16 +383,22 @@ const getSelectableClasses = () => {
   return globalThis.db.classes;
 };
 
-const getAttendanceWeekSchedules = (week) =>
-  globalThis.db.schedules
+const getAttendanceWeekSchedules = (week) => {
+  const normalizedWeek = normalizeWeekToken(week);
+  if (!normalizedWeek) return [];
+
+  return globalThis.db.schedules
     .filter(
-      (s) => s.week === week && getScheduleApprovalStatus(s) === "approved",
+      (s) =>
+        normalizeWeekToken(s.week) === normalizedWeek &&
+        getScheduleApprovalStatus(s) === "approved",
     )
     .sort((a, b) => {
       const dayDiff = Number(a.dayOfWeek) - Number(b.dayOfWeek);
       if (dayDiff !== 0) return dayDiff;
       return String(a.startTime || "").localeCompare(String(b.startTime || ""));
     });
+};
 
 const requestRenderAll = () => {
   if (renderAllFrame !== null) return;
@@ -431,8 +447,11 @@ const renderMasterOverview = () => {
   studentsEl.innerText = `${globalThis.db.students.length}`;
 
   if (schedulesWeekEl) {
+    const normalizedWeek = normalizeWeekToken(week);
     const weekCount = week
-      ? globalThis.db.schedules.filter((s) => s.week === week).length
+      ? globalThis.db.schedules.filter(
+          (s) => normalizeWeekToken(s.week) === normalizedWeek,
+        ).length
       : 0;
     schedulesWeekEl.innerText = `${weekCount}`;
   }
@@ -1685,13 +1704,12 @@ registerReportingExports({
 
 // INIT
 const getCurrentWeekDefault = () => {
+  const isoWeek = toIsoWeekTokenFromDate(new Date());
+  if (isoWeek) return isoWeek;
+
   const now = new Date();
-  const firstDay = new Date(now.getFullYear(), 0, 1);
-  return `${now.getFullYear()}-W${Math.ceil(
-    ((now - firstDay) / 86400000 + firstDay.getDay() + 1) / 7,
-  )
-    .toString()
-    .padStart(2, "0")}`;
+  const fallbackWeek = Math.max(1, Math.min(53, Math.ceil(now.getDate() / 7)));
+  return `${now.getFullYear()}-W${String(fallbackWeek).padStart(2, "0")}`;
 };
 
 const getCurrentMonthDefault = () => {
@@ -1704,9 +1722,19 @@ const getCurrentDateDefault = () => {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 };
 
-document.getElementById("sch_week").value = getCurrentWeekDefault();
-document.getElementById("filterWeek").value = getCurrentWeekDefault();
-document.getElementById("attendanceWeek").value = getCurrentWeekDefault();
+const currentWeekDefault = getCurrentWeekDefault();
+const scheduleWeekInput = document.getElementById("sch_week");
+if (scheduleWeekInput) {
+  scheduleWeekInput.value = currentWeekDefault;
+}
+const filterWeekInput = document.getElementById("filterWeek");
+if (filterWeekInput) {
+  filterWeekInput.value = currentWeekDefault;
+}
+const attendanceWeekInput = document.getElementById("attendanceWeek");
+if (attendanceWeekInput) {
+  attendanceWeekInput.value = currentWeekDefault;
+}
 if (document.getElementById("attendanceMonth")) {
   document.getElementById("attendanceMonth").value = getCurrentMonthDefault();
 }
