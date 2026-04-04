@@ -36,6 +36,13 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Verify build entrypoint
+        run: |
+          if grep -q "src/app/main.ts" dist/index.html; then
+            echo "Build output still references src/app/main.ts. Abort deploy."
+            exit 1
+          fi
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 

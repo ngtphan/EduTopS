@@ -19,6 +19,24 @@ Quy uoc version: Semantic Versioning (MAJOR.MINOR.PATCH)
 
 - Chua co.
 
+## [v1.11.8] - 2026-04-04
+
+### Added
+
+- Them cau hinh Tailwind build-time (`tailwind.config.js`, `postcss.config.js`) de sinh CSS qua pipeline Vite thay vi runtime CDN.
+
+### Changed
+
+- Chuyen nap `assets/css/app.css` vao entrypoint `src/app/main.ts` de CSS duoc bundle/optimize trong build production.
+- Bo sung buoc xac thuc `dist/index.html` trong workflow deploy de chan truong hop artifact van tro den `src/app/main.ts`.
+- Cap nhat huong dan deploy trong README: Pages Source phai la `GitHub Actions` de tranh publish nham source branch.
+- Siết CSP, loai bo quyen khong can thiet toi `cdn.tailwindcss.com` sau khi da bo CDN script.
+
+### Fixed
+
+- Loai bo canh bao production `cdn.tailwindcss.com should not be used in production` tren ban build moi.
+- Ngan nguy co tai nham entrypoint TypeScript trong artifact deploy (giam xac suat loi MIME khi phat hanh).
+
 ## [v1.11.7] - 2026-04-04
 
 ### Added

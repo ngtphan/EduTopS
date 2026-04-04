@@ -2,7 +2,7 @@
 
 Ứng dụng web quản lý vận hành trung tâm học tập: quản lý môn học, giáo viên, học sinh, lớp học, xếp lịch dạy, chấm công, đánh giá và xuất báo cáo Excel.
 
-Phiên bản hiện tại: v1.11.7
+Phiên bản hiện tại: v1.11.8
 
 Lich su thay doi theo version: xem file CHANGELOG.md
 
@@ -123,6 +123,8 @@ Khong khuyen nghi o che do phat trien TypeScript.
 - Workflow: `.github/workflows/deploy-gh-pages.yml`
 - Trigger: push len nhanh `main`
 - Pipeline: `npm ci` -> `npm run typecheck` -> `npm run build` -> deploy `dist/`
+- Bat buoc trong GitHub Settings -> Pages -> Build and deployment -> Source: chon `GitHub Actions`.
+  Neu de Source la branch (`main`/root), trang se tai truc tiep `index.html` goc va gay loi MIME voi `src/app/main.ts`.
 
 ## 5. Cau hinh Firebase
 
