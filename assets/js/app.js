@@ -746,10 +746,10 @@ const getFormModalRefs = (() => {
     const root = document.createElement("div");
     root.id = "appFormModal";
     root.className =
-      "fixed inset-0 z-[165] hidden items-center justify-center p-4 bg-slate-900/50";
+      "fixed inset-0 z-[165] hidden items-center justify-center p-3 sm:p-4 bg-slate-900/50";
     root.innerHTML = `
-      <div id="appFormModalPanel" class="bg-white w-full max-w-lg rounded-2xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
-        <div class="px-5 py-3 border-b border-slate-200 bg-slate-50 flex items-start justify-between gap-3 shrink-0">
+      <div id="appFormModalPanel" class="bg-white w-full max-w-lg rounded-2xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[94dvh] sm:max-h-[92vh]">
+        <div class="px-4 sm:px-5 py-3 border-b border-slate-200 bg-slate-50 flex items-start justify-between gap-3 shrink-0">
           <div>
             <h3 id="appFormModalTitle" class="text-base font-bold text-slate-800">Biểu mẫu</h3>
             <p id="appFormModalDescription" class="text-[11px] text-slate-500 mt-1"></p>
@@ -758,10 +758,10 @@ const getFormModalRefs = (() => {
         </div>
 
         <form id="appFormModalForm" class="flex-1 min-h-0 flex flex-col">
-          <div id="appFormModalBody" class="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 space-y-3"></div>
-          <div class="px-4 py-3 border-t border-slate-200 bg-white flex items-center justify-end gap-2 shrink-0">
-            <button type="button" id="appFormModalCancel" class="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium">Hủy</button>
-            <button type="submit" id="appFormModalSubmit" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold">Lưu</button>
+          <div id="appFormModalBody" class="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-3 sm:p-4 space-y-3"></div>
+          <div class="px-3 sm:px-4 py-3 border-t border-slate-200 bg-white flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 shrink-0">
+            <button type="button" id="appFormModalCancel" class="w-full sm:w-auto px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium">Hủy</button>
+            <button type="submit" id="appFormModalSubmit" class="w-full sm:w-auto px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold">Lưu</button>
           </div>
         </form>
       </div>`;
@@ -874,7 +874,7 @@ globalThis.appFormModal = ({
   };
 
   refs.panel.className =
-    "bg-white w-full rounded-2xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[92vh] " +
+    "bg-white w-full rounded-2xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[94dvh] sm:max-h-[92vh] " +
     (sizeMap[size] || sizeMap.md);
   refs.title.innerText = title;
   refs.description.innerText = description || "";

@@ -726,10 +726,10 @@ const getTeacherQrAttendanceModalController = (() => {
     const root = document.createElement("div");
     root.id = "teacherQrAttendanceModal";
     root.className =
-      "fixed inset-0 z-[190] hidden items-center justify-center p-4 bg-slate-900/60";
+      "fixed inset-0 z-[190] hidden items-center justify-center p-3 sm:p-4 bg-slate-900/60";
     root.innerHTML = `
-      <div class="bg-white w-full max-w-2xl rounded-2xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
-        <div class="px-5 py-3 border-b border-slate-200 bg-cyan-50 flex items-start justify-between gap-3">
+      <div class="bg-white w-full max-w-2xl rounded-2xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[94dvh] sm:max-h-[92vh]">
+        <div class="px-4 sm:px-5 py-3 border-b border-slate-200 bg-cyan-50 flex items-start justify-between gap-3">
           <div>
             <h3 class="text-base font-bold text-cyan-900">Chấm công bằng QR cố định</h3>
             <p class="text-[11px] text-cyan-700/80 mt-1">Quét đúng mã QR cố định của trung tâm để mở biểu mẫu giờ vào/ra.</p>
@@ -737,9 +737,9 @@ const getTeacherQrAttendanceModalController = (() => {
           <button type="button" id="teacherQrCloseBtn" class="text-slate-400 hover:text-slate-700 text-xl leading-none">&times;</button>
         </div>
 
-        <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 space-y-3">
+        <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-3 sm:p-4 space-y-3">
           <div id="teacherQrScannerPanel" class="space-y-3">
-            <div id="teacherQrReader" class="rounded-xl border border-slate-200 bg-slate-50 p-2 min-h-[240px]"></div>
+            <div id="teacherQrReader" class="rounded-xl border border-slate-200 bg-slate-50 p-2 min-h-[200px] sm:min-h-[240px]"></div>
             <div id="teacherQrStatus" class="text-xs rounded-lg border border-slate-200 bg-slate-50 text-slate-600 px-3 py-2">Đang khởi động camera...</div>
             <div class="flex flex-wrap items-center justify-end gap-2">
               <button type="button" id="teacherQrManualBtn" class="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 text-xs font-semibold hover:bg-slate-100">Nhập mã thủ công</button>
@@ -770,10 +770,10 @@ const getTeacherQrAttendanceModalController = (() => {
           </form>
         </div>
 
-        <div class="px-4 py-3 border-t border-slate-200 bg-white flex flex-wrap items-center justify-end gap-2">
-          <button type="button" id="teacherQrRescanBtn" class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold hidden">Quét lại</button>
-          <button type="button" id="teacherQrSubmitBtn" class="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-semibold hidden">Gửi admin duyệt</button>
-          <button type="button" id="teacherQrCloseFooterBtn" class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold">Đóng</button>
+        <div class="px-3 sm:px-4 py-3 border-t border-slate-200 bg-white flex flex-col-reverse sm:flex-row flex-wrap items-stretch sm:items-center justify-end gap-2">
+          <button type="button" id="teacherQrRescanBtn" class="w-full sm:w-auto px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold hidden">Quét lại</button>
+          <button type="button" id="teacherQrSubmitBtn" class="w-full sm:w-auto px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-semibold hidden">Gửi admin duyệt</button>
+          <button type="button" id="teacherQrCloseFooterBtn" class="w-full sm:w-auto px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold">Đóng</button>
         </div>
       </div>`;
 
@@ -1088,10 +1088,10 @@ const getAttendanceQrAdminModalController = (() => {
     const root = document.createElement("div");
     root.id = "attendanceQrAdminModal";
     root.className =
-      "fixed inset-0 z-[195] hidden items-center justify-center p-4 bg-slate-900/60";
+      "fixed inset-0 z-[195] hidden items-center justify-center p-3 sm:p-4 bg-slate-900/60";
     root.innerHTML = `
-      <div class="bg-white w-full max-w-3xl rounded-2xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
-        <div class="px-5 py-3 border-b border-slate-200 bg-cyan-50 flex items-start justify-between gap-3">
+      <div class="bg-white w-full max-w-3xl rounded-2xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[94dvh] sm:max-h-[92vh]">
+        <div class="px-4 sm:px-5 py-3 border-b border-slate-200 bg-cyan-50 flex items-start justify-between gap-3">
           <div>
             <h3 class="text-base font-bold text-cyan-900">Quản lý mã QR chấm công</h3>
             <p class="text-[11px] text-cyan-700/80 mt-1">Admin tạo và xoay vòng mã QR. Giáo viên chỉ quét được mã đang hiệu lực.</p>
@@ -1099,7 +1099,7 @@ const getAttendanceQrAdminModalController = (() => {
           <button type="button" id="attendanceQrAdminCloseBtn" class="text-slate-400 hover:text-slate-700 text-xl leading-none">&times;</button>
         </div>
 
-        <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div class="space-y-3">
             <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
               <div class="text-[11px] font-bold text-slate-600 uppercase">Token hiện hành</div>
@@ -1124,15 +1124,15 @@ const getAttendanceQrAdminModalController = (() => {
 
           <div class="rounded-xl border border-slate-200 p-3 bg-white flex flex-col">
             <div class="text-[11px] font-bold text-slate-600 uppercase mb-2">Mã QR đang phát hành</div>
-            <div class="flex-1 flex items-center justify-center bg-slate-50 border border-slate-200 rounded-lg p-2 min-h-[280px]">
-              <img id="attendanceQrAdminImage" alt="QR chấm công" class="max-w-full max-h-[280px] rounded" />
+            <div class="flex-1 flex items-center justify-center bg-slate-50 border border-slate-200 rounded-lg p-2 min-h-[220px] sm:min-h-[280px]">
+              <img id="attendanceQrAdminImage" alt="QR chấm công" class="max-w-full max-h-[220px] sm:max-h-[280px] rounded" />
             </div>
             <a id="attendanceQrAdminDownload" href="#" target="_blank" rel="noopener" class="mt-2 text-xs font-bold text-cyan-700 hover:text-cyan-800 self-start">Mở ảnh QR ở tab mới</a>
           </div>
         </div>
 
-        <div class="px-4 py-3 border-t border-slate-200 bg-white flex flex-wrap items-center justify-end gap-2">
-          <button type="button" id="attendanceQrAdminCloseFooterBtn" class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold">Đóng</button>
+        <div class="px-3 sm:px-4 py-3 border-t border-slate-200 bg-white flex flex-col-reverse sm:flex-row flex-wrap items-stretch sm:items-center justify-end gap-2">
+          <button type="button" id="attendanceQrAdminCloseFooterBtn" class="w-full sm:w-auto px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold">Đóng</button>
         </div>
       </div>`;
 

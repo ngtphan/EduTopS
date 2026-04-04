@@ -3,22 +3,22 @@
   class="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm shrink-0"
 >
   <div
-    class="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between"
+    class="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 min-h-16 sm:h-16 py-2 sm:py-0 flex items-center justify-between"
   >
-    <div class="flex items-center gap-3">
+    <div class="flex items-center gap-2.5 sm:gap-3 min-w-0">
       <div class="bg-indigo-600 p-2 rounded-lg shadow-sm">
         <i data-lucide="database" class="w-5 h-5 text-white"></i>
       </div>
       <div>
         <h1
           data-config-text="branding.shortName"
-          class="text-xl font-bold text-slate-900 tracking-tight leading-none"
+          class="text-lg sm:text-xl font-bold text-slate-900 tracking-tight leading-none"
         >
           CuiEduTop
         </h1>
         <p
           data-config-text="branding.fullName"
-          class="text-[11px] text-slate-500 mt-1 leading-none"
+          class="hidden sm:block text-[11px] text-slate-500 mt-1 leading-none"
         >
           CuiEduTop
         </p>
@@ -37,7 +37,7 @@
       </div>
     </div>
 
-    <div class="flex items-center gap-4">
+    <div class="flex items-center gap-2 sm:gap-4">
       <div
         class="hidden sm:flex items-center gap-2 text-sm font-medium text-slate-600 border-r border-slate-200 pr-4"
       >
@@ -52,7 +52,7 @@
       </div>
       <button
         onclick="window.logoutFirebase()"
-        class="text-slate-500 hover:text-red-600 transition-colors flex items-center gap-1.5 text-sm font-medium"
+        class="text-slate-500 hover:text-red-600 transition-colors flex items-center gap-1.5 text-sm font-medium px-2 py-2 rounded-lg"
       >
         <i data-lucide="log-out" class="w-4 h-4"></i>
         <span class="hidden sm:inline">Đăng xuất</span>
@@ -65,33 +65,33 @@
     id="navTabsContainer"
   >
     <div
-      class="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 flex gap-6 overflow-x-auto hide-scroll"
+      class="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 flex gap-3 sm:gap-6 overflow-x-auto hide-scroll whitespace-nowrap scroll-px-4 sm:scroll-px-6"
     >
       <button
         onclick="window.switchTab('board')"
         id="tabBtn_board"
-        class="py-3 px-2 border-b-2 border-indigo-600 text-indigo-700 font-bold text-sm flex items-center gap-2 transition-colors whitespace-nowrap"
+        class="py-3.5 sm:py-3 px-2 border-b-2 border-indigo-600 text-indigo-700 font-bold text-sm flex items-center gap-2 transition-colors whitespace-nowrap"
       >
         <i data-lucide="calendar" class="w-4 h-4"></i> 1. Lịch giảng dạy
       </button>
       <button
         onclick="window.switchTab('form')"
         id="tabBtn_form"
-        class="py-3 px-2 border-b-2 border-transparent text-slate-500 hover:text-slate-800 font-medium text-sm flex items-center gap-2 transition-colors whitespace-nowrap"
+        class="py-3.5 sm:py-3 px-2 border-b-2 border-transparent text-slate-500 hover:text-slate-800 font-medium text-sm flex items-center gap-2 transition-colors whitespace-nowrap"
       >
         <i data-lucide="calendar-plus" class="w-4 h-4"></i> 2. Xếp lịch mới
       </button>
       <button
         onclick="window.switchTab('master')"
         id="tabBtn_master"
-        class="py-3 px-2 border-b-2 border-transparent text-slate-500 hover:text-slate-800 font-medium text-sm flex items-center gap-2 transition-colors whitespace-nowrap admin-only hidden"
+        class="py-3.5 sm:py-3 px-2 border-b-2 border-transparent text-slate-500 hover:text-slate-800 font-medium text-sm flex items-center gap-2 transition-colors whitespace-nowrap admin-only hidden"
       >
         <i data-lucide="layers" class="w-4 h-4"></i> 3. Quản lý Dữ liệu
       </button>
       <button
         onclick="window.switchTab('attendance')"
         id="tabBtn_attendance"
-        class="py-3 px-2 border-b-2 border-transparent text-slate-500 hover:text-slate-800 font-medium text-sm flex items-center gap-2 transition-colors whitespace-nowrap admin-only hidden"
+        class="py-3.5 sm:py-3 px-2 border-b-2 border-transparent text-slate-500 hover:text-slate-800 font-medium text-sm flex items-center gap-2 transition-colors whitespace-nowrap admin-only hidden"
       >
         <i data-lucide="badge-dollar-sign" class="w-4 h-4"></i> 4. Chấm công
       </button>

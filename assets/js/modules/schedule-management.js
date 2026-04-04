@@ -2039,8 +2039,51 @@ export const registerScheduleFormsAndFilters = ({
     input.dataset.boundWeekFilterInput = "1";
   };
 
+  const openControlPicker = (control) => {
+    if (!control || control.disabled) return;
+    try {
+      if (typeof control.showPicker === "function") {
+        control.showPicker();
+        return;
+      }
+    } catch {
+      // Ignore picker invocation errors and fallback to focus/click.
+    }
+
+    if (typeof control.focus === "function") {
+      control.focus({ preventScroll: true });
+    }
+    if (typeof control.click === "function") {
+      control.click();
+    }
+  };
+
+  const bindControlTriggerWrappers = () => {
+    document.querySelectorAll("[data-control-trigger]").forEach((wrapper) => {
+      if (wrapper.dataset.boundControlTrigger === "1") return;
+
+      const targetId = String(wrapper.dataset.controlTrigger || "").trim();
+      if (!targetId) return;
+
+      wrapper.addEventListener("click", (event) => {
+        const control = document.getElementById(targetId);
+        if (!control) return;
+
+        const clickTarget = event.target;
+        if (clickTarget instanceof Node && control.contains(clickTarget)) {
+          return;
+        }
+
+        openControlPicker(control);
+      });
+
+      wrapper.dataset.boundControlTrigger = "1";
+    });
+  };
+
   bindWeekInputListeners("filterWeek", handleBoardWeekChange);
   bindWeekInputListeners("attendanceWeek", handleAttendanceWeekChange);
+  bindControlTriggerWrappers();
 
   document.getElementById("attendanceDate")?.addEventListener("change", () => {
     renderMasterOverview();

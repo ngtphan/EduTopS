@@ -7,6 +7,11 @@
 body {
   font-family: "Inter", sans-serif;
 }
+
+:root {
+  --app-safe-bottom: max(env(safe-area-inset-bottom), 0px);
+}
+
 .content-auto {
   content-visibility: auto;
   contain-intrinsic-size: 640px;
@@ -67,4 +72,25 @@ body {
 }
 .toast-item.toast-out {
   animation: toastOut 0.2s ease-in forwards;
+}
+
+@media (max-width: 640px) {
+  body {
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: contain;
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  #scheduleContainer,
+  #attendanceList,
+  #subjectList,
+  #teacherList,
+  #studentList {
+    padding-bottom: calc(1rem + var(--app-safe-bottom));
+  }
 }

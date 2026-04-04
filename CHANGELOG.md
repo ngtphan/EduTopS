@@ -19,6 +19,30 @@ Quy uoc version: Semantic Versioning (MAJOR.MINOR.PATCH)
 
 - Chua co.
 
+## [v1.11.11] - 2026-04-04
+
+### Changed
+
+- Bo sung co che `data-control-trigger` cho wrapper bo loc o Board, cho phep tap vao toan bo vung icon/nen de mo dung control (`scheduleViewMode`, `filterWeek`) thay vi chi bam trung vao input/select.
+- Them helper bind trigger idempotent trong `schedule-management` de giam nguy co duplicate listener khi co su thay doi mount flow ve sau.
+
+### Fixed
+
+- Sua loi tap vao wrapper bo loc "xem lich theo tuan" khong kich hoat picker o mobile; hanh vi mo picker/dropdown gio da on dinh qua fallback `showPicker -> focus/click`.
+
+## [v1.11.10] - 2026-04-04
+
+### Changed
+
+- Toi uu giao dien mobile: ap dung dynamic viewport (`dvh`) cho cac tab board/master/attendance va modal dung chung de giam nhay layout khi thanh dia chi thay doi.
+- Cai thien bo cuc mobile cho header, bo loc board, form len lich va nhom nut action trong modal theo huong de cham va de doc hon.
+- Dong bo partial giua `public/partials` va `src/partials` de tranh lech giao dien giua moi truong dev/build.
+
+### Fixed
+
+- Giam hien tuong input bi zoom ngoai y muon tren iOS/Android bang cach chuan hoa `font-size` cho `input/select/textarea` o man hinh nho.
+- Bo sung khoang dem safe-area ben duoi cho cac danh sach cuon de han che bi che mat noi dung.
+
 ## [v1.11.9] - 2026-04-04
 
 ### Changed
