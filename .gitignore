@@ -13,3 +13,9 @@ firebase-debug.log
 
 # Local ops workspace
 /ops/firebase-admin/
+
+# Node/Vite
+/node_modules
+/dist
+/.vite
+npm-debug.log*

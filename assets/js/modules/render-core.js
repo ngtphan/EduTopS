@@ -1,5 +1,10 @@
 import { escapeHtml, escapeAttr } from "./security-utils.js";
 import { getConfigByPath } from "../config/app-config.js";
+import { normalizeScheduleApprovalStatus } from "@/entities/schedule/model/approval";
+import {
+  getScheduleTeacherIds,
+  isTeacherAssignedToSchedule,
+} from "@/entities/schedule/model/teacher-assignment";
 
 export const registerRenderCore = ({
   colorStyles,
@@ -113,6 +118,15 @@ export const registerRenderCore = ({
     return getClassDisplayName(cls);
   };
 
+  const getScheduleTeacherLabel = (schedule) => {
+    const names = getScheduleTeacherIds(schedule)
+      .map((teacherId) => getTeacherInfo(teacherId).name)
+      .map((name) => String(name || "").trim())
+      .filter(Boolean);
+    if (names.length === 0) return "Giáo viên không xác định";
+    return names.join(", ");
+  };
+
   const masterTabKeys = [
     "overview",
     "subjects",
@@ -154,17 +168,8 @@ export const registerRenderCore = ({
     });
   };
 
-  const getScheduleApprovalStatus = (schedule) => {
-    const status = schedule?.approval?.status;
-    if (
-      status === "pending" ||
-      status === "rejected" ||
-      status === "approved"
-    ) {
-      return status;
-    }
-    return "approved";
-  };
+  const getScheduleApprovalStatus = (schedule) =>
+    normalizeScheduleApprovalStatus(schedule);
 
   const getScheduleApprovalMeta = (schedule) => {
     const status = getScheduleApprovalStatus(schedule);
@@ -861,28 +866,95 @@ export const registerRenderCore = ({
     filterHint,
   ) => {
     const currentTeacher = getTeacherInfo(currentUser?.id);
+    const currentTeacherId = String(
+      currentUser?.id || currentTeacher?.id || "",
+    );
     const teacherName =
       currentTeacher?.name || currentUser?.name || "Giáo viên";
     const subjectSelected = subjectId.length > 0;
-    const hasSubjectMatch = subjectSelected
-      ? (currentTeacher?.subjectIds || []).includes(subjectId)
-      : true;
+    const selectedTeacherIds = new Set(
+      Array.from(teacherSelect.selectedOptions || [])
+        .map((option) => String(option.value || "").trim())
+        .filter(Boolean),
+    );
 
-    teacherSelect.multiple = false;
-    teacherSelect.size = 1;
-    teacherSelect.disabled = true;
-    teacherSelect.innerHTML = `<option value="${safeAttr(String(currentUser?.id || ""))}">${safeText(teacherName)}</option>`;
-    teacherSelect.value = String(currentUser?.id || "");
-    if (!filterHint) return;
+    teacherSelect.multiple = true;
+    teacherSelect.size = 5;
 
-    filterHint.classList.remove("hidden");
     if (!subjectSelected) {
-      filterHint.innerText = "Chọn môn để kiểm tra chuyên môn";
+      teacherSelect.disabled = true;
+      teacherSelect.innerHTML =
+        '<option value="">-- Vui lòng chọn Môn học trước --</option>';
+      if (filterHint) {
+        filterHint.classList.remove("hidden");
+        filterHint.innerText = "Chọn môn để lọc giáo viên đồng giảng";
+      }
       return;
     }
-    filterHint.innerText = hasSubjectMatch
-      ? "Đã khóa theo giáo viên đăng nhập"
-      : "Môn đã chọn không thuộc chuyên môn của bạn";
+
+    const availableTeachers = globalThis.db.teachers.filter((teacher) =>
+      (teacher.subjectIds || []).includes(subjectId),
+    );
+    const hasSubjectMatch = availableTeachers.some(
+      (teacher) => String(teacher.id) === currentTeacherId,
+    );
+
+    if (!hasSubjectMatch) {
+      teacherSelect.disabled = true;
+      teacherSelect.innerHTML = `<option value="${safeAttr(currentTeacherId)}">${safeText(teacherName)}</option>`;
+      if (teacherSelect.options.length > 0) {
+        teacherSelect.options[0].selected = true;
+      }
+      if (filterHint) {
+        filterHint.classList.remove("hidden");
+        filterHint.innerText = "Môn đã chọn không thuộc chuyên môn của bạn";
+      }
+      return;
+    }
+
+    teacherSelect.disabled = availableTeachers.length === 0;
+    if (availableTeachers.length === 0) {
+      teacherSelect.innerHTML =
+        '<option value="">-- Không có GV chuyên môn này --</option>';
+      if (filterHint) {
+        filterHint.classList.remove("hidden");
+        filterHint.innerText = "Không có giáo viên phù hợp môn đã chọn";
+      }
+      return;
+    }
+
+    teacherSelect.innerHTML = availableTeachers
+      .map(
+        (teacher) =>
+          `<option value="${safeAttr(teacher.id)}">${safeText(teacher.name)}</option>`,
+      )
+      .join("");
+
+    Array.from(teacherSelect.options).forEach((option) => {
+      if (selectedTeacherIds.has(String(option.value || ""))) {
+        option.selected = true;
+      }
+    });
+
+    const currentTeacherOption = Array.from(teacherSelect.options).find(
+      (option) => String(option.value || "") === currentTeacherId,
+    );
+    if (currentTeacherOption) {
+      currentTeacherOption.selected = true;
+    }
+
+    if (
+      teacherSelect.selectedOptions.length === 0 &&
+      teacherSelect.options.length > 0
+    ) {
+      teacherSelect.options[0].selected = true;
+    }
+
+    if (filterHint) {
+      filterHint.classList.remove("hidden");
+      filterHint.innerText =
+        "Có thể chọn thêm đồng giảng cùng chuyên môn. Bạn luôn là giáo viên chính.";
+    }
   };
 
   const applyAdminClassSelection = (subjectId, teacherSelect, filterHint) => {
@@ -1052,7 +1124,7 @@ export const registerRenderCore = ({
     const cls = getClassInfoSafe(schedule.classId);
     const classLabel = getScheduleClassLabel(schedule, cls);
     const subjectInfo = getScheduleSubjectInfo(schedule);
-    const teacher = getTeacherInfo(schedule.teacherId);
+    const teacherLabel = getScheduleTeacherLabel(schedule);
     const approvalMeta = getScheduleApprovalMeta(schedule);
     const studentChips = getScheduleStudentIds(schedule, cls)
       .map(
@@ -1077,7 +1149,7 @@ export const registerRenderCore = ({
         <div class="rounded-lg border border-slate-200 bg-white px-3 py-2 space-y-1.5">
           <div class="text-xs font-bold text-slate-800">${safeText(classLabel)}</div>
           <div class="text-[12px] text-slate-600">Môn: <span class="font-semibold">${safeText(subjectInfo.name)}</span></div>
-          <div class="text-[12px] text-slate-600">Giáo viên: <span class="font-semibold">${safeText(teacher.name)}</span></div>
+          <div class="text-[12px] text-slate-600">Giáo viên: <span class="font-semibold">${safeText(teacherLabel)}</span></div>
           <div class="text-[12px] text-slate-600">Địa điểm: <span class="font-semibold">${safeText(schedule.location || "N/A")}</span></div>
           <div class="text-[12px] text-slate-600">Nội dung: <span class="font-semibold">${safeText(schedule.topic || "Chưa cập nhật")}</span></div>
         </div>
@@ -1114,13 +1186,13 @@ export const registerRenderCore = ({
   const canCurrentUserEditSchedule = (schedule, currentRole, currentUser) =>
     currentRole === "admin" ||
     (currentRole === "teacher" &&
-      String(schedule?.teacherId) === String(currentUser?.id || ""));
+      isTeacherAssignedToSchedule(schedule, currentUser?.id));
 
   const renderTimetableScheduleCard = (schedule, currentRole, currentUser) => {
     const cls = getClassInfoSafe(schedule.classId);
     const classLabel = getScheduleClassLabel(schedule, cls);
     const subInfo = getScheduleSubjectInfo(schedule);
-    const teacher = getTeacherInfo(schedule.teacherId);
+    const teacherLabel = getScheduleTeacherLabel(schedule);
     const approvalMeta = getScheduleApprovalMeta(schedule);
     const canEditSchedule = canCurrentUserEditSchedule(
       schedule,
@@ -1144,7 +1216,7 @@ export const registerRenderCore = ({
         <div class="flex items-start justify-between gap-1.5">
           <div class="min-w-0">
             <div class="text-[11px] font-bold text-slate-800 truncate">${safeText(classLabel)}</div>
-            <div class="text-[10px] text-slate-500 truncate">${safeText(teacher.name)}</div>
+            <div class="text-[10px] text-slate-500 truncate">${safeText(teacherLabel)}</div>
           </div>
           <div class="flex items-center gap-1 shrink-0">
             <button onclick="event.stopPropagation(); globalThis.openEvalModal('${safeAttr(schedule.id)}')" ${canOpenEvaluation ? "" : "disabled"} class="text-slate-400 hover:text-emerald-600 ${canOpenEvaluation ? "" : "opacity-40 cursor-not-allowed"}"><i data-lucide="clipboard-check" class="w-3.5 h-3.5"></i></button>
@@ -1228,7 +1300,7 @@ export const registerRenderCore = ({
 
     listEl.innerHTML = pendingSchedules
       .map((sch) => {
-        const teacher = getTeacherInfo(sch.teacherId);
+        const teacherLabel = getScheduleTeacherLabel(sch);
         const cls = getClassInfoSafe(sch.classId);
         const classLabel = getScheduleClassLabel(sch, cls);
         const subject = getScheduleSubjectInfo(sch);
@@ -1239,7 +1311,7 @@ export const registerRenderCore = ({
         return `
           <div class="rounded-lg border border-amber-200 bg-white p-2.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div class="min-w-0">
-              <div class="text-[12px] font-bold text-slate-800 truncate">${safeText(classLabel)} • ${safeText(subject.name)} • ${safeText(teacher.name)}</div>
+              <div class="text-[12px] font-bold text-slate-800 truncate">${safeText(classLabel)} • ${safeText(subject.name)} • ${safeText(teacherLabel)}</div>
               <div class="text-[11px] text-slate-500">${safeText(formatDayOfWeek(sch.dayOfWeek))} • ${safeText(sch.startTime)} - ${safeText(sch.endTime)} • ${safeText(sch.location || "N/A")}</div>
               <div class="text-[10px] mt-1 text-amber-700 font-bold">${safeText(typeText)} • ${safeText(sch.approval?.requestedBy || "N/A")}</div>
             </div>
@@ -1259,7 +1331,7 @@ export const registerRenderCore = ({
       const cls = getClassInfoSafe(schedule.classId);
       const classLabel = getScheduleClassLabel(schedule, cls);
       const subject = getScheduleSubjectInfo(schedule);
-      const teacher = getTeacherInfo(schedule.teacherId);
+      const teacherLabel = getScheduleTeacherLabel(schedule);
       const studentNames = getScheduleStudentIds(schedule, cls)
         .map((studentId) => getStudentInfo(studentId).name)
         .filter(Boolean)
@@ -1268,7 +1340,7 @@ export const registerRenderCore = ({
       const aggregateSearchText = [
         classLabel,
         subject.name,
-        teacher.name,
+        teacherLabel,
         schedule.location,
         schedule.topic,
         formatDayOfWeek(schedule.dayOfWeek),
@@ -1308,7 +1380,9 @@ export const registerRenderCore = ({
 
     let filtered = globalThis.db.schedules.filter((s) => s.week === filterWeek);
     if (currentRole === "teacher") {
-      filtered = filtered.filter((s) => s.teacherId === currentUser.id);
+      filtered = filtered.filter((s) =>
+        isTeacherAssignedToSchedule(s, currentUser.id),
+      );
     }
 
     filtered = filterSchedulesByKeyword(filtered, scheduleKeyword);
@@ -1455,7 +1529,7 @@ export const registerRenderCore = ({
           "bg-slate-100 text-slate-800 border-slate-200";
         const stripeColor =
           dotColors[safeColorKey(subInfo.color)] || "bg-slate-400";
-        const teacher = getTeacherInfo(sch.teacherId);
+        const teacherLabel = getScheduleTeacherLabel(sch);
         const evalCount = getScheduleEvaluationCount(sch.evaluations);
         const isDone =
           scheduleStudentIds.length > 0 &&
@@ -1487,7 +1561,7 @@ export const registerRenderCore = ({
                           <div class="sm:w-32 shrink-0 border-b sm:border-b-0 sm:border-r border-slate-100 pb-3 sm:pb-0 pl-1"><div class="text-lg font-bold text-slate-800 flex items-center gap-1.5"><i data-lucide="clock" class="w-4 h-4 text-slate-400"></i> ${safeText(sch.startTime)}</div><div class="text-[11px] text-slate-500 font-medium pl-5 mb-2">- ${safeText(sch.endTime)}</div><div class="text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-100 px-2 py-1 rounded inline-block line-clamp-1"><i data-lucide="map-pin" class="w-3 h-3 inline text-slate-400"></i> ${safeText(sch.location)}</div></div>
                             <div class="flex-1 flex flex-col justify-center min-w-0">
                             <div class="flex items-center gap-2 mb-1.5 flex-wrap"><span class="bg-slate-100 text-slate-800 border border-slate-200 text-[11px] font-bold px-2 py-0.5 rounded uppercase tracking-wide">${safeText(classLabel)}</span>${cls?.groupName ? `<span class="bg-indigo-50 text-indigo-700 border border-indigo-200 text-[11px] font-bold px-2 py-0.5 rounded">${safeText(getClassGroupName(cls))}</span>` : ""}<span class="text-[11px] font-bold px-2 py-0.5 rounded border ${colorClass}">${safeText(subInfo.name)}</span>${sch.topic ? `<span class="text-slate-400 text-xs">|</span> <span class="text-slate-500 italic text-xs truncate max-w-[150px]">${safeText(sch.topic)}</span>` : ""}</div>
-                            <div class="text-sm font-medium text-slate-700 bg-slate-50 self-start px-2 py-0.5 rounded flex items-center gap-1.5 mb-2 border border-slate-100"><i data-lucide="graduation-cap" class="w-3.5 h-3.5 text-slate-400"></i> GV: ${safeText(teacher.name)}</div>
+                            <div class="text-sm font-medium text-slate-700 bg-slate-50 self-start px-2 py-0.5 rounded flex items-center gap-1.5 mb-2 border border-slate-100"><i data-lucide="graduation-cap" class="w-3.5 h-3.5 text-slate-400"></i> GV: ${safeText(teacherLabel)}</div>
                                 <div class="flex items-center gap-1.5 flex-wrap mb-2">
                                   <div class="text-[10px] font-bold px-2 py-0.5 rounded border self-start ${approvalMeta.className}">${approvalMeta.label}</div>
                                 </div>

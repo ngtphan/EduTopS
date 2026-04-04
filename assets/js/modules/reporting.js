@@ -1,4 +1,9 @@
 import { sanitizeExcelCell } from "./security-utils.js";
+import { isActiveScheduleStatus } from "@/entities/schedule/model/approval";
+import {
+  getScheduleTeacherIds,
+  isTeacherAssignedToSchedule,
+} from "@/entities/schedule/model/teacher-assignment";
 
 export const registerReportingExports = ({
   showToast,
@@ -47,6 +52,17 @@ export const registerReportingExports = ({
       .replaceAll(/[<>:"/\\|?*\x00-\x1F]/g, "_")
       .slice(0, 60);
     return token || fallback;
+  };
+
+  const getScheduleTeacherLabel = (schedule) => {
+    const names = getScheduleTeacherIds(schedule)
+      .map((teacherId) => {
+        const teacher = getTeacherInfo(teacherId);
+        return String(teacher?.name || teacherId || "").trim();
+      })
+      .filter(Boolean);
+    if (names.length === 0) return "Giáo viên không xác định";
+    return names.join(", ");
   };
 
   const autoWidthFromRows = (rows, min = 10, max = 45) => {
@@ -124,7 +140,12 @@ export const registerReportingExports = ({
   };
 
   const getTeacherReportRows = (week) => {
-    const weekSchedules = getAttendanceWeekSchedules(week);
+    const weekSchedules = getAttendanceWeekSchedules(week).filter((sch) =>
+      isActiveScheduleStatus(sch),
+    );
+    const activeSchedules = (globalThis.db.schedules || []).filter((sch) =>
+      isActiveScheduleStatus(sch),
+    );
     return globalThis.db.teachers.map((teacher, index) => {
       const subjectNames = (teacher.subjectIds || [])
         .map((id) => getSubjectInfo(id).name)
@@ -132,8 +153,8 @@ export const registerReportingExports = ({
 
       const classNames = Array.from(
         new Set(
-          globalThis.db.schedules
-            .filter((sch) => sch.teacherId === teacher.id)
+          activeSchedules
+            .filter((sch) => isTeacherAssignedToSchedule(sch, teacher.id))
             .map((sch) => {
               const cls = getClassInfo(sch.classId);
               return sch.classLabel || cls?.name || "";
@@ -142,11 +163,11 @@ export const registerReportingExports = ({
         ),
       ).join(", ");
 
-      const weekSessions = weekSchedules.filter(
-        (sch) => sch.teacherId === teacher.id,
+      const weekSessions = weekSchedules.filter((sch) =>
+        isTeacherAssignedToSchedule(sch, teacher.id),
       );
-      const allSessions = globalThis.db.schedules.filter(
-        (sch) => sch.teacherId === teacher.id,
+      const allSessions = activeSchedules.filter((sch) =>
+        isTeacherAssignedToSchedule(sch, teacher.id),
       );
       const weekPresentHours = weekSessions.reduce((sum, sch) => {
         if (sch.attendance?.status !== "present") return sum;
@@ -232,7 +253,7 @@ export const registerReportingExports = ({
 
   const getAttendanceReportRows = (schedules) =>
     schedules.map((sch, index) => {
-      const teacher = getTeacherInfo(sch.teacherId);
+      const teacherLabel = getScheduleTeacherLabel(sch);
       const cls = getClassInfo(sch.classId);
       const subject = getSubjectInfo(sch.subjectId || cls?.subjectId || "");
       const attendance = sch.attendance || {};
@@ -248,7 +269,7 @@ export const registerReportingExports = ({
         thu: formatDayOfWeek(sch.dayOfWeek),
         lop: sch.classLabel || cls?.name || "Lớp đã xóa",
         monHoc: subject.name || "Môn đã xóa",
-        giaoVien: teacher.name,
+        giaoVien: teacherLabel,
         batDau: sch.startTime || "",
         ketThuc: sch.endTime || "",
         gioDay: formatHours(getDurationHours(sch.startTime, sch.endTime)),

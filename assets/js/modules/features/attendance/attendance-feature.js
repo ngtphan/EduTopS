@@ -1,4 +1,10 @@
-﻿const FIXED_ATTENDANCE_QR_TOKEN = "EDUTOPS_FIXED_ATTENDANCE_QR_V1";
+﻿import { normalizeScheduleApprovalStatus } from "@/entities/schedule/model/approval";
+import {
+  getScheduleTeacherIds,
+  isTeacherAssignedToSchedule,
+} from "@/entities/schedule/model/teacher-assignment";
+
+const FIXED_ATTENDANCE_QR_TOKEN = "EDUTOPS_FIXED_ATTENDANCE_QR_V1";
 const QR_SCANNER_LIB_URLS = [
   "https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js",
   "https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js",
@@ -356,13 +362,8 @@ const toDayOfWeekValueFromDateToken = (dateToken) => {
   return jsDay === 0 ? "8" : String(jsDay + 1);
 };
 
-const getScheduleApprovalStatus = (schedule) => {
-  const status = String(schedule?.approval?.status || "");
-  if (status === "pending" || status === "rejected" || status === "approved") {
-    return status;
-  }
-  return "approved";
-};
+const getScheduleApprovalStatus = (schedule) =>
+  normalizeScheduleApprovalStatus(schedule);
 
 const getSubjectNameById = (subjectId) => {
   const subject = (globalThis.db.subjects || []).find(
@@ -391,7 +392,7 @@ const getTeachingContextForTeacherDate = ({ teacherId, attendanceDate }) => {
   }
 
   const sessions = (globalThis.db.schedules || [])
-    .filter((item) => String(item.teacherId || "") === String(teacherId))
+    .filter((item) => isTeacherAssignedToSchedule(item, teacherId))
     .filter((item) => String(item.week || "") === weekToken)
     .filter((item) => String(item.dayOfWeek || "") === dayToken)
     .filter((item) => getScheduleApprovalStatus(item) === "approved")

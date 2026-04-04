@@ -7,6 +7,7 @@ import {
   STUDENT_GRADE_OPTIONS,
   normalizeStudentGradeLevel,
 } from "./student-grade-utils.js";
+import { isTeacherReferencedBySchedule } from "@/features/teacher-guards/model/can-delete-teacher";
 
 export const registerDataManagement = ({
   ADMIN_EMAIL,
@@ -417,7 +418,7 @@ export const registerDataManagement = ({
         return alert("Không thể xóa Môn đang sử dụng!");
       if (
         table === "teachers" &&
-        window.db.schedules.some((s) => s.teacherId === id)
+        window.db.schedules.some((s) => isTeacherReferencedBySchedule(s, id))
       )
         return alert("Không thể xóa GV đang có lịch!");
       if (

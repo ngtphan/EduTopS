@@ -1,12 +1,11 @@
-﻿import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-// NHẬP THÊM MODULE GOOGLE AUTH PROVIDER
+﻿import { initializeApp } from "firebase/app";
 import {
   getAuth,
   signOut,
   onAuthStateChanged,
   signInAnonymously,
   signInWithCustomToken,
-} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+} from "firebase/auth";
 import {
   getFirestore,
   collection,
@@ -15,7 +14,7 @@ import {
   deleteDoc,
   onSnapshot,
   serverTimestamp,
-} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+} from "firebase/firestore";
 import { registerAuthHandlers } from "./modules/auth.js";
 import {
   registerTeacherActions,
@@ -37,6 +36,8 @@ import {
   isIsoDateToken,
   registerAttendanceFeature,
 } from "./modules/features/attendance/attendance-feature.js";
+import { normalizeScheduleApprovalStatus } from "@/entities/schedule/model/approval";
+import { getScheduleTeacherIds } from "@/entities/schedule/model/teacher-assignment";
 import { sanitizeForStorage, isSafeDocId } from "./modules/security-utils.js";
 import { APP_CONFIG, getConfigByPath } from "./config/app-config.js";
 
@@ -99,17 +100,17 @@ const injectPartial = async (hostId, filePath) => {
 
 const mountLayoutPartials = async () => {
   const partials = [
-    ["loadingOverlayHost", "./src/partials/overlays/loading-overlay.html"],
-    ["loginOverlayHost", "./src/partials/overlays/login-overlay.html"],
-    ["headerHost", "./src/partials/layout/header.html"],
-    ["viewBoardHost", "./src/partials/views/view-board.html"],
-    ["viewFormHost", "./src/partials/views/view-form.html"],
-    ["viewMasterHost", "./src/partials/views/view-master.html"],
-    ["viewAttendanceHost", "./src/partials/views/view-attendance.html"],
-    ["evalModalHost", "./src/partials/modals/eval-modal.html"],
-    ["syncStatusHost", "./src/partials/layout/sync-status-panel.html"],
-    ["toastContainerHost", "./src/partials/layout/toast-container.html"],
-    ["appDialogHost", "./src/partials/layout/app-dialog.html"],
+    ["loadingOverlayHost", "./partials/overlays/loading-overlay.html"],
+    ["loginOverlayHost", "./partials/overlays/login-overlay.html"],
+    ["headerHost", "./partials/layout/header.html"],
+    ["viewBoardHost", "./partials/views/view-board.html"],
+    ["viewFormHost", "./partials/views/view-form.html"],
+    ["viewMasterHost", "./partials/views/view-master.html"],
+    ["viewAttendanceHost", "./partials/views/view-attendance.html"],
+    ["evalModalHost", "./partials/modals/eval-modal.html"],
+    ["syncStatusHost", "./partials/layout/sync-status-panel.html"],
+    ["toastContainerHost", "./partials/layout/toast-container.html"],
+    ["appDialogHost", "./partials/layout/app-dialog.html"],
   ];
 
   await Promise.all(
@@ -334,13 +335,8 @@ const getAttendanceStatusMeta = (status) => {
   return { label: "Chưa chấm", sort: 3 };
 };
 
-const getScheduleApprovalStatus = (schedule) => {
-  const status = schedule?.approval?.status;
-  if (status === "pending" || status === "rejected" || status === "approved") {
-    return status;
-  }
-  return "approved";
-};
+const getScheduleApprovalStatus = (schedule) =>
+  normalizeScheduleApprovalStatus(schedule);
 
 const toClassToken = (value) =>
   String(value || "")
@@ -1352,9 +1348,8 @@ const canWriteTable = (table, payload) => {
   }
   if (table !== "schedules") return false;
 
-  const scheduleTeacherId = String(payload?.teacherId || "");
-  const isOwner =
-    scheduleTeacherId && scheduleTeacherId === String(currentUser?.id || "");
+  const currentTeacherId = String(currentUser?.id || "");
+  const isOwner = getScheduleTeacherIds(payload).includes(currentTeacherId);
   if (!isOwner) return false;
 
   const existingSchedule = globalThis.db.schedules.find(
@@ -1362,12 +1357,49 @@ const canWriteTable = (table, payload) => {
   );
   if (!existingSchedule) {
     // Giáo viên tạo mới phải đi qua luồng chờ duyệt.
-    return payload?.approval?.status === "pending";
+    return (
+      payload?.approval?.status === "pending" &&
+      String(payload?.teacherId || "") === currentTeacherId
+    );
   }
 
   const nextApprovalStatus = getScheduleApprovalStatus(payload);
   if (nextApprovalStatus === "pending") {
-    // Cho phép giáo viên gửi yêu cầu chỉnh sửa/tạo lịch chờ admin duyệt.
+    const protectedPendingFields = [
+      "week",
+      "dayOfWeek",
+      "startTime",
+      "endTime",
+      "location",
+      "classId",
+      "classLabel",
+      "studentIds",
+      "subjectId",
+      "topic",
+      "attendance",
+      "evaluations",
+    ];
+
+    const isCoreUnchanged = protectedPendingFields.every(
+      (field) =>
+        JSON.stringify(payload?.[field]) ===
+        JSON.stringify(existingSchedule?.[field]),
+    );
+    if (!isCoreUnchanged) return false;
+
+    const existingTeacherIds = getScheduleTeacherIds(existingSchedule);
+    const payloadTeacherIds = getScheduleTeacherIds(payload);
+
+    const removedTeacherIds = existingTeacherIds.filter(
+      (teacherId) => !payloadTeacherIds.includes(teacherId),
+    );
+    if (removedTeacherIds.length > 0) return false;
+
+    const wasAssignedBefore = existingTeacherIds.includes(currentTeacherId);
+    if (!wasAssignedBefore && !payloadTeacherIds.includes(currentTeacherId)) {
+      return false;
+    }
+
     return true;
   }
 
@@ -1403,6 +1435,7 @@ const canWriteTable = (table, payload) => {
     "studentIds",
     "subjectId",
     "teacherId",
+    "coTeacherIds",
     "topic",
   ];
 

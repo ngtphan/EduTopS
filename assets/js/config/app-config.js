@@ -40,7 +40,7 @@ const deepFreeze = (value) => {
 };
 
 export const DEFAULT_APP_CONFIG = {
-  version: "v1.10.0",
+  version: "v1.11.3",
   branding: {
     shortName: "CuiEduTop",
     fullName: "CuiEduTop",

@@ -1,3 +1,18 @@
+import {
+  normalizeScheduleApprovalStatus,
+  isActiveScheduleStatus,
+} from "@/entities/schedule/model/approval";
+import {
+  getScheduleTeacherIds as getScheduleTeacherIdsEntity,
+  normalizeScheduleTeachers as normalizeScheduleTeachersEntity,
+  isTeacherAssignedToSchedule as isTeacherAssignedToScheduleEntity,
+} from "@/entities/schedule/model/teacher-assignment";
+import {
+  buildScheduleConflictKey as buildScheduleConflictKeyEntity,
+  hasScheduleConflictIdentity as hasScheduleConflictIdentityEntity,
+} from "@/entities/schedule/model/conflict-key";
+import { pickConflictTarget } from "@/features/schedule-merge/model/pick-conflict-target";
+
 const SCHEDULE_EDITABLE_FIELDS = [
   "week",
   "dayOfWeek",
@@ -9,15 +24,12 @@ const SCHEDULE_EDITABLE_FIELDS = [
   "studentIds",
   "subjectId",
   "teacherId",
+  "coTeacherIds",
   "topic",
 ];
 
 const normalizeApprovalStatus = (schedule) => {
-  const status = schedule?.approval?.status;
-  if (status === "pending" || status === "rejected" || status === "approved") {
-    return status;
-  }
-  return "approved";
+  return normalizeScheduleApprovalStatus(schedule);
 };
 
 const isValidTimeRange = (startTime, endTime) =>
@@ -32,15 +44,15 @@ const toClassToken = (value) =>
   String(value || "")
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "") || "unknown";
+    .replaceAll(/[^a-z0-9]+/g, "-")
+    .replaceAll(/^-+|-+$/g, "") || "unknown";
 
 const getStudentGradeLevel = (student) =>
   String(student?.gradeLevel || student?.classLevel || "Chưa phân lớp").trim();
 
 const buildAutoClassGroups = () => {
   const grouped = new Map();
-  window.db.students.forEach((student) => {
+  globalThis.db.students.forEach((student) => {
     const gradeLevel = getStudentGradeLevel(student);
     if (!grouped.has(gradeLevel)) {
       grouped.set(gradeLevel, []);
@@ -62,7 +74,7 @@ const buildAutoClassGroups = () => {
 const getSelectableClasses = () => {
   const autoGroups = buildAutoClassGroups();
   if (autoGroups.length > 0) return autoGroups;
-  return window.db.classes || [];
+  return globalThis.db.classes || [];
 };
 
 const resolveClassById = (classId) =>
@@ -72,6 +84,42 @@ const uniqIds = (ids) =>
   Array.from(
     new Set((ids || []).map((id) => String(id || "").trim()).filter(Boolean)),
   );
+
+const getScheduleTeacherIds = (schedule, { fallbackTeacherId = "" } = {}) =>
+  getScheduleTeacherIdsEntity(schedule, { fallbackTeacherId });
+
+const normalizeScheduleTeachers = (schedule, fallbackTeacherId = "") => {
+  return normalizeScheduleTeachersEntity(schedule, fallbackTeacherId);
+};
+
+const isTeacherAssignedToSchedule = (schedule, teacherId) =>
+  isTeacherAssignedToScheduleEntity(schedule, teacherId);
+
+const buildScheduleConflictKey = (schedule) =>
+  buildScheduleConflictKeyEntity(schedule);
+
+const hasScheduleConflictIdentity = (schedule) =>
+  hasScheduleConflictIdentityEntity(schedule);
+
+const findScheduleConflicts = (schedule, { excludeScheduleId = "" } = {}) => {
+  if (!hasScheduleConflictIdentity(schedule)) return [];
+  const key = buildScheduleConflictKey(schedule);
+
+  return (globalThis.db.schedules || []).filter((item) => {
+    if (String(item?.id || "") === String(excludeScheduleId || "")) {
+      return false;
+    }
+    if (!isActiveScheduleStatus(item)) {
+      return false;
+    }
+    return buildScheduleConflictKey(item) === key;
+  });
+};
+
+const pickConflictSchedule = (schedules = []) => pickConflictTarget(schedules);
+
+const buildScheduleRequestId = () =>
+  `sch_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
 const getScheduleStudentIds = (schedule) => {
   const classItem = resolveClassById(schedule?.classId);
@@ -88,23 +136,33 @@ const getScheduleClassLabel = (schedule) => {
   return String(schedule?.classId || "").trim();
 };
 
+const getClassGroupSuffix = (cls) => {
+  const groupName = String(cls?.groupName || "").trim();
+  return groupName ? ` - ${groupName}` : "";
+};
+
+const formatClassOptionLabel = (cls) => {
+  const name = String(cls?.name || "Lớp").trim();
+  const studentCount = Array.isArray(cls?.studentIds)
+    ? cls.studentIds.length
+    : 0;
+  return `${name}${getClassGroupSuffix(cls)} (${studentCount} HS)`;
+};
+
 const getSubjectHint = () =>
-  window.db.subjects
+  globalThis.db.subjects
     .map((sub) => `${sub.id}: ${sub.name}`)
     .slice(0, 16)
     .join(" | ");
 
 const getClassHint = () =>
   getSelectableClasses()
-    .map(
-      (cls) =>
-        `${cls.id}: ${cls.name}${cls.groupName ? ` - ${cls.groupName}` : ""}`,
-    )
+    .map((cls) => `${cls.id}: ${cls.name}${getClassGroupSuffix(cls)}`)
     .slice(0, 16)
     .join(" | ");
 
 const getTeacherHint = () =>
-  window.db.teachers
+  globalThis.db.teachers
     .map((tea) => `${tea.id}: ${tea.name}`)
     .slice(0, 16)
     .join(" | ");
@@ -162,8 +220,8 @@ const pickByDropdown = async ({
     ? initialDefault
     : normalized[0].value;
 
-  if (typeof window.appSelect === "function") {
-    const selected = await window.appSelect(
+  if (typeof globalThis.appSelect === "function") {
+    const selected = await globalThis.appSelect(
       title,
       message,
       normalized,
@@ -174,14 +232,14 @@ const pickByDropdown = async ({
     return String(selected || "").trim();
   }
 
-  const fallback = await window.appPrompt(title, message, safeDefault);
+  const fallback = await globalThis.appPrompt(title, message, safeDefault);
   if (isDialogCancelled(fallback)) return null;
   return String(fallback || "").trim();
 };
 
 const getWeekOptions = (defaultWeek = "") => {
   const weekValues = [
-    ...window.db.schedules.map((schedule) => schedule.week),
+    ...globalThis.db.schedules.map((schedule) => schedule.week),
     defaultWeek,
     document.getElementById("sch_week")?.value,
     document.getElementById("filterWeek")?.value,
@@ -195,7 +253,7 @@ const getWeekOptions = (defaultWeek = "") => {
 
 const getLocationOptions = (defaultLocation = "") => {
   const values = uniqueSortedValues([
-    ...window.db.schedules.map((schedule) => schedule.location),
+    ...globalThis.db.schedules.map((schedule) => schedule.location),
     defaultLocation,
   ]);
   const normalized = values.length > 0 ? values : ["Phòng 1"];
@@ -208,22 +266,22 @@ const getLocationOptions = (defaultLocation = "") => {
 const getClassOptions = () =>
   getSelectableClasses().map((cls) => ({
     value: String(cls.id),
-    label: `${String(cls.name || "Lớp").trim()}${cls.groupName ? ` - ${String(cls.groupName).trim()}` : ""} (${(cls.studentIds || []).length} HS)`,
+    label: formatClassOptionLabel(cls),
   }));
 
 const getSubjectOptions = ({ isAdmin, teacherId }) => {
   if (isAdmin) {
-    return window.db.subjects.map((subject) => ({
+    return globalThis.db.subjects.map((subject) => ({
       value: String(subject.id),
       label: String(subject.name || "Môn học"),
     }));
   }
 
-  const teacher = window.db.teachers.find(
+  const teacher = globalThis.db.teachers.find(
     (item) => String(item.id) === String(teacherId || ""),
   );
   const allowedIds = new Set((teacher?.subjectIds || []).map(String));
-  return window.db.subjects
+  return globalThis.db.subjects
     .filter((subject) => allowedIds.has(String(subject.id)))
     .map((subject) => ({
       value: String(subject.id),
@@ -233,11 +291,11 @@ const getSubjectOptions = ({ isAdmin, teacherId }) => {
 
 const getTeacherOptions = (subjectId = "") => {
   const filtered = subjectId
-    ? window.db.teachers.filter((teacher) =>
+    ? globalThis.db.teachers.filter((teacher) =>
         (teacher.subjectIds || []).includes(subjectId),
       )
-    : window.db.teachers;
-  const source = filtered.length > 0 ? filtered : window.db.teachers;
+    : globalThis.db.teachers;
+  const source = filtered.length > 0 ? filtered : globalThis.db.teachers;
   return source.map((teacher) => ({
     value: String(teacher.id),
     label: String(teacher.name || "Giáo viên"),
@@ -246,7 +304,7 @@ const getTeacherOptions = (subjectId = "") => {
 
 const getTopicOptions = ({ defaultTopic = "", subjectId = "" }) => {
   const topicValues = uniqueSortedValues(
-    window.db.schedules
+    globalThis.db.schedules
       .filter(
         (schedule) =>
           !subjectId || String(schedule.subjectId || "") === String(subjectId),
@@ -284,6 +342,18 @@ const setSelectOptions = (selectEl, options, selectedValue = "") => {
     selectEl.value = normalized[0].value;
   }
 };
+
+const getStudentMetaText = (student) => {
+  if (!student) return "Không xác định";
+  const gradeLevel = getStudentGradeLevel(student);
+  const parentPhone = String(student.parentPhone || "").trim();
+  return parentPhone ? `${gradeLevel} • ${parentPhone}` : gradeLevel;
+};
+
+const findStudentById = (studentId) =>
+  globalThis.db.students.find(
+    (student) => String(student.id) === String(studentId),
+  );
 
 const getScheduleEditModalController = (() => {
   let controller = null;
@@ -386,10 +456,8 @@ const getScheduleEditModalController = (() => {
       ]);
 
       refs.studentCards.innerHTML = "";
-      poolIds.forEach((studentId) => {
-        const student = window.db.students.find(
-          (item) => String(item.id) === String(studentId),
-        );
+      for (const studentId of poolIds) {
+        const student = findStudentById(studentId);
         const selected = state.selectedStudentIds.has(String(studentId));
         const isOutside = !classStudentIds.includes(String(studentId));
 
@@ -407,9 +475,7 @@ const getScheduleEditModalController = (() => {
 
         const meta = document.createElement("div");
         meta.className = "text-[11px] text-slate-500 mt-0.5";
-        meta.textContent = student
-          ? `${getStudentGradeLevel(student)}${student.parentPhone ? ` • ${student.parentPhone}` : ""}`
-          : "Không xác định";
+        meta.textContent = getStudentMetaText(student);
         card.appendChild(meta);
 
         if (isOutside) {
@@ -421,7 +487,7 @@ const getScheduleEditModalController = (() => {
         }
 
         refs.studentCards.appendChild(card);
-      });
+      }
 
       refs.studentCount.textContent = `${state.selectedStudentIds.size}/${poolIds.length}`;
     };
@@ -637,10 +703,44 @@ const validateSchedulePatch = (
 ) => {
   const classId = String(patch.classId || baseSchedule.classId || "");
   const subjectId = String(patch.subjectId || baseSchedule.subjectId || "");
-  const teacherId = String(patch.teacherId || baseSchedule.teacherId || "");
+  const hasCoTeacherIdsInPatch = Object.hasOwn(patch, "coTeacherIds");
+  const teacherFields = normalizeScheduleTeachers(
+    {
+      teacherId: patch.teacherId,
+      coTeacherIds: hasCoTeacherIdsInPatch
+        ? patch.coTeacherIds
+        : baseSchedule.coTeacherIds,
+    },
+    baseSchedule.teacherId,
+  );
+  const teacherId = String(teacherFields.teacherId || "");
   const classItem = resolveClassById(classId);
-  const subjectItem = window.db.subjects.find((s) => s.id === subjectId);
-  const teacherItem = window.db.teachers.find((t) => t.id === teacherId);
+  const subjectItem = globalThis.db.subjects.find((s) => s.id === subjectId);
+  const assignedTeachers = teacherFields.teacherIds.reduce((items, id) => {
+    const teacher = globalThis.db.teachers.find(
+      (item) => String(item.id) === String(id),
+    );
+    if (teacher) items.push(teacher);
+    return items;
+  }, []);
+
+  if (!teacherId || teacherFields.teacherIds.length === 0) {
+    alert("Vui lòng chọn ít nhất 1 giáo viên phụ trách ca dạy.");
+    return false;
+  }
+
+  const missingTeacherIds = teacherFields.teacherIds.filter(
+    (id) =>
+      !globalThis.db.teachers.some(
+        (teacher) => String(teacher.id) === String(id),
+      ),
+  );
+
+  if (missingTeacherIds.length > 0) {
+    alert("Danh sách giáo viên có dữ liệu không hợp lệ. Vui lòng chọn lại.");
+    return false;
+  }
+
   if (!classItem) {
     alert("Lớp không tồn tại. Vui lòng chọn classId hợp lệ.");
     return false;
@@ -649,17 +749,24 @@ const validateSchedulePatch = (
     alert("Môn học không tồn tại. Vui lòng chọn subjectId hợp lệ.");
     return false;
   }
-  if (!teacherItem) {
-    alert("Giáo viên không tồn tại. Vui lòng chọn teacherId hợp lệ.");
-    return false;
+
+  if (!allowSubjectMismatch) {
+    const invalidTeachers = assignedTeachers.filter(
+      (teacher) => !(teacher.subjectIds || []).includes(subjectItem.id),
+    );
+
+    if (invalidTeachers.length > 0) {
+      const invalidNames = invalidTeachers
+        .map((teacher) => String(teacher.name || teacher.id || ""))
+        .filter(Boolean)
+        .join(", ");
+      alert(
+        `Giáo viên chưa có chuyên môn phù hợp với lớp này: ${invalidNames || "Không xác định"}.`,
+      );
+      return false;
+    }
   }
-  if (
-    !allowSubjectMismatch &&
-    !teacherItem.subjectIds?.includes(subjectItem.id)
-  ) {
-    alert("Giáo viên chưa có chuyên môn phù hợp với lớp này.");
-    return false;
-  }
+
   if (!isValidTimeRange(patch.startTime, patch.endTime)) {
     alert(
       "Khung giờ không hợp lệ. Thời gian bắt đầu phải nhỏ hơn thời gian kết thúc.",
@@ -679,6 +786,9 @@ const validateSchedulePatch = (
     return false;
   }
 
+  patch.teacherId = teacherFields.teacherId;
+  patch.coTeacherIds = teacherFields.coTeacherIds;
+
   return true;
 };
 
@@ -687,11 +797,11 @@ const promptSchedulePatch = async ({ schedule, isAdmin, user }) => {
 };
 
 export const registerScheduleActions = ({ getCurrentRole, getCurrentUser }) => {
-  window.setAttendanceStatus = async (scheduleId, status) => {
+  globalThis.setAttendanceStatus = async (scheduleId, status) => {
     if (getCurrentRole() !== "admin") {
       return alert("Bạn không có quyền thực hiện thao tác này!");
     }
-    const sch = window.db.schedules.find((s) => s.id === scheduleId);
+    const sch = globalThis.db.schedules.find((s) => s.id === scheduleId);
     if (!sch) return;
     if (normalizeApprovalStatus(sch) !== "approved") {
       return alert("Ca dạy chưa được duyệt nên chưa thể chấm công.");
@@ -701,75 +811,74 @@ export const registerScheduleActions = ({ getCurrentRole, getCurrentUser }) => {
       markedBy: getCurrentUser()?.email || "",
       markedAt: Date.now(),
     };
-    await window.cloudSave("schedules", sch);
+    await globalThis.cloudSave("schedules", sch);
   };
 
-  window.openScheduleEditor = async (scheduleId) => {
-    const role = getCurrentRole();
-    const user = getCurrentUser();
-    const schedule = window.db.schedules.find((s) => s.id === scheduleId);
-    if (!schedule) return;
+  const hasScheduleWritePermission = (role, schedule, userId) =>
+    role === "admin" ||
+    (role === "teacher" && isTeacherAssignedToSchedule(schedule, userId));
 
-    const isAdmin = role === "admin";
-    const isOwnerTeacher =
-      role === "teacher" &&
-      String(schedule.teacherId) === String(user?.id || "");
+  const getAdminEditedStudentIds = (schedule, nextPatch) => {
+    const selectedClass = resolveClassById(nextPatch.classId);
+    const hasPatchedStudentIds = Array.isArray(nextPatch.studentIds);
+    const isSameClass =
+      String(nextPatch.classId) === String(schedule.classId || "");
+    const preservedStudentIds = Array.isArray(schedule.studentIds)
+      ? uniqIds(schedule.studentIds)
+      : [];
 
-    if (!isAdmin && !isOwnerTeacher) {
-      return alert("Bạn không có quyền chỉnh sửa lịch này.");
-    }
-
-    const nextPatch = await promptSchedulePatch({ schedule, isAdmin, user });
-    if (!nextPatch) return;
-    if (!validateSchedulePatch(nextPatch, schedule)) {
-      return;
-    }
-
-    if (isAdmin) {
-      const selectedClass = resolveClassById(nextPatch.classId);
-      const hasPatchedStudentIds = Array.isArray(nextPatch.studentIds);
-      const isSameClass =
-        String(nextPatch.classId) === String(schedule.classId || "");
-      const preservedStudentIds = Array.isArray(schedule.studentIds)
-        ? uniqIds(schedule.studentIds)
-        : [];
-      let nextStudentIds = [];
-      if (hasPatchedStudentIds) {
-        nextStudentIds = uniqIds(nextPatch.studentIds || []);
-      } else if (isSameClass) {
-        nextStudentIds =
-          preservedStudentIds.length > 0
-            ? preservedStudentIds
-            : uniqIds(selectedClass?.studentIds || []);
-      } else {
-        nextStudentIds = uniqIds(selectedClass?.studentIds || []);
-      }
-
-      const updated = {
-        ...schedule,
-        ...nextPatch,
-        classLabel: selectedClass?.name || nextPatch.classId,
-        studentIds: nextStudentIds,
-        approval: {
-          ...(schedule.approval || {}),
-          status: "approved",
-          requestType: null,
-          requestedBy: schedule.approval?.requestedBy || "",
-          requestedAt: schedule.approval?.requestedAt || null,
-          reviewedBy: user?.email || "",
-          reviewedAt: Date.now(),
-          note: "Admin đã chỉnh sửa và duyệt lịch.",
-          changeRequest: null,
-        },
+    if (hasPatchedStudentIds) {
+      return {
+        selectedClass,
+        nextStudentIds: uniqIds(nextPatch.studentIds || []),
       };
-      await window.cloudSave("schedules", updated);
-      return;
     }
+
+    if (isSameClass && preservedStudentIds.length > 0) {
+      return {
+        selectedClass,
+        nextStudentIds: preservedStudentIds,
+      };
+    }
+
+    return {
+      selectedClass,
+      nextStudentIds: uniqIds(selectedClass?.studentIds || []),
+    };
+  };
+
+  const saveAdminEditedSchedule = async ({ schedule, nextPatch, user }) => {
+    const { selectedClass, nextStudentIds } = getAdminEditedStudentIds(
+      schedule,
+      nextPatch,
+    );
 
     const updated = {
       ...schedule,
+      ...nextPatch,
+      classLabel: selectedClass?.name || nextPatch.classId,
+      studentIds: nextStudentIds,
       approval: {
-        ...(schedule.approval || {}),
+        ...schedule.approval,
+        status: "approved",
+        requestType: null,
+        requestedBy: schedule.approval?.requestedBy || "",
+        requestedAt: schedule.approval?.requestedAt || null,
+        reviewedBy: user?.email || "",
+        reviewedAt: Date.now(),
+        note: "Admin đã chỉnh sửa và duyệt lịch.",
+        changeRequest: null,
+      },
+    };
+
+    await globalThis.cloudSave("schedules", updated);
+  };
+
+  const saveTeacherScheduleEditRequest = async ({ schedule, nextPatch, user }) => {
+    const updated = {
+      ...schedule,
+      approval: {
+        ...schedule.approval,
         status: "pending",
         requestType: "edit",
         requestedBy: user?.email || "",
@@ -780,126 +889,67 @@ export const registerScheduleActions = ({ getCurrentRole, getCurrentUser }) => {
         changeRequest: nextPatch,
       },
     };
-    await window.cloudSave("schedules", updated);
-    alert("Đã gửi đề xuất chỉnh sửa. Vui lòng chờ admin duyệt.");
+
+    await globalThis.cloudSave("schedules", updated);
   };
 
-  window.addStudentToScheduleClass = async (scheduleId) => {
-    const role = getCurrentRole();
-    const user = getCurrentUser();
-    const schedule = window.db.schedules.find((s) => s.id === scheduleId);
-    if (!schedule) return;
-
-    const isAdmin = role === "admin";
-    const isOwnerTeacher =
-      role === "teacher" &&
-      String(schedule.teacherId) === String(user?.id || "");
-
-    if (!isAdmin && !isOwnerTeacher) {
-      return alert("Bạn không có quyền thêm học sinh cho lớp này.");
-    }
-
-    const classLabel = getScheduleClassLabel(schedule);
-    const currentStudentIds = getScheduleStudentIds(schedule);
-    const candidates = window.db.students.filter(
-      (stu) => !currentStudentIds.includes(String(stu.id)),
-    );
-
-    if (candidates.length === 0) {
-      return alert("Không còn học sinh để thêm vào lớp này.");
-    }
-
-    const candidateOptions = candidates.map((stu) => {
-      const grade = String(stu.gradeLevel || "Chưa phân lớp").trim();
-      return {
-        value: String(stu.id),
-        label: `${stu.name} (${grade})`,
-      };
-    });
-
-    const inputStudentId =
-      typeof window.appSelect === "function"
-        ? await window.appSelect(
-            "Thêm học sinh vào ca dạy",
-            `Chọn học sinh để thêm vào lớp ${classLabel}:`,
-            candidateOptions,
-            String(candidates[0]?.id || ""),
-            "Thêm",
-          )
-        : await window.appPrompt(
-            "Thêm học sinh vào lớp",
-            "Nhập studentId:",
-            String(candidates[0]?.id || ""),
-          );
-
-    if (!inputStudentId || !String(inputStudentId).trim()) return;
-
-    const student = window.db.students.find(
-      (stu) => String(stu.id) === String(inputStudentId).trim(),
-    );
-    if (!student) {
-      return alert("studentId không hợp lệ.");
-    }
-
-    const normalizedStudentId = String(student.id);
-    if (currentStudentIds.includes(normalizedStudentId)) {
-      return alert("Học sinh đã có trong lớp này.");
-    }
-
-    const targetSchedules = window.db.schedules.filter((sch) => {
-      if (String(sch.classId) !== String(schedule.classId)) return false;
+  const getTargetSchedulesForStudentUpdate = ({ classId, isAdmin, userId }) =>
+    globalThis.db.schedules.filter((sch) => {
+      if (String(sch.classId) !== String(classId)) return false;
       if (isAdmin) return true;
-      return String(sch.teacherId) === String(user?.id || "");
+      return isTeacherAssignedToSchedule(sch, userId);
     });
 
-    if (targetSchedules.length === 0) {
-      return alert("Không tìm thấy ca dạy phù hợp để cập nhật.");
+  const applyStudentAdditionAsAdmin = async ({
+    targetSchedules,
+    normalizedStudentId,
+    classLabel,
+    student,
+  }) => {
+    const nextGrade = classLabel || student.gradeLevel || "";
+    if (nextGrade && String(student.gradeLevel || "") !== String(nextGrade)) {
+      await globalThis.cloudSave("students", {
+        ...student,
+        gradeLevel: nextGrade,
+      });
     }
 
-    if (isAdmin) {
-      const nextGrade = classLabel || student.gradeLevel || "";
-      if (nextGrade && String(student.gradeLevel || "") !== String(nextGrade)) {
-        await window.cloudSave("students", {
-          ...student,
-          gradeLevel: nextGrade,
-        });
-      }
-
-      let updatedCount = 0;
-      for (const sch of targetSchedules) {
-        const baseIds = getScheduleStudentIds(sch);
-        const nextIds = uniqIds([...baseIds, normalizedStudentId]);
-        if (nextIds.length === baseIds.length) continue;
-        await window.cloudSave("schedules", {
-          ...sch,
-          classLabel: getScheduleClassLabel(sch) || classLabel,
-          studentIds: nextIds,
-        });
-        updatedCount += 1;
-      }
-
-      if (updatedCount === 0) {
-        return alert("Không có ca dạy nào cần cập nhật.");
-      }
-
-      alert(
-        `Đã thêm ${student.name} vào lớp ${classLabel} (${updatedCount} ca dạy).`,
-      );
-      return;
+    let updatedCount = 0;
+    for (const sch of targetSchedules) {
+      const baseIds = getScheduleStudentIds(sch);
+      const nextIds = uniqIds([...baseIds, normalizedStudentId]);
+      if (nextIds.length === baseIds.length) continue;
+      await globalThis.cloudSave("schedules", {
+        ...sch,
+        classLabel: getScheduleClassLabel(sch) || classLabel,
+        studentIds: nextIds,
+      });
+      updatedCount += 1;
     }
 
+    return updatedCount;
+  };
+
+  const requestStudentAdditionAsTeacher = async ({
+    targetSchedules,
+    normalizedStudentId,
+    classLabel,
+    student,
+    user,
+  }) => {
     let requestCount = 0;
     const now = Date.now();
+
     for (const sch of targetSchedules) {
       if (normalizeApprovalStatus(sch) === "pending") continue;
       const baseIds = getScheduleStudentIds(sch);
       const nextIds = uniqIds([...baseIds, normalizedStudentId]);
       if (nextIds.length === baseIds.length) continue;
 
-      await window.cloudSave("schedules", {
+      await globalThis.cloudSave("schedules", {
         ...sch,
         approval: {
-          ...(sch.approval || {}),
+          ...sch.approval,
           status: "pending",
           requestType: "edit",
           requestedBy: user?.email || "",
@@ -916,6 +966,127 @@ export const registerScheduleActions = ({ getCurrentRole, getCurrentUser }) => {
       requestCount += 1;
     }
 
+    return requestCount;
+  };
+
+  globalThis.openScheduleEditor = async (scheduleId) => {
+    const role = getCurrentRole();
+    const user = getCurrentUser();
+    const schedule = globalThis.db.schedules.find((s) => s.id === scheduleId);
+    if (!schedule) return;
+
+    const isAdmin = role === "admin";
+    if (!hasScheduleWritePermission(role, schedule, user?.id)) {
+      return alert("Bạn không có quyền chỉnh sửa lịch này.");
+    }
+
+    const nextPatch = await promptSchedulePatch({ schedule, isAdmin, user });
+    if (!nextPatch) return;
+    if (!validateSchedulePatch(nextPatch, schedule)) {
+      return;
+    }
+
+    if (isAdmin) {
+      await saveAdminEditedSchedule({ schedule, nextPatch, user });
+      return;
+    }
+
+    await saveTeacherScheduleEditRequest({ schedule, nextPatch, user });
+    alert("Đã gửi đề xuất chỉnh sửa. Vui lòng chờ admin duyệt.");
+  };
+
+  globalThis.addStudentToScheduleClass = async (scheduleId) => {
+    const role = getCurrentRole();
+    const user = getCurrentUser();
+    const schedule = globalThis.db.schedules.find((s) => s.id === scheduleId);
+    if (!schedule) return;
+
+    const isAdmin = role === "admin";
+    if (!hasScheduleWritePermission(role, schedule, user?.id)) {
+      return alert("Bạn không có quyền thêm học sinh cho lớp này.");
+    }
+
+    const classLabel = getScheduleClassLabel(schedule);
+    const currentStudentIds = getScheduleStudentIds(schedule);
+    const candidates = globalThis.db.students.filter(
+      (stu) => !currentStudentIds.includes(String(stu.id)),
+    );
+
+    if (candidates.length === 0) {
+      return alert("Không còn học sinh để thêm vào lớp này.");
+    }
+
+    const candidateOptions = candidates.map((stu) => {
+      const grade = String(stu.gradeLevel || "Chưa phân lớp").trim();
+      return {
+        value: String(stu.id),
+        label: `${stu.name} (${grade})`,
+      };
+    });
+
+    const inputStudentId =
+      typeof globalThis.appSelect === "function"
+        ? await globalThis.appSelect(
+            "Thêm học sinh vào ca dạy",
+            `Chọn học sinh để thêm vào lớp ${classLabel}:`,
+            candidateOptions,
+            String(candidates[0]?.id || ""),
+            "Thêm",
+          )
+        : await globalThis.appPrompt(
+            "Thêm học sinh vào lớp",
+            "Nhập studentId:",
+            String(candidates[0]?.id || ""),
+          );
+
+    if (!inputStudentId || !String(inputStudentId).trim()) return;
+
+    const student = findStudentById(String(inputStudentId).trim());
+    if (!student) {
+      return alert("studentId không hợp lệ.");
+    }
+
+    const normalizedStudentId = String(student.id);
+    if (currentStudentIds.includes(normalizedStudentId)) {
+      return alert("Học sinh đã có trong lớp này.");
+    }
+
+    const targetSchedules = getTargetSchedulesForStudentUpdate({
+      classId: schedule.classId,
+      isAdmin,
+      userId: user?.id,
+    });
+
+    if (targetSchedules.length === 0) {
+      return alert("Không tìm thấy ca dạy phù hợp để cập nhật.");
+    }
+
+    if (isAdmin) {
+      const updatedCount = await applyStudentAdditionAsAdmin({
+        targetSchedules,
+        normalizedStudentId,
+        classLabel,
+        student,
+      });
+
+      if (updatedCount === 0) {
+        return alert("Không có ca dạy nào cần cập nhật.");
+      }
+
+      alert(
+        `Đã thêm ${student.name} vào lớp ${classLabel} (${updatedCount} ca dạy).`,
+      );
+      return;
+    }
+
+    const requestCount = await requestStudentAdditionAsTeacher({
+      targetSchedules,
+      normalizedStudentId,
+      classLabel,
+      student,
+      user,
+    });
+
     if (requestCount === 0) {
       return alert(
         "Không có ca dạy nào đủ điều kiện gửi yêu cầu (có thể đang chờ duyệt).",
@@ -927,101 +1098,198 @@ export const registerScheduleActions = ({ getCurrentRole, getCurrentUser }) => {
     );
   };
 
-  window.reviewScheduleRequest = async (scheduleId, action) => {
-    if (getCurrentRole() !== "admin") {
-      return alert("Bạn không có quyền duyệt lịch.");
-    }
+  const buildFinalPatchFromRequest = (schedule) => {
+    const incomingPatch = schedule.approval?.changeRequest || {};
+    const approvedPatch = SCHEDULE_EDITABLE_FIELDS.reduce((acc, key) => {
+      if (incomingPatch[key] !== undefined) {
+        acc[key] = incomingPatch[key];
+      }
+      return acc;
+    }, {});
 
-    const schedule = window.db.schedules.find((s) => s.id === scheduleId);
-    if (!schedule) return;
-    const approvalStatus = normalizeApprovalStatus(schedule);
-    if (approvalStatus !== "pending") {
-      return alert("Lịch này không còn ở trạng thái chờ duyệt.");
-    }
+    const finalPatch = {
+      ...schedule,
+      ...approvedPatch,
+    };
 
-    const isApprove = action === "approve";
-    const shouldProceed = await window.appConfirm(
-      isApprove
-        ? "Xác nhận duyệt lịch dạy này?"
-        : "Xác nhận từ chối yêu cầu lịch dạy này?",
-      isApprove ? "Duyệt lịch" : "Từ chối lịch",
-    );
-    if (!shouldProceed) return;
+    const selectedClass = resolveClassById(finalPatch.classId);
+    finalPatch.classLabel = selectedClass?.name || finalPatch.classLabel || "";
+    finalPatch.studentIds = Array.isArray(approvedPatch.studentIds)
+      ? uniqIds(approvedPatch.studentIds)
+      : selectedClass?.studentIds || finalPatch.studentIds || [];
 
-    if (isApprove) {
-      const incomingPatch = schedule.approval?.changeRequest || {};
-      const approvedPatch = SCHEDULE_EDITABLE_FIELDS.reduce((acc, key) => {
-        if (incomingPatch[key] !== undefined) {
-          acc[key] = incomingPatch[key];
-        }
-        return acc;
-      }, {});
+    return finalPatch;
+  };
 
-      const finalPatch = {
-        ...schedule,
-        ...approvedPatch,
-      };
-
-      const selectedClass = resolveClassById(finalPatch.classId);
-      const hasPatchedStudentIds = Array.isArray(approvedPatch.studentIds);
-      finalPatch.classLabel =
-        selectedClass?.name || finalPatch.classLabel || "";
-      finalPatch.studentIds = hasPatchedStudentIds
-        ? uniqIds(approvedPatch.studentIds)
-        : selectedClass?.studentIds || finalPatch.studentIds || [];
-
-      if (!validateSchedulePatch(finalPatch, schedule)) return;
-
-      const previousStudentIds = getScheduleStudentIds(schedule);
-      const nextStudentIds = uniqIds(finalPatch.studentIds);
-      const addedStudentIds = nextStudentIds.filter(
-        (id) => !previousStudentIds.includes(id),
+  const createMergedTeacherApplier = (mergedTeacherIds) => {
+    return (baseSchedule, fallbackTeacherId = "") => {
+      const preferredTeacherId =
+        String(baseSchedule?.teacherId || "").trim() ||
+        String(fallbackTeacherId || "").trim() ||
+        String(mergedTeacherIds[0] || "").trim();
+      const normalized = normalizeScheduleTeachers(
+        {
+          teacherId: preferredTeacherId,
+          coTeacherIds: mergedTeacherIds.filter((id) => id !== preferredTeacherId),
+        },
+        preferredTeacherId,
       );
 
-      if (addedStudentIds.length > 0 && finalPatch.classLabel) {
-        for (const studentId of addedStudentIds) {
-          const student = window.db.students.find(
-            (stu) => String(stu.id) === String(studentId),
-          );
-          if (!student) continue;
-          if (
-            String(student.gradeLevel || "") === String(finalPatch.classLabel)
-          ) {
-            continue;
-          }
-          await window.cloudSave("students", {
-            ...student,
-            gradeLevel: finalPatch.classLabel,
-          });
-        }
-      }
+      return {
+        ...baseSchedule,
+        teacherId: normalized.teacherId,
+        coTeacherIds: normalized.coTeacherIds,
+      };
+    };
+  };
 
-      await window.cloudSave("schedules", {
-        ...finalPatch,
+  const rejectScheduleAsMerged = async ({
+    baseSchedule,
+    targetScheduleId,
+    reviewedBy,
+    reviewedAt,
+  }) => {
+    await globalThis.cloudSave("schedules", {
+      ...baseSchedule,
+      approval: {
+        ...baseSchedule.approval,
+        status: "rejected",
+        requestType: null,
+        reviewedBy,
+        reviewedAt,
+        note: `Đã hợp nhất vào lịch ${targetScheduleId} để tránh trùng ca.`,
+        changeRequest: null,
+      },
+    });
+  };
+
+  const syncAddedStudentGrades = async (previousSchedule, nextSchedule) => {
+    const nextClassLabel = String(nextSchedule.classLabel || "").trim();
+    if (!nextClassLabel) return;
+
+    const previousStudentIds = getScheduleStudentIds(previousSchedule);
+    const nextStudentIds = uniqIds(nextSchedule.studentIds);
+    const addedStudentIds = nextStudentIds.filter(
+      (id) => !previousStudentIds.includes(id),
+    );
+
+    for (const studentId of addedStudentIds) {
+      const student = findStudentById(studentId);
+      if (!student) continue;
+      if (String(student.gradeLevel || "") === nextClassLabel) continue;
+      await globalThis.cloudSave("students", {
+        ...student,
+        gradeLevel: nextClassLabel,
+      });
+    }
+  };
+
+  const approveScheduleRequest = async (schedule) => {
+    const reviewedBy = getCurrentUser()?.email || "";
+    const reviewedAt = Date.now();
+    const finalPatch = buildFinalPatchFromRequest(schedule);
+
+    if (!validateSchedulePatch(finalPatch, schedule)) return;
+
+    const duplicateSchedules = findScheduleConflicts(finalPatch, {
+      excludeScheduleId: schedule.id,
+    });
+    const mergedTeacherIds = uniqIds([
+      ...getScheduleTeacherIds(finalPatch),
+      ...duplicateSchedules.flatMap((item) => getScheduleTeacherIds(item)),
+    ]);
+    const applyMergedTeacherIds = createMergedTeacherApplier(mergedTeacherIds);
+
+    const approvedDuplicate = duplicateSchedules.find(
+      (item) => normalizeApprovalStatus(item) === "approved",
+    );
+
+    if (approvedDuplicate) {
+      const mergedApprovedSchedule = applyMergedTeacherIds(
+        approvedDuplicate,
+        approvedDuplicate.teacherId || finalPatch.teacherId,
+      );
+      await globalThis.cloudSave("schedules", {
+        ...mergedApprovedSchedule,
         approval: {
-          ...(schedule.approval || {}),
+          ...approvedDuplicate.approval,
           status: "approved",
           requestType: null,
-          reviewedBy: getCurrentUser()?.email || "",
-          reviewedAt: Date.now(),
-          note: "Admin đã duyệt lịch.",
+          reviewedBy,
+          reviewedAt,
+          note: "Admin đã duyệt và hợp nhất giáo viên đồng giảng.",
           changeRequest: null,
         },
       });
+
+      await rejectScheduleAsMerged({
+        baseSchedule: schedule,
+        targetScheduleId: approvedDuplicate.id,
+        reviewedBy,
+        reviewedAt,
+      });
+
+      for (const duplicate of duplicateSchedules) {
+        if (String(duplicate.id || "") === String(approvedDuplicate.id)) {
+          continue;
+        }
+        await rejectScheduleAsMerged({
+          baseSchedule: duplicate,
+          targetScheduleId: approvedDuplicate.id,
+          reviewedBy,
+          reviewedAt,
+        });
+      }
       return;
     }
 
+    const mergedFinalPatch = applyMergedTeacherIds(
+      finalPatch,
+      finalPatch.teacherId || schedule.teacherId,
+    );
+
+    await syncAddedStudentGrades(schedule, mergedFinalPatch);
+
+    const approvalNote =
+      duplicateSchedules.length > 0
+        ? "Admin đã duyệt và hợp nhất giáo viên đồng giảng."
+        : "Admin đã duyệt lịch.";
+
+    await globalThis.cloudSave("schedules", {
+      ...mergedFinalPatch,
+      approval: {
+        ...schedule.approval,
+        status: "approved",
+        requestType: null,
+        reviewedBy,
+        reviewedAt,
+        note: approvalNote,
+        changeRequest: null,
+      },
+    });
+
+    for (const duplicate of duplicateSchedules) {
+      await rejectScheduleAsMerged({
+        baseSchedule: duplicate,
+        targetScheduleId: mergedFinalPatch.id,
+        reviewedBy,
+        reviewedAt,
+      });
+    }
+  };
+
+  const rejectScheduleRequest = async (schedule) => {
     const rejectReason =
-      (await window.appPrompt(
+      (await globalThis.appPrompt(
         "Từ chối yêu cầu",
         "Lý do từ chối (tuỳ chọn):",
         "",
       )) || "Admin từ chối yêu cầu thay đổi lịch.";
 
-    await window.cloudSave("schedules", {
+    await globalThis.cloudSave("schedules", {
       ...schedule,
       approval: {
-        ...(schedule.approval || {}),
+        ...schedule.approval,
         status: "rejected",
         requestType: null,
         reviewedBy: getCurrentUser()?.email || "",
@@ -1030,6 +1298,34 @@ export const registerScheduleActions = ({ getCurrentRole, getCurrentUser }) => {
         changeRequest: null,
       },
     });
+  };
+
+  globalThis.reviewScheduleRequest = async (scheduleId, action) => {
+    if (getCurrentRole() !== "admin") {
+      return alert("Bạn không có quyền duyệt lịch.");
+    }
+
+    const schedule = globalThis.db.schedules.find((s) => s.id === scheduleId);
+    if (!schedule) return;
+    if (normalizeApprovalStatus(schedule) !== "pending") {
+      return alert("Lịch này không còn ở trạng thái chờ duyệt.");
+    }
+
+    const isApprove = action === "approve";
+    const shouldProceed = await globalThis.appConfirm(
+      isApprove
+        ? "Xác nhận duyệt lịch dạy này?"
+        : "Xác nhận từ chối yêu cầu lịch dạy này?",
+      isApprove ? "Duyệt lịch" : "Từ chối lịch",
+    );
+    if (!shouldProceed) return;
+
+    if (isApprove) {
+      await approveScheduleRequest(schedule);
+      return;
+    }
+
+    await rejectScheduleRequest(schedule);
   };
 };
 
@@ -1099,17 +1395,16 @@ export const registerScheduleFormsAndFilters = ({
 
   const syncScheduleFormByRole = () => {
     const role = getCurrentRole();
-    const user = getCurrentUser();
     if (!teacherSelect || !classSelect) return;
 
     if (role === "teacher") {
-      const teacherName = user?.name || "Giáo viên";
-      teacherSelect.multiple = false;
-      teacherSelect.size = 1;
-      teacherSelect.innerHTML = `<option value="${String(user?.id || "")}">${teacherName}</option>`;
-      teacherSelect.value = String(user?.id || "");
-      teacherSelect.disabled = true;
-      if (teacherMultiHelp) teacherMultiHelp.classList.add("hidden");
+      teacherSelect.multiple = true;
+      teacherSelect.size = 5;
+      if (teacherMultiHelp) {
+        teacherMultiHelp.classList.remove("hidden");
+        teacherMultiHelp.innerText =
+          "Giáo viên: có thể chọn thêm đồng giảng cùng chuyên môn. Bạn luôn là giáo viên chính.";
+      }
 
       const previousSelectedClassIds = uniqIds(
         Array.from(classSelect.selectedOptions || []).map((option) =>
@@ -1125,14 +1420,18 @@ export const registerScheduleFormsAndFilters = ({
 
       if (roleHint) {
         roleHint.innerText =
-          "Giáo viên gửi lịch/đề xuất sẽ ở trạng thái chờ admin duyệt.";
+          "Giáo viên có thể chọn đồng giảng cùng chuyên môn. Yêu cầu sẽ ở trạng thái chờ admin duyệt.";
       }
       return;
     }
 
     teacherSelect.multiple = true;
     teacherSelect.size = 5;
-    if (teacherMultiHelp) teacherMultiHelp.classList.remove("hidden");
+    if (teacherMultiHelp) {
+      teacherMultiHelp.classList.remove("hidden");
+      teacherMultiHelp.innerText =
+        "Admin: Giữ Ctrl/Command để chọn nhiều giáo viên cùng chuyên môn.";
+    }
 
     classSelect.multiple = true;
     classSelect.size = 6;
@@ -1143,13 +1442,13 @@ export const registerScheduleFormsAndFilters = ({
     }
   };
 
-  window.syncScheduleFormByRole = syncScheduleFormByRole;
+  globalThis.syncScheduleFormByRole = syncScheduleFormByRole;
 
   initCreateFormTimeDropdowns();
 
   subjectSelect?.addEventListener("change", () => {
-    if (typeof window.handleClassSelection === "function") {
-      window.handleClassSelection();
+    if (typeof globalThis.handleClassSelection === "function") {
+      globalThis.handleClassSelection();
     }
   });
 
@@ -1175,16 +1474,447 @@ export const registerScheduleFormsAndFilters = ({
   const getSelectedTeacherIdsFromForm = () => {
     const role = getCurrentRole();
     const currentUser = getCurrentUser();
+    const teacherEl = document.getElementById("sch_teacherId");
     if (role === "teacher") {
-      return [String(currentUser?.id || "")].filter(Boolean);
+      const selected = teacherEl
+        ? Array.from(teacherEl.selectedOptions || [])
+            .map((option) => String(option.value || "").trim())
+            .filter(Boolean)
+        : [];
+      return uniqIds([String(currentUser?.id || ""), ...selected]);
     }
 
-    const teacherEl = document.getElementById("sch_teacherId");
     if (!teacherEl) return [];
 
     return Array.from(teacherEl.selectedOptions || [])
       .map((option) => String(option.value || "").trim())
       .filter(Boolean);
+  };
+
+  const submitButtonIdleHtml =
+    '<i data-lucide="cloud-upload" class="w-4 h-4"></i> Lưu lên Cloud';
+
+  const setSubmitButtonLoading = (btn) => {
+    if (!btn) return;
+    btn.innerHTML =
+      '<i class="w-4 h-4 animate-spin border-2 border-white border-t-transparent rounded-full"></i> Đang lưu...';
+    btn.disabled = true;
+  };
+
+  const resetSubmitButton = (btn) => {
+    if (!btn) return;
+    btn.innerHTML = submitButtonIdleHtml;
+    btn.disabled = false;
+    lucide.createIcons();
+  };
+
+  const buildBaseScheduleForSubmission = ({ role, currentUser }) => {
+    const now = Date.now();
+    const isAdmin = role === "admin";
+
+    return {
+      week: document.getElementById("sch_week").value,
+      dayOfWeek: document.getElementById("sch_day").value,
+      startTime: document.getElementById("sch_start").value,
+      endTime: document.getElementById("sch_end").value,
+      location: document.getElementById("sch_location").value,
+      subjectId: document.getElementById("sch_subjectId").value,
+      topic: document.getElementById("sch_topic").value,
+      evaluations: {},
+      attendance: {
+        status: "pending",
+        markedBy: "",
+        markedAt: null,
+      },
+      createdByRole: role || "unknown",
+      createdByEmail: currentUser?.email || "",
+      createdAt: now,
+      approval: isAdmin
+        ? {
+            status: "approved",
+            requestType: null,
+            requestedBy: currentUser?.email || "",
+            requestedAt: now,
+            reviewedBy: currentUser?.email || "",
+            reviewedAt: now,
+            note: "Tạo mới bởi admin.",
+            changeRequest: null,
+          }
+        : {
+            status: "pending",
+            requestType: "create",
+            requestedBy: currentUser?.email || "",
+            requestedAt: now,
+            reviewedBy: "",
+            reviewedAt: null,
+            note: "Giáo viên gửi lịch mới chờ admin duyệt.",
+            changeRequest: null,
+          },
+    };
+  };
+
+  const collectScheduleSubmissionContext = ({ role, currentUser }) => {
+    const requestedTeacherIds = uniqIds(getSelectedTeacherIdsFromForm());
+    const primaryTeacherId =
+      role === "teacher"
+        ? String(currentUser?.id || "")
+        : String(requestedTeacherIds[0] || "");
+    const teacherFields = normalizeScheduleTeachers(
+      {
+        teacherId: primaryTeacherId,
+        coTeacherIds: requestedTeacherIds.filter(
+          (id) => String(id || "") !== primaryTeacherId,
+        ),
+      },
+      primaryTeacherId,
+    );
+
+    if (teacherFields.teacherIds.length === 0) {
+      alert("Chọn ít nhất 1 giáo viên!");
+      return null;
+    }
+
+    const selectedClassIds = uniqIds(getSelectedClassIdsFromForm());
+    if (selectedClassIds.length === 0) {
+      alert("Chọn ít nhất 1 nhóm/lớp!");
+      return null;
+    }
+    if (role === "teacher" && selectedClassIds.length > 1) {
+      alert("Giáo viên chỉ được tạo lịch cho 1 nhóm/lớp mỗi lần.");
+      return null;
+    }
+
+    const selectedClasses = selectedClassIds
+      .map((classId) => resolveClassById(classId))
+      .filter(Boolean);
+    if (selectedClasses.length !== selectedClassIds.length) {
+      alert("Có nhóm/lớp không hợp lệ. Vui lòng chọn lại.");
+      return null;
+    }
+
+    const selectedStudentIds = uniqIds(getSelectedStudentIdsFromForm());
+    if (selectedStudentIds.length === 0) {
+      alert("Vui lòng chọn ít nhất 1 học sinh trước khi lưu lịch.");
+      return null;
+    }
+
+    const classToStudentIds = new Map();
+    const classesWithoutStudents = [];
+    for (const classItem of selectedClasses) {
+      const classStudentIds = uniqIds(classItem?.studentIds || []);
+      const classStudentSet = new Set(classStudentIds.map(String));
+      const filteredIds = selectedStudentIds.filter((studentId) =>
+        classStudentSet.has(String(studentId)),
+      );
+      if (filteredIds.length === 0) {
+        classesWithoutStudents.push(
+          String(classItem?.name || classItem?.id || "Không xác định"),
+        );
+      }
+      classToStudentIds.set(String(classItem.id), filteredIds);
+    }
+
+    if (classesWithoutStudents.length > 0) {
+      alert(
+        `Những nhóm/lớp sau chưa có học sinh được chọn: ${classesWithoutStudents.join(", ")}. Vui lòng kiểm tra lại.`,
+      );
+      return null;
+    }
+
+    const baseSchedule = buildBaseScheduleForSubmission({ role, currentUser });
+    if (role === "teacher") {
+      const teacher = globalThis.db.teachers.find(
+        (item) => String(item.id) === String(currentUser?.id || ""),
+      );
+      const hasSubjectMatch = (teacher?.subjectIds || []).includes(
+        baseSchedule.subjectId,
+      );
+      if (!hasSubjectMatch) {
+        alert("Bạn chỉ được chọn môn học đúng với chuyên môn của mình.");
+        return null;
+      }
+    }
+
+    return {
+      baseSchedule,
+      teacherFields,
+      selectedClasses,
+      classToStudentIds,
+    };
+  };
+
+  const buildSchedulesToCreate = ({
+    baseSchedule,
+    teacherFields,
+    selectedClasses,
+    classToStudentIds,
+  }) => {
+    const creationSeed = Date.now();
+    return selectedClasses.map((selectedClass, classIndex) => ({
+      ...baseSchedule,
+      id: `sch_${creationSeed}_${classIndex}`,
+      teacherId: teacherFields.teacherId,
+      coTeacherIds: teacherFields.coTeacherIds,
+      classId: String(selectedClass.id),
+      classLabel: selectedClass?.name || "",
+      studentIds: classToStudentIds.get(String(selectedClass.id)) || [],
+    }));
+  };
+
+  const getConflictCandidatesByRole = ({
+    role,
+    conflicts,
+    approvedConflicts,
+    pendingConflicts,
+  }) => {
+    if (role === "admin") {
+      if (approvedConflicts.length > 0) return approvedConflicts;
+      if (pendingConflicts.length > 0) return pendingConflicts;
+      return conflicts;
+    }
+
+    if (pendingConflicts.length > 0) return pendingConflicts;
+    return conflicts;
+  };
+
+  const buildTeacherMergeRequestSchedule = ({
+    scheduleItem,
+    approvedTarget,
+    currentUser,
+  }) => {
+    const mergedTeacherIds = uniqIds([
+      ...getScheduleTeacherIds(approvedTarget),
+      ...getScheduleTeacherIds(scheduleItem),
+    ]);
+    const requestOwnerId =
+      String(currentUser?.id || "").trim() ||
+      String(mergedTeacherIds[0] || "").trim();
+    const requestTeacherFields = normalizeScheduleTeachers(
+      {
+        teacherId: requestOwnerId,
+        coTeacherIds: mergedTeacherIds.filter(
+          (teacherId) => teacherId !== requestOwnerId,
+        ),
+      },
+      requestOwnerId,
+    );
+
+    return {
+      ...scheduleItem,
+      id: buildScheduleRequestId(),
+      teacherId: requestTeacherFields.teacherId,
+      coTeacherIds: requestTeacherFields.coTeacherIds,
+      approval: {
+        ...scheduleItem.approval,
+        status: "pending",
+        requestType: "edit",
+        requestedBy: currentUser?.email || "",
+        requestedAt: Date.now(),
+        reviewedBy: "",
+        reviewedAt: null,
+        note: `Đề xuất bổ sung đồng giảng cho lịch ${approvedTarget.id}.`,
+        changeRequest: {
+          teacherId: requestTeacherFields.teacherId,
+          coTeacherIds: requestTeacherFields.coTeacherIds,
+        },
+      },
+    };
+  };
+
+  const buildMergedScheduleFromConflict = ({
+    targetConflict,
+    scheduleItem,
+    role,
+    currentUser,
+  }) => {
+    const mergedTeacherIds = uniqIds([
+      ...getScheduleTeacherIds(targetConflict),
+      ...getScheduleTeacherIds(scheduleItem),
+    ]);
+    const preferredTeacherId =
+      String(targetConflict?.teacherId || "").trim() ||
+      String(scheduleItem?.teacherId || "").trim() ||
+      String(mergedTeacherIds[0] || "").trim();
+    const mergedTeacherFields = normalizeScheduleTeachers(
+      {
+        teacherId: preferredTeacherId,
+        coTeacherIds: mergedTeacherIds.filter(
+          (id) => String(id || "") !== preferredTeacherId,
+        ),
+      },
+      preferredTeacherId,
+    );
+
+    const hasTeacherChange =
+      String(targetConflict.teacherId || "") !==
+        String(mergedTeacherFields.teacherId || "") ||
+      JSON.stringify(uniqIds(targetConflict.coTeacherIds || [])) !==
+        JSON.stringify(mergedTeacherFields.coTeacherIds);
+
+    if (!hasTeacherChange) return null;
+
+    const existingStatus = normalizeApprovalStatus(targetConflict);
+    let nextRequestType = "edit";
+    if (role === "admin") {
+      nextRequestType = null;
+    } else if (
+      existingStatus === "pending" &&
+      String(targetConflict?.approval?.requestType || "") === "create"
+    ) {
+      nextRequestType = "create";
+    }
+
+    return {
+      ...targetConflict,
+      teacherId: mergedTeacherFields.teacherId,
+      coTeacherIds: mergedTeacherFields.coTeacherIds,
+      approval:
+        role === "admin"
+          ? {
+              ...targetConflict.approval,
+              status: "approved",
+              requestType: null,
+              requestedBy:
+                targetConflict.approval?.requestedBy || currentUser?.email || "",
+              requestedAt: targetConflict.approval?.requestedAt || Date.now(),
+              reviewedBy: currentUser?.email || "",
+              reviewedAt: Date.now(),
+              note: "Admin đã hợp nhất giáo viên đồng giảng cho ca dạy.",
+              changeRequest: null,
+            }
+          : {
+              ...targetConflict.approval,
+              status: "pending",
+              requestType: nextRequestType,
+              requestedBy: currentUser?.email || "",
+              requestedAt: Date.now(),
+              reviewedBy: "",
+              reviewedAt: null,
+              note: "Giáo viên đề xuất bổ sung giáo viên đồng giảng cho ca dạy.",
+              changeRequest: null,
+            },
+    };
+  };
+
+  const processScheduleCreationItem = async ({
+    scheduleItem,
+    role,
+    currentUser,
+    btn,
+  }) => {
+    const conflicts = findScheduleConflicts(scheduleItem);
+    if (conflicts.length === 0) {
+      await globalThis.cloudSave("schedules", scheduleItem);
+      return { created: 1, merged: 0, unchanged: 0, abort: false };
+    }
+
+    const approvedConflicts = conflicts.filter(
+      (item) => normalizeApprovalStatus(item) === "approved",
+    );
+    const pendingConflicts = conflicts.filter(
+      (item) => normalizeApprovalStatus(item) === "pending",
+    );
+
+    if (
+      role === "teacher" &&
+      pendingConflicts.length === 0 &&
+      approvedConflicts.length > 0
+    ) {
+      const approvedTarget = pickConflictSchedule(approvedConflicts);
+      if (!approvedTarget) {
+        return { created: 0, merged: 0, unchanged: 1, abort: false };
+      }
+
+      const mergeRequestSchedule = buildTeacherMergeRequestSchedule({
+        scheduleItem,
+        approvedTarget,
+        currentUser,
+      });
+      if (!validateSchedulePatch(mergeRequestSchedule, scheduleItem)) {
+        resetSubmitButton(btn);
+        return { created: 0, merged: 0, unchanged: 0, abort: true };
+      }
+
+      await globalThis.cloudSave("schedules", mergeRequestSchedule);
+      return { created: 1, merged: 0, unchanged: 0, abort: false };
+    }
+
+    const targetConflict = pickConflictSchedule(
+      getConflictCandidatesByRole({
+        role,
+        conflicts,
+        approvedConflicts,
+        pendingConflicts,
+      }),
+    );
+    if (!targetConflict) {
+      return { created: 0, merged: 0, unchanged: 1, abort: false };
+    }
+
+    const mergedSchedule = buildMergedScheduleFromConflict({
+      targetConflict,
+      scheduleItem,
+      role,
+      currentUser,
+    });
+    if (!mergedSchedule) {
+      return { created: 0, merged: 0, unchanged: 1, abort: false };
+    }
+
+    if (!validateSchedulePatch(mergedSchedule, targetConflict)) {
+      resetSubmitButton(btn);
+      return { created: 0, merged: 0, unchanged: 0, abort: true };
+    }
+
+    await globalThis.cloudSave("schedules", mergedSchedule);
+    return { created: 0, merged: 1, unchanged: 0, abort: false };
+  };
+
+  const resetScheduleCreateForm = (weekValue) => {
+    document.getElementById("filterWeek").value = weekValue;
+    document.getElementById("attendanceWeek").value = weekValue;
+    const classEl = document.getElementById("sch_classId");
+    if (classEl?.multiple) {
+      Array.from(classEl.options || []).forEach((option) => {
+        option.selected = false;
+      });
+    } else if (classEl) {
+      classEl.value = "";
+    }
+
+    document.getElementById("sch_subjectId").value = "";
+    document.getElementById("sch_topic").value = "";
+    globalThis.handleClassSelection();
+    syncScheduleFormByRole();
+  };
+
+  const notifyScheduleSubmissionResult = ({
+    role,
+    createdCount,
+    mergedCount,
+    unchangedCount,
+  }) => {
+    const skippedSummary =
+      unchangedCount > 0 ? `, bỏ qua ${unchangedCount} ca trùng` : "";
+
+    if (role === "teacher") {
+      if (createdCount === 0 && mergedCount === 0) {
+        alert(
+          "Lịch trùng đã tồn tại với cùng danh sách giáo viên. Không có thay đổi mới.",
+        );
+      } else {
+        alert(
+          `Đã gửi lịch: tạo mới ${createdCount} ca, hợp nhất ${mergedCount} ca${skippedSummary}. Vui lòng chờ admin duyệt trước khi áp dụng.`,
+        );
+      }
+      return;
+    }
+
+    if (createdCount > 0 || mergedCount > 0) {
+      alert(
+        `Đã xử lý lịch: tạo mới ${createdCount} ca, hợp nhất ${mergedCount} ca${skippedSummary}.`,
+      );
+    }
   };
 
   document
@@ -1193,125 +1923,13 @@ export const registerScheduleFormsAndFilters = ({
       e.preventDefault();
       const role = getCurrentRole();
       const currentUser = getCurrentUser();
-      const teacherIds = uniqIds(getSelectedTeacherIdsFromForm());
-      if (teacherIds.length === 0) {
-        return alert("Chọn ít nhất 1 giáo viên!");
-      }
-
-      const selectedClassIds = uniqIds(getSelectedClassIdsFromForm());
-      if (selectedClassIds.length === 0) {
-        return alert("Chọn ít nhất 1 nhóm/lớp!");
-      }
-      if (role === "teacher" && selectedClassIds.length > 1) {
-        return alert("Giáo viên chỉ được tạo lịch cho 1 nhóm/lớp mỗi lần.");
-      }
-
-      const selectedClasses = selectedClassIds
-        .map((classId) => resolveClassById(classId))
-        .filter(Boolean);
-      if (selectedClasses.length !== selectedClassIds.length) {
-        return alert("Có nhóm/lớp không hợp lệ. Vui lòng chọn lại.");
-      }
-
-      const selectedStudentIds = uniqIds(getSelectedStudentIdsFromForm());
-
-      if (selectedStudentIds.length === 0) {
-        return alert("Vui lòng chọn ít nhất 1 học sinh trước khi lưu lịch.");
-      }
-
-      const classToStudentIds = new Map();
-      const classesWithoutStudents = [];
-      selectedClasses.forEach((classItem) => {
-        const classStudentIds = uniqIds(classItem?.studentIds || []);
-        const classStudentSet = new Set(classStudentIds.map(String));
-        const filteredIds = selectedStudentIds.filter((studentId) =>
-          classStudentSet.has(String(studentId)),
-        );
-        if (filteredIds.length === 0) {
-          classesWithoutStudents.push(
-            String(classItem?.name || classItem?.id || "Không xác định"),
-          );
-        }
-        classToStudentIds.set(String(classItem.id), filteredIds);
+      const submissionContext = collectScheduleSubmissionContext({
+        role,
+        currentUser,
       });
+      if (!submissionContext) return;
 
-      if (classesWithoutStudents.length > 0) {
-        return alert(
-          `Những nhóm/lớp sau chưa có học sinh được chọn: ${classesWithoutStudents.join(", ")}. Vui lòng kiểm tra lại.`,
-        );
-      }
-
-      const baseSchedule = {
-        week: document.getElementById("sch_week").value,
-        dayOfWeek: document.getElementById("sch_day").value,
-        startTime: document.getElementById("sch_start").value,
-        endTime: document.getElementById("sch_end").value,
-        location: document.getElementById("sch_location").value,
-        subjectId: document.getElementById("sch_subjectId").value,
-        topic: document.getElementById("sch_topic").value,
-        evaluations: {},
-        attendance: {
-          status: "pending",
-          markedBy: "",
-          markedAt: null,
-        },
-        createdByRole: role || "unknown",
-        createdByEmail: currentUser?.email || "",
-        createdAt: Date.now(),
-        approval:
-          role === "admin"
-            ? {
-                status: "approved",
-                requestType: null,
-                requestedBy: currentUser?.email || "",
-                requestedAt: Date.now(),
-                reviewedBy: currentUser?.email || "",
-                reviewedAt: Date.now(),
-                note: "Tạo mới bởi admin.",
-                changeRequest: null,
-              }
-            : {
-                status: "pending",
-                requestType: "create",
-                requestedBy: currentUser?.email || "",
-                requestedAt: Date.now(),
-                reviewedBy: "",
-                reviewedAt: null,
-                note: "Giáo viên gửi lịch mới chờ admin duyệt.",
-                changeRequest: null,
-              },
-      };
-
-      if (role === "teacher") {
-        const teacher = window.db.teachers.find(
-          (t) => String(t.id) === String(currentUser?.id || ""),
-        );
-        const hasSubjectMatch = (teacher?.subjectIds || []).includes(
-          baseSchedule.subjectId,
-        );
-        if (!hasSubjectMatch) {
-          return alert(
-            "Bạn chỉ được chọn môn học đúng với chuyên môn của mình.",
-          );
-        }
-      }
-
-      const creationSeed = Date.now();
-      const schedulesToCreate = [];
-      selectedClasses.forEach((selectedClass, classIndex) => {
-        const classStudentIds =
-          classToStudentIds.get(String(selectedClass.id)) || [];
-        teacherIds.forEach((teacherId, teacherIndex) => {
-          schedulesToCreate.push({
-            ...baseSchedule,
-            id: `sch_${creationSeed}_${classIndex}_${teacherIndex}`,
-            teacherId,
-            classId: String(selectedClass.id),
-            classLabel: selectedClass?.name || "",
-            studentIds: classStudentIds,
-          });
-        });
-      });
+      const schedulesToCreate = buildSchedulesToCreate(submissionContext);
 
       for (const scheduleItem of schedulesToCreate) {
         if (!validateSchedulePatch(scheduleItem, scheduleItem)) {
@@ -1320,42 +1938,34 @@ export const registerScheduleFormsAndFilters = ({
       }
 
       const btn = document.getElementById("btnSubmitSchedule");
-      btn.innerHTML =
-        '<i class="w-4 h-4 animate-spin border-2 border-white border-t-transparent rounded-full"></i> Đang lưu...';
-      btn.disabled = true;
+      setSubmitButtonLoading(btn);
+
+      let createdCount = 0;
+      let mergedCount = 0;
+      let unchangedCount = 0;
 
       for (const scheduleItem of schedulesToCreate) {
-        await window.cloudSave("schedules", scheduleItem);
-      }
-
-      document.getElementById("filterWeek").value = baseSchedule.week;
-      document.getElementById("attendanceWeek").value = baseSchedule.week;
-      const classEl = document.getElementById("sch_classId");
-      if (classEl?.multiple) {
-        Array.from(classEl.options || []).forEach((option) => {
-          option.selected = false;
+        const result = await processScheduleCreationItem({
+          scheduleItem,
+          role,
+          currentUser,
+          btn,
         });
-      } else if (classEl) {
-        classEl.value = "";
+        if (result.abort) return;
+        createdCount += result.created;
+        mergedCount += result.merged;
+        unchangedCount += result.unchanged;
       }
-      document.getElementById("sch_subjectId").value = "";
-      document.getElementById("sch_topic").value = "";
-      window.handleClassSelection();
-      syncScheduleFormByRole();
 
-      btn.innerHTML =
-        '<i data-lucide="cloud-upload" class="w-4 h-4"></i> Lưu lên Cloud';
-      btn.disabled = false;
-      lucide.createIcons();
-
-      if (role === "teacher") {
-        alert("Đã gửi lịch. Vui lòng chờ admin duyệt trước khi áp dụng.");
-      } else if (schedulesToCreate.length > 1) {
-        alert(
-          `Đã tạo ${schedulesToCreate.length} ca cùng khung giờ cho ${teacherIds.length} giáo viên và ${selectedClasses.length} nhóm/lớp.`,
-        );
-      }
-      window.switchTab("board");
+      resetScheduleCreateForm(submissionContext.baseSchedule.week);
+      resetSubmitButton(btn);
+      notifyScheduleSubmissionResult({
+        role,
+        createdCount,
+        mergedCount,
+        unchangedCount,
+      });
+      globalThis.switchTab("board");
     });
 
   document.getElementById("filterWeek").addEventListener("change", () => {
@@ -1386,7 +1996,8 @@ export const registerScheduleFormsAndFilters = ({
   const scheduleViewModeSelect = document.getElementById("scheduleViewMode");
   if (scheduleViewModeSelect) {
     try {
-      const savedMode = window.localStorage?.getItem("scheduleViewMode") || "";
+      const savedMode =
+        globalThis.localStorage?.getItem("scheduleViewMode") || "";
       if (["list", "timetable"].includes(savedMode)) {
         scheduleViewModeSelect.value = savedMode;
       }
@@ -1396,7 +2007,7 @@ export const registerScheduleFormsAndFilters = ({
 
     scheduleViewModeSelect.addEventListener("change", () => {
       try {
-        window.localStorage?.setItem(
+        globalThis.localStorage?.setItem(
           "scheduleViewMode",
           scheduleViewModeSelect.value,
         );

@@ -1,0 +1,106 @@
+﻿<!-- TAB 1: BOARD -->
+<div id="view_board" class="block h-full">
+  <div
+    class="max-w-6xl mx-auto flex flex-col h-[calc(100vh-12rem)] min-h-[500px]"
+  >
+    <div
+      class="bg-white rounded-xl shadow-sm border border-slate-200 flex-1 flex flex-col overflow-hidden"
+    >
+      <div
+        class="bg-white border-b border-slate-200 px-6 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 z-10 shadow-sm shrink-0"
+      >
+        <div>
+          <h2 class="text-lg font-bold text-slate-800" id="boardTitle">
+            Lịch giảng dạy
+          </h2>
+          <p class="text-xs text-slate-500 mt-0.5" id="boardSubtitle">
+            Dữ liệu lịch đồng bộ Cloud
+          </p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            data-role-display="inline-flex"
+            class="teacher-only hidden inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border border-cyan-200 bg-cyan-50 text-cyan-700 hover:bg-cyan-100"
+            onclick="globalThis.openTeacherAttendanceQrModal()"
+          >
+            <i data-lucide="scan-line" class="w-3.5 h-3.5"></i>
+            Quét QR chấm công
+          </button>
+          <div
+            class="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200"
+          >
+            <i data-lucide="layout-template" class="w-4 h-4 text-slate-400"></i>
+            <select
+              id="scheduleViewMode"
+              class="text-sm bg-transparent focus:outline-none font-bold text-indigo-700 cursor-pointer"
+            >
+              <option value="list">Danh sách</option>
+              <option value="timetable">TKB tuần</option>
+            </select>
+          </div>
+          <div
+            class="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200"
+          >
+            <i data-lucide="filter" class="w-4 h-4 text-slate-400"></i>
+            <input
+              type="week"
+              id="filterWeek"
+              class="text-sm bg-transparent focus:outline-none font-bold text-indigo-700 cursor-pointer"
+            />
+          </div>
+          <div
+            class="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200"
+          >
+            <i data-lucide="search" class="w-4 h-4 text-slate-400"></i>
+            <input
+              type="text"
+              id="boardScheduleSearchInput"
+              data-config-placeholder="ui.placeholders.scheduleSearch"
+              placeholder="Tìm lịch theo lớp, giáo viên, môn học..."
+              class="text-sm bg-transparent focus:outline-none text-slate-700 w-52"
+            />
+          </div>
+        </div>
+      </div>
+      <div
+        id="teacherAttendanceQuickSummary"
+        data-role-display="block"
+        class="teacher-only hidden border-b border-cyan-200 bg-cyan-50/70 px-4 lg:px-6 py-2.5 text-xs text-cyan-800"
+      ></div>
+      <div
+        id="scheduleApprovalPanel"
+        class="hidden border-b border-amber-200 bg-amber-50/70 px-4 lg:px-6 py-3"
+      >
+        <div
+          class="flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+        >
+          <div>
+            <h3 class="text-sm font-bold text-amber-900">Chờ duyệt lịch dạy</h3>
+            <p
+              class="text-[11px] text-amber-800/80"
+              id="scheduleApprovalSummary"
+            >
+              Theo tuần đang chọn.
+            </p>
+          </div>
+          <span
+            id="scheduleApprovalBadge"
+            class="text-[11px] font-bold px-2 py-1 rounded border border-amber-300 bg-white text-amber-800 self-start sm:self-auto"
+            >0</span
+          >
+        </div>
+        <div
+          id="scheduleApprovalList"
+          class="mt-2 space-y-2 max-h-48 overflow-y-auto custom-scrollbar"
+        ></div>
+      </div>
+      <div
+        class="flex-1 overflow-y-auto custom-scrollbar p-4 lg:p-6 bg-slate-50/50"
+        id="scheduleContainer"
+      >
+        <!-- JS render -->
+      </div>
+    </div>
+  </div>
+</div>

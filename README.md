@@ -2,7 +2,9 @@
 
 Ứng dụng web quản lý vận hành trung tâm học tập: quản lý môn học, giáo viên, học sinh, lớp học, xếp lịch dạy, chấm công, đánh giá và xuất báo cáo Excel.
 
-Phiên bản hiện tại: v1.10.0
+Phiên bản hiện tại: v1.11.3
+
+Lich su thay doi theo version: xem file CHANGELOG.md
 
 ## 1. Tính năng chính
 
@@ -32,11 +34,14 @@ Phiên bản hiện tại: v1.10.0
 ```text
 EduTopS/
   index.html
+  package.json
+  vite.config.ts
+  tsconfig.json
   assets/
     css/
       app.css
     js/
-      app.js
+      app.js                # legacy runtime (transitional)
       modules/
         auth.js
         teacher-management.js
@@ -47,38 +52,77 @@ EduTopS/
         subject-management.js
         reporting.js
         security-utils.js
+  public/
+    partials/              # static partials for runtime fetch in production
   src/
-    partials/
-      layout/
-      views/
-      overlays/
-      modals/
+    app/
+      main.ts              # TypeScript entrypoint
+    shared/
+      types/
+    entities/
+      schedule/
+        model/
+    features/
+      schedule-merge/
+      teacher-guards/
+  .github/
+    workflows/
+      deploy-gh-pages.yml
+  docs/
+    ARCHITECTURE_FSD.md
 ```
 
 ## 3. Công nghệ sử dụng
 
-- Frontend: HTML + JS module
+- Frontend: Vite + TypeScript (strict) + JS migration theo giai đoạn
 - UI: Tailwind CDN + Lucide CDN
 - Backend as a service: Firebase Auth + Firestore
 - Export file: SheetJS (XLSX)
+- Test: Vitest (unit test cho pure business modules)
 
 ## 4. Cách chạy dự án
 
-Luu y: khong mo truc tiep bang `file://`. Du an dung `fetch` de nap partial HTML.
+Luu y: khong mo truc tiep bang `file://`. Du an dung runtime `fetch` de nap partial HTML.
+
+### Cach khuyen nghi (Vite + TypeScript)
+
+```bash
+npm install
+npm run dev
+```
+
+Build production:
+
+```bash
+npm run build
+```
+
+Preview ban build:
+
+```bash
+npm run preview
+```
+
+Kiem tra type va test:
+
+```bash
+npm run typecheck
+npm run test
+```
 
 ### Cach 1: VS Code Live Server
 
-1. Mo folder du an trong VS Code.
-2. Cai extension Live Server (neu chua co).
-3. Right click `index.html` -> Open with Live Server.
+Khong con khuyen nghi cho nhanh migration TypeScript, vi entrypoint la TS qua Vite.
 
 ### Cach 2: Python HTTP server
 
-```bash
-python -m http.server 5500
-```
+Khong khuyen nghi o che do phat trien TypeScript.
 
-Truy cap: `http://127.0.0.1:5500`
+## 4.1 Deploy GitHub Pages
+
+- Workflow: `.github/workflows/deploy-gh-pages.yml`
+- Trigger: push len nhanh `main`
+- Pipeline: `npm ci` -> `npm run typecheck` -> `npm run build` -> deploy `dist/`
 
 ## 5. Cau hinh Firebase
 
@@ -137,6 +181,10 @@ Luu y quan trong: phan quyen phia client chi la lop bo sung. Can cau hinh Firest
 ## 10. Quy trinh commit
 
 Xem huong dan chi tiet tai: `docs/COMMIT_GUIDE.md`
+
+## 10.1 Kien truc FSD + Clean Boundaries
+
+Xem tai lieu chi tiet: `docs/ARCHITECTURE_FSD.md`
 
 ## 11. Cham cong QR co dinh va duyet admin
 

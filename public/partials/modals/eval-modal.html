@@ -1,0 +1,50 @@
+﻿<!-- Modal Đánh giá Học sinh -->
+    <div
+      id="evalModal"
+      class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-50"
+    >
+      <div
+        class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full mx-4 overflow-hidden flex flex-col max-h-[85vh] transform scale-95 transition-all"
+      >
+        <div class="bg-slate-800 px-6 py-4 flex items-center justify-between">
+          <div>
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+              <i
+                data-lucide="clipboard-check"
+                class="w-5 h-5 text-emerald-400"
+              ></i>
+              Đánh giá buổi học
+            </h3>
+            <p id="evalModalSubtitle" class="text-slate-300 text-xs mt-1">
+              Loading...
+            </p>
+          </div>
+          <button
+            onclick="window.closeEvalModal()"
+            class="text-slate-400 hover:text-white transition-colors"
+          >
+            <i data-lucide="x" class="w-6 h-6"></i>
+          </button>
+        </div>
+        <div
+          class="flex-1 overflow-y-auto p-6 bg-slate-50 custom-scrollbar"
+          id="evalStudentsContainer"
+        ></div>
+        <div
+          class="p-4 border-t border-slate-200 bg-white flex justify-end gap-3"
+        >
+          <button
+            onclick="window.closeEvalModal()"
+            class="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg text-sm transition-colors"
+          >
+            Hủy
+          </button>
+          <button
+            id="saveEvalBtn"
+            class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg text-sm transition-colors shadow-sm flex items-center gap-2"
+          >
+            <i data-lucide="cloud-upload" class="w-4 h-4"></i> Lưu Cloud
+          </button>
+        </div>
+      </div>
+    </div>
