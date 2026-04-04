@@ -1976,7 +1976,7 @@ export const registerScheduleFormsAndFilters = ({
       globalThis.switchTab("board");
     });
 
-  document.getElementById("filterWeek").addEventListener("change", () => {
+  const handleBoardWeekChange = () => {
     const attendanceWeekInput = document.getElementById("attendanceWeek");
     if (attendanceWeekInput) {
       attendanceWeekInput.value = document.getElementById("filterWeek").value;
@@ -1984,7 +1984,11 @@ export const registerScheduleFormsAndFilters = ({
     renderSchedules();
     renderMasterOverview();
     renderAttendance();
-  });
+  };
+
+  const filterWeekInput = document.getElementById("filterWeek");
+  filterWeekInput?.addEventListener("change", handleBoardWeekChange);
+  filterWeekInput?.addEventListener("input", handleBoardWeekChange);
 
   document.getElementById("attendanceWeek")?.addEventListener("change", () => {
     const week = document.getElementById("attendanceWeek")?.value || "";

@@ -1,8 +1,5 @@
 ﻿import { normalizeScheduleApprovalStatus } from "@/entities/schedule/model/approval";
-import {
-  getScheduleTeacherIds,
-  isTeacherAssignedToSchedule,
-} from "@/entities/schedule/model/teacher-assignment";
+import { isTeacherAssignedToSchedule } from "@/entities/schedule/model/teacher-assignment";
 
 const FIXED_ATTENDANCE_QR_TOKEN = "EDUTOPS_FIXED_ATTENDANCE_QR_V1";
 const QR_SCANNER_LIB_URLS = [

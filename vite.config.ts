@@ -3,7 +3,7 @@ import path from "node:path";
 
 const getBasePath = () => {
   const fromEnv = process.env.VITE_BASE_PATH;
-  if (fromEnv && fromEnv.trim()) {
+  if (fromEnv?.trim()) {
     return fromEnv.endsWith("/") ? fromEnv : `${fromEnv}/`;
   }
 

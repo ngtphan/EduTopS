@@ -19,6 +19,20 @@ Quy uoc version: Semantic Versioning (MAJOR.MINOR.PATCH)
 
 - Chua co.
 
+## [v1.11.5] - 2026-04-04
+
+### Changed
+
+- Cung co xu ly thao tac lich o Board bang delegated action handler (`data-schedule-action`) de tranh mat su kien sau cac lan rerender dong.
+- Tach logic kiem tra quyen ghi lich cua giao vien trong `app.js` thanh cac helper nho, giu nguyen hanh vi nhung giam do phuc tap va rui ro bao tri.
+- Cap nhat tuong thich cau hinh TypeScript bang alias `@/* -> ./src/*` va xu ly deprecation phu hop voi phien ban hien tai.
+
+### Fixed
+
+- Sua loi chon tuan/loc lich o man hinh chinh khong phan hoi on dinh bang cach lang nghe ca `change` va `input` cho `filterWeek`.
+- Loai bo nguy co bo sot listener hanh dong lich khi container duoc mount tre bang co che bind idempotent theo tung phan tu trong `render-core`.
+- Ngan conflict key nhan token rac tu object bang normalize token an toan trong `conflict-key.ts`.
+
 ## [v1.11.4] - 2026-04-04
 
 ### Changed

@@ -10,10 +10,16 @@ const CONFLICT_KEY_FIELDS = [
   "location",
 ] as const;
 
-const normalizeConflictToken = (value: unknown): string =>
-  String(value || "")
-    .trim()
-    .toLowerCase();
+const normalizeConflictToken = (value: unknown): string => {
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return String(value).trim().toLowerCase();
+  }
+  return "";
+};
 
 const toConflictTokens = (
   schedule: ScheduleRecord | null | undefined,

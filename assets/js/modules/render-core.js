@@ -168,6 +168,94 @@ export const registerRenderCore = ({
     });
   };
 
+  const boardActionDelegationRoots = new WeakSet();
+
+  const invokeGlobalAction = (actionName, ...args) => {
+    const actionFn = globalThis?.[actionName];
+    if (typeof actionFn === "function") {
+      return actionFn(...args);
+    }
+    console.warn(`Không tìm thấy action global: ${actionName}`);
+    return undefined;
+  };
+
+  const boardScheduleActionExecutors = {
+    "open-detail": (scheduleId) => {
+      if (scheduleId) {
+        invokeGlobalAction("openTimetableScheduleDetail", scheduleId);
+      }
+    },
+    "open-eval": (scheduleId) => {
+      if (scheduleId) {
+        invokeGlobalAction("openEvalModal", scheduleId);
+      }
+    },
+    "open-editor": (scheduleId) => {
+      if (scheduleId) {
+        invokeGlobalAction("openScheduleEditor", scheduleId);
+      }
+    },
+    "delete-schedule": (scheduleId) => {
+      if (scheduleId) {
+        invokeGlobalAction("deleteData", "schedules", scheduleId);
+      }
+    },
+    "add-student": (scheduleId) => {
+      if (scheduleId) {
+        invokeGlobalAction("addStudentToScheduleClass", scheduleId);
+      }
+    },
+    "review-approve": (scheduleId) => {
+      if (scheduleId) {
+        invokeGlobalAction("reviewScheduleRequest", scheduleId, "approve");
+      }
+    },
+    "review-reject": (scheduleId) => {
+      if (scheduleId) {
+        invokeGlobalAction("reviewScheduleRequest", scheduleId, "reject");
+      }
+    },
+  };
+
+  const runBoardScheduleAction = (action, scheduleId) => {
+    const executor = boardScheduleActionExecutors[action];
+    if (!executor) return;
+    executor(scheduleId);
+  };
+
+  const handleBoardActionClick = (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+
+    const actionEl = target.closest("[data-schedule-action]");
+    if (!actionEl) return;
+
+    const action = String(actionEl.dataset.scheduleAction || "").trim();
+    const scheduleId = String(actionEl.dataset.scheduleId || "").trim();
+    if (!action) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    runBoardScheduleAction(action, scheduleId);
+  };
+
+  const bindBoardActionDelegation = (element) => {
+    if (!element || boardActionDelegationRoots.has(element)) return;
+    element.addEventListener("click", handleBoardActionClick);
+    boardActionDelegationRoots.add(element);
+  };
+
+  const ensureBoardActionDelegation = () => {
+    const scheduleContainer = document.getElementById("scheduleContainer");
+    const scheduleApprovalList = document.getElementById(
+      "scheduleApprovalList",
+    );
+
+    bindBoardActionDelegation(scheduleContainer);
+    bindBoardActionDelegation(scheduleApprovalList);
+  };
+
   const getScheduleApprovalStatus = (schedule) =>
     normalizeScheduleApprovalStatus(schedule);
 
@@ -854,8 +942,15 @@ export const registerRenderCore = ({
       )
       .join(" ");
     const hiddenCount = Math.max(uniqueStudentIds.length - 20, 0);
+    const studentChipsHtml =
+      studentChips ||
+      '<span class="text-[11px] italic text-slate-500">Chưa có học sinh.</span>';
+    const hiddenCountText =
+      hiddenCount > 0
+        ? `<div class="text-[11px] text-slate-500">... và ${safeText(String(hiddenCount))} học sinh khác</div>`
+        : "";
 
-    hintDiv.innerHTML = `<div class="space-y-1"><div><span class="font-bold text-indigo-800">Nhóm lớp đã chọn:</span> ${safeText(String((selectedClasses || []).length))}</div><div class="flex flex-wrap gap-1">${classChips}</div><div><span class="font-bold text-indigo-800">Tổng sĩ số hợp nhất:</span> ${safeText(String(uniqueStudentIds.length))} HS</div><div class="flex flex-wrap gap-1">${studentChips || '<span class="text-[11px] italic text-slate-500">Chưa có học sinh.</span>'}</div>${hiddenCount > 0 ? `<div class="text-[11px] text-slate-500">... và ${safeText(String(hiddenCount))} học sinh khác</div>` : ""}</div>`;
+    hintDiv.innerHTML = `<div class="space-y-1"><div><span class="font-bold text-indigo-800">Nhóm lớp đã chọn:</span> ${safeText(String((selectedClasses || []).length))}</div><div class="flex flex-wrap gap-1">${classChips}</div><div><span class="font-bold text-indigo-800">Tổng sĩ số hợp nhất:</span> ${safeText(String(uniqueStudentIds.length))} HS</div><div class="flex flex-wrap gap-1">${studentChipsHtml}</div>${hiddenCountText}</div>`;
     hintDiv.classList.remove("hidden");
   };
 
@@ -1204,22 +1299,22 @@ export const registerRenderCore = ({
       colorStyles[safeColorKey(subInfo.color)] ||
       "bg-slate-100 text-slate-800 border-slate-200";
     const editBtn = canEditSchedule
-      ? `<button onclick="event.stopPropagation(); globalThis.openScheduleEditor('${safeAttr(schedule.id)}')" class="text-slate-400 hover:text-indigo-600"><i data-lucide="pencil-line" class="w-3.5 h-3.5"></i></button>`
+      ? `<button type="button" data-schedule-action="open-editor" data-schedule-id="${safeAttr(schedule.id)}" class="text-slate-400 hover:text-indigo-600"><i data-lucide="pencil-line" class="w-3.5 h-3.5"></i></button>`
       : "";
     const deleteBtn =
       currentRole === "admin"
-        ? `<button onclick="event.stopPropagation(); globalThis.deleteData('schedules', '${safeAttr(schedule.id)}')" class="text-slate-400 hover:text-rose-600"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>`
+        ? `<button type="button" data-schedule-action="delete-schedule" data-schedule-id="${safeAttr(schedule.id)}" class="text-slate-400 hover:text-rose-600"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>`
         : "";
 
     return `
-      <div onclick="globalThis.openTimetableScheduleDetail('${safeAttr(schedule.id)}')" class="rounded-lg border border-slate-200 bg-white p-2.5 mb-1.5 last:mb-0 cursor-pointer hover:border-indigo-300 hover:shadow-sm transition-all" title="Bấm để xem chi tiết ca dạy">
+      <div data-schedule-action="open-detail" data-schedule-id="${safeAttr(schedule.id)}" class="rounded-lg border border-slate-200 bg-white p-2.5 mb-1.5 last:mb-0 cursor-pointer hover:border-indigo-300 hover:shadow-sm transition-all" title="Bấm để xem chi tiết ca dạy">
         <div class="flex items-start justify-between gap-1.5">
           <div class="min-w-0">
             <div class="text-[11px] font-bold text-slate-800 truncate">${safeText(classLabel)}</div>
             <div class="text-[10px] text-slate-500 truncate">${safeText(teacherLabel)}</div>
           </div>
           <div class="flex items-center gap-1 shrink-0">
-            <button onclick="event.stopPropagation(); globalThis.openEvalModal('${safeAttr(schedule.id)}')" ${canOpenEvaluation ? "" : "disabled"} class="text-slate-400 hover:text-emerald-600 ${canOpenEvaluation ? "" : "opacity-40 cursor-not-allowed"}"><i data-lucide="clipboard-check" class="w-3.5 h-3.5"></i></button>
+            <button type="button" data-schedule-action="open-eval" data-schedule-id="${safeAttr(schedule.id)}" ${canOpenEvaluation ? "" : "disabled"} class="text-slate-400 hover:text-emerald-600 ${canOpenEvaluation ? "" : "opacity-40 cursor-not-allowed"}"><i data-lucide="clipboard-check" class="w-3.5 h-3.5"></i></button>
             ${editBtn}
             ${deleteBtn}
           </div>
@@ -1316,9 +1411,9 @@ export const registerRenderCore = ({
               <div class="text-[10px] mt-1 text-amber-700 font-bold">${safeText(typeText)} • ${safeText(sch.approval?.requestedBy || "N/A")}</div>
             </div>
             <div class="flex items-center gap-1.5 shrink-0">
-              <button onclick="globalThis.openScheduleEditor('${safeAttr(sch.id)}')" class="text-[11px] font-bold px-2 py-1 rounded border border-slate-200 text-slate-700 bg-slate-50 hover:bg-slate-100">Sửa</button>
-              <button onclick="globalThis.reviewScheduleRequest('${safeAttr(sch.id)}', 'reject')" class="text-[11px] font-bold px-2 py-1 rounded border border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100">Từ chối</button>
-              <button onclick="globalThis.reviewScheduleRequest('${safeAttr(sch.id)}', 'approve')" class="text-[11px] font-bold px-2 py-1 rounded border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100">Duyệt</button>
+              <button type="button" data-schedule-action="open-editor" data-schedule-id="${safeAttr(sch.id)}" class="text-[11px] font-bold px-2 py-1 rounded border border-slate-200 text-slate-700 bg-slate-50 hover:bg-slate-100">Sửa</button>
+              <button type="button" data-schedule-action="review-reject" data-schedule-id="${safeAttr(sch.id)}" class="text-[11px] font-bold px-2 py-1 rounded border border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100">Từ chối</button>
+              <button type="button" data-schedule-action="review-approve" data-schedule-id="${safeAttr(sch.id)}" class="text-[11px] font-bold px-2 py-1 rounded border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100">Duyệt</button>
             </div>
           </div>`;
       })
@@ -1540,15 +1635,15 @@ export const registerRenderCore = ({
         );
         const deleteBtnHtml =
           currentRole === "admin"
-            ? `<button onclick="globalThis.deleteData('schedules', '${safeAttr(sch.id)}')" class="p-2 w-full sm:w-auto flex justify-center items-center text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`
+            ? `<button type="button" data-schedule-action="delete-schedule" data-schedule-id="${safeAttr(sch.id)}" class="p-2 w-full sm:w-auto flex justify-center items-center text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`
             : "";
 
         const editBtnHtml = canEditSchedule
-          ? `<button onclick="globalThis.openScheduleEditor('${safeAttr(sch.id)}')" class="p-2 w-full sm:w-auto flex justify-center items-center text-slate-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"><i data-lucide="pencil-line" class="w-4 h-4"></i></button>`
+          ? `<button type="button" data-schedule-action="open-editor" data-schedule-id="${safeAttr(sch.id)}" class="p-2 w-full sm:w-auto flex justify-center items-center text-slate-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"><i data-lucide="pencil-line" class="w-4 h-4"></i></button>`
           : "";
 
         const addStudentBtnHtml = canEditSchedule
-          ? `<button onclick="globalThis.addStudentToScheduleClass('${safeAttr(sch.id)}')" class="p-2 w-full sm:w-auto flex justify-center items-center text-slate-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors" title="Thêm học sinh vào lớp"><i data-lucide="user-plus" class="w-4 h-4"></i></button>`
+          ? `<button type="button" data-schedule-action="add-student" data-schedule-id="${safeAttr(sch.id)}" class="p-2 w-full sm:w-auto flex justify-center items-center text-slate-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors" title="Thêm học sinh vào lớp"><i data-lucide="user-plus" class="w-4 h-4"></i></button>`
           : "";
 
         const approvalNote = sch.approval?.note
@@ -1569,7 +1664,7 @@ export const registerRenderCore = ({
                                 <div class="flex flex-wrap gap-1 mt-auto">${badges}</div>
                             </div>
                             <div class="flex sm:flex-col justify-end gap-2 shrink-0 border-t sm:border-t-0 sm:border-l border-slate-100 pt-3 sm:pt-0 sm:pl-3">
-                                <button onclick="globalThis.openEvalModal('${safeAttr(sch.id)}')" ${canOpenEvaluation ? "" : "disabled"} class="p-2 w-full sm:w-auto flex justify-center items-center ${isDone ? "text-emerald-600 bg-emerald-50 border-emerald-100" : "text-slate-600 bg-slate-50 border-slate-200"} ${canOpenEvaluation ? "" : "opacity-50 cursor-not-allowed"} rounded-lg transition-colors group/btn" title="${canOpenEvaluation ? "Đánh giá học sinh" : "Lịch chưa duyệt, chưa thể đánh giá"}"><i data-lucide="${isDone ? "clipboard-check" : "clipboard-pen"}" class="w-4 h-4 group-hover/btn:scale-110 transition-transform"></i></button>
+                              <button type="button" data-schedule-action="open-eval" data-schedule-id="${safeAttr(sch.id)}" ${canOpenEvaluation ? "" : "disabled"} class="p-2 w-full sm:w-auto flex justify-center items-center ${isDone ? "text-emerald-600 bg-emerald-50 border-emerald-100" : "text-slate-600 bg-slate-50 border-slate-200"} ${canOpenEvaluation ? "" : "opacity-50 cursor-not-allowed"} rounded-lg transition-colors group/btn" title="${canOpenEvaluation ? "Đánh giá học sinh" : "Lịch chưa duyệt, chưa thể đánh giá"}"><i data-lucide="${isDone ? "clipboard-check" : "clipboard-pen"}" class="w-4 h-4 group-hover/btn:scale-110 transition-transform"></i></button>
                                 ${addStudentBtnHtml}
                                 ${editBtnHtml}
                                 ${deleteBtnHtml}
@@ -2182,6 +2277,7 @@ export const registerRenderCore = ({
   };
 
   const applyRBAC = () => {
+    ensureBoardActionDelegation();
     const currentRole = getCurrentRole();
     const currentUser = getCurrentUser();
     toggleRoleElements(".admin-only", currentRole === "admin", "flex");

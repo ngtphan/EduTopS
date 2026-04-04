@@ -1340,70 +1340,77 @@ const canTeacherWriteAttendanceRequest = (payload) => {
   return true;
 };
 
-const canWriteTable = (table, payload) => {
-  if (currentRole === "admin") return true;
-  if (currentRole !== "teacher") return false;
-  if (table === "attendanceRequests") {
-    return canTeacherWriteAttendanceRequest(payload);
-  }
-  if (table !== "schedules") return false;
-
-  const currentTeacherId = String(currentUser?.id || "");
-  const isOwner = getScheduleTeacherIds(payload).includes(currentTeacherId);
-  if (!isOwner) return false;
-
-  const existingSchedule = globalThis.db.schedules.find(
-    (s) => s.id === payload?.id,
+const hasMatchingFields = (payload, source, fields) =>
+  fields.every(
+    (field) =>
+      JSON.stringify(payload?.[field]) === JSON.stringify(source?.[field]),
   );
-  if (!existingSchedule) {
-    // Giáo viên tạo mới phải đi qua luồng chờ duyệt.
-    return (
-      payload?.approval?.status === "pending" &&
-      String(payload?.teacherId || "") === currentTeacherId
-    );
+
+const PENDING_PROTECTED_SCHEDULE_FIELDS = [
+  "week",
+  "dayOfWeek",
+  "startTime",
+  "endTime",
+  "location",
+  "classId",
+  "classLabel",
+  "studentIds",
+  "subjectId",
+  "topic",
+  "attendance",
+  "evaluations",
+];
+
+const APPROVED_PROTECTED_SCHEDULE_FIELDS = [
+  "week",
+  "dayOfWeek",
+  "startTime",
+  "endTime",
+  "location",
+  "classId",
+  "classLabel",
+  "studentIds",
+  "subjectId",
+  "teacherId",
+  "coTeacherIds",
+  "topic",
+];
+
+const canTeacherCreatePendingSchedule = (payload, currentTeacherId) =>
+  payload?.approval?.status === "pending" &&
+  String(payload?.teacherId || "") === currentTeacherId;
+
+const canTeacherUpdatePendingSchedule = (
+  payload,
+  existingSchedule,
+  currentTeacherId,
+) => {
+  if (
+    !hasMatchingFields(
+      payload,
+      existingSchedule,
+      PENDING_PROTECTED_SCHEDULE_FIELDS,
+    )
+  ) {
+    return false;
   }
 
-  const nextApprovalStatus = getScheduleApprovalStatus(payload);
-  if (nextApprovalStatus === "pending") {
-    const protectedPendingFields = [
-      "week",
-      "dayOfWeek",
-      "startTime",
-      "endTime",
-      "location",
-      "classId",
-      "classLabel",
-      "studentIds",
-      "subjectId",
-      "topic",
-      "attendance",
-      "evaluations",
-    ];
+  const existingTeacherIds = getScheduleTeacherIds(existingSchedule);
+  const payloadTeacherIds = getScheduleTeacherIds(payload);
+  const hasRemovedTeacher = existingTeacherIds.some(
+    (teacherId) => !payloadTeacherIds.includes(teacherId),
+  );
+  if (hasRemovedTeacher) return false;
 
-    const isCoreUnchanged = protectedPendingFields.every(
-      (field) =>
-        JSON.stringify(payload?.[field]) ===
-        JSON.stringify(existingSchedule?.[field]),
-    );
-    if (!isCoreUnchanged) return false;
+  const wasAssignedBefore = existingTeacherIds.includes(currentTeacherId);
+  return wasAssignedBefore || payloadTeacherIds.includes(currentTeacherId);
+};
 
-    const existingTeacherIds = getScheduleTeacherIds(existingSchedule);
-    const payloadTeacherIds = getScheduleTeacherIds(payload);
-
-    const removedTeacherIds = existingTeacherIds.filter(
-      (teacherId) => !payloadTeacherIds.includes(teacherId),
-    );
-    if (removedTeacherIds.length > 0) return false;
-
-    const wasAssignedBefore = existingTeacherIds.includes(currentTeacherId);
-    if (!wasAssignedBefore && !payloadTeacherIds.includes(currentTeacherId)) {
-      return false;
-    }
-
-    return true;
-  }
-
-  // Lịch đã duyệt: giáo viên chỉ được cập nhật đánh giá (không sửa thông tin vận hành).
+const canTeacherUpdateApprovedSchedule = (
+  payload,
+  existingSchedule,
+  nextApprovalStatus,
+) => {
   if (
     getScheduleApprovalStatus(existingSchedule) !== "approved" ||
     nextApprovalStatus !== "approved"
@@ -1413,37 +1420,61 @@ const canWriteTable = (table, payload) => {
 
   const existingApproval = existingSchedule?.approval || {};
   const payloadApproval = payload?.approval || {};
-  if (
-    String(existingApproval.requestType || "") !==
-      String(payloadApproval.requestType || "") ||
-    String(existingApproval.reviewedBy || "") !==
-      String(payloadApproval.reviewedBy || "") ||
-    Number(existingApproval.reviewedAt || 0) !==
-      Number(payloadApproval.reviewedAt || 0)
-  ) {
-    return false;
+  const isReviewMetaUnchanged =
+    String(existingApproval.requestType || "") ===
+      String(payloadApproval.requestType || "") &&
+    String(existingApproval.reviewedBy || "") ===
+      String(payloadApproval.reviewedBy || "") &&
+    Number(existingApproval.reviewedAt || 0) ===
+      Number(payloadApproval.reviewedAt || 0);
+
+  if (!isReviewMetaUnchanged) return false;
+
+  return hasMatchingFields(
+    payload,
+    existingSchedule,
+    APPROVED_PROTECTED_SCHEDULE_FIELDS,
+  );
+};
+
+const canTeacherWriteSchedule = (payload, currentTeacherId) => {
+  const isOwner = getScheduleTeacherIds(payload).includes(currentTeacherId);
+  if (!isOwner) return false;
+
+  const existingSchedule = globalThis.db.schedules.find(
+    (s) => s.id === payload?.id,
+  );
+
+  if (!existingSchedule) {
+    return canTeacherCreatePendingSchedule(payload, currentTeacherId);
   }
 
-  const protectedFields = [
-    "week",
-    "dayOfWeek",
-    "startTime",
-    "endTime",
-    "location",
-    "classId",
-    "classLabel",
-    "studentIds",
-    "subjectId",
-    "teacherId",
-    "coTeacherIds",
-    "topic",
-  ];
+  const nextApprovalStatus = getScheduleApprovalStatus(payload);
+  if (nextApprovalStatus === "pending") {
+    return canTeacherUpdatePendingSchedule(
+      payload,
+      existingSchedule,
+      currentTeacherId,
+    );
+  }
 
-  return protectedFields.every(
-    (field) =>
-      JSON.stringify(payload?.[field]) ===
-      JSON.stringify(existingSchedule?.[field]),
+  return canTeacherUpdateApprovedSchedule(
+    payload,
+    existingSchedule,
+    nextApprovalStatus,
   );
+};
+
+const canWriteTable = (table, payload) => {
+  if (currentRole === "admin") return true;
+  if (currentRole !== "teacher") return false;
+  if (table === "attendanceRequests") {
+    return canTeacherWriteAttendanceRequest(payload);
+  }
+  if (table !== "schedules") return false;
+
+  const currentTeacherId = String(currentUser?.id || "");
+  return canTeacherWriteSchedule(payload, currentTeacherId);
 };
 
 globalThis.cloudSave = async (table, data) => {
