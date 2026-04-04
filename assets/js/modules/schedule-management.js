@@ -874,7 +874,11 @@ export const registerScheduleActions = ({ getCurrentRole, getCurrentUser }) => {
     await globalThis.cloudSave("schedules", updated);
   };
 
-  const saveTeacherScheduleEditRequest = async ({ schedule, nextPatch, user }) => {
+  const saveTeacherScheduleEditRequest = async ({
+    schedule,
+    nextPatch,
+    user,
+  }) => {
     const updated = {
       ...schedule,
       approval: {
@@ -1130,7 +1134,9 @@ export const registerScheduleActions = ({ getCurrentRole, getCurrentUser }) => {
       const normalized = normalizeScheduleTeachers(
         {
           teacherId: preferredTeacherId,
-          coTeacherIds: mergedTeacherIds.filter((id) => id !== preferredTeacherId),
+          coTeacherIds: mergedTeacherIds.filter(
+            (id) => id !== preferredTeacherId,
+          ),
         },
         preferredTeacherId,
       );
@@ -1775,7 +1781,9 @@ export const registerScheduleFormsAndFilters = ({
               status: "approved",
               requestType: null,
               requestedBy:
-                targetConflict.approval?.requestedBy || currentUser?.email || "",
+                targetConflict.approval?.requestedBy ||
+                currentUser?.email ||
+                "",
               requestedAt: targetConflict.approval?.requestedAt || Date.now(),
               reviewedBy: currentUser?.email || "",
               reviewedAt: Date.now(),

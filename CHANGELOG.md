@@ -19,6 +19,16 @@ Quy uoc version: Semantic Versioning (MAJOR.MINOR.PATCH)
 
 - Chua co.
 
+## [v1.11.4] - 2026-04-04
+
+### Changed
+
+- Dong bo format `schedule-management` de code de doc hon va on dinh style trong qua trinh refactor tiep.
+
+### Fixed
+
+- Dong bo lai EOF cho `package.json` va `package-lock.json` de tranh phat sinh noise diff giua cac moi truong.
+
 ## [v1.11.3] - 2026-04-04
 
 ### Changed
