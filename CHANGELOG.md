@@ -19,6 +19,17 @@ Quy uoc version: Semantic Versioning (MAJOR.MINOR.PATCH)
 
 - Chua co.
 
+## [v1.11.6] - 2026-04-04
+
+### Changed
+
+- Cap nhat workflow GitHub Pages sang `actions/upload-pages-artifact@v4`, khai bao ro `name: github-pages` va tang `retention-days` de giam nguy co mat artifact khi deploy tre.
+- Bo sung `permissions` ro rang cho job `deploy` de dam bao tuong thich voi yeu cau hien tai cua `actions/deploy-pages@v4`.
+
+### Fixed
+
+- Sua nguyen nhan deploy loi `No artifacts named "github-pages" were found` trong luong phat hanh Pages.
+
 ## [v1.11.5] - 2026-04-04
 
 ### Changed
