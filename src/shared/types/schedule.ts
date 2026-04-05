@@ -1,8 +1,8 @@
 export type ScheduleApprovalStatus = "pending" | "approved" | "rejected";
 
 export interface ScheduleApproval {
-  status?: ScheduleApprovalStatus | string | null;
-  requestType?: "create" | "edit" | null | string;
+  status?: string | null;
+  requestType?: string | null;
   requestedBy?: string;
   requestedAt?: number | null;
   reviewedBy?: string;
@@ -19,9 +19,14 @@ export interface ScheduleRecord {
   endTime?: string;
   location?: string;
   classId?: string;
+  classLabel?: string;
+  studentIds?: string[];
   subjectId?: string;
   teacherId?: string;
   coTeacherIds?: string[];
+  topic?: string;
+  attendance?: Record<string, unknown> | null;
+  evaluations?: Record<string, unknown> | null;
   approval?: ScheduleApproval;
   createdAt?: number;
 }
