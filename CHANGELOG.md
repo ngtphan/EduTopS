@@ -19,6 +19,310 @@ Quy uoc version: Semantic Versioning (MAJOR.MINOR.PATCH)
 
 - Chua co.
 
+## [v1.15.6] - 2026-04-05
+
+### Added
+
+- Bo sung khoa viewport theo co che dem modal dang mo (nested-safe), dam bao khong leak scroll lock khi dong/mo nhanh va khi co nhieu modal long nhau.
+
+### Changed
+
+- Tang cuong `DialogModalService` voi fallback ESC cho duong khong native `<dialog>`, dong bo hanh vi huy modal voi luong native.
+- Tang version metadata va version hien thi len `v1.15.6`.
+
+### Fixed
+
+- Sua race async trong `appFormModal`: ket qua submit cua session cu khong con the resolve/close nham session moi khi reopen nhanh.
+- Giam rui ro roi trang thai nut submit/cancel/close khi co submit dang cho va nguoi dung mo lai modal lien tiep.
+
+## [v1.15.5] - 2026-04-05
+
+### Added
+
+- Bo sung service dung chung `DialogModalService` de chuan hoa lifecycle modal cho ca `appDialog` va `appFormModal` (open/close/dismiss/focus/restore-focus).
+
+### Changed
+
+- Loai bo logic trung lap giua hai he modal, dua xu ly native `<dialog>` va fallback ve mot lop truu tuong duy nhat de de bao tri, de mo rong.
+- Dong bo duong dong modal (ESC, click backdrop, dong chuong trinh) theo mot co che nhat quan, han che drift hanh vi theo thoi gian.
+- Cap nhat version metadata va version hien thi len `v1.15.5`.
+
+### Fixed
+
+- Giam nguy co resolve promise khong dong nhat khi modal bi dong tu nhieu nguon khac nhau o hai he modal.
+- Giam rui ro mat focus/khong phuc hoi focus khi dong modal do viec tich hop nhieu implementation rieng le.
+
+## [v1.15.4] - 2026-04-05
+
+### Added
+
+- Migrate `appFormModal` sang native `<dialog>` theo cung kien truc service da ap dung cho `appConfirm/appPrompt/appSelect`.
+- Bo sung style dialog form hien dai, dong bo backdrop blur va animation vao/ra, co ho tro `prefers-reduced-motion`.
+
+### Changed
+
+- Giu nguyen API nghiep vu `appFormModal(...)` de tranh pha vo code hien tai, chi thay engine ben duoi.
+- Nang cap luong dong modal form de xu ly an toan cho cac truong hop: ESC, click backdrop, dong bang code, submit thanh cong/that bai.
+- Cap nhat version metadata va version hien thi len `v1.15.4`.
+
+### Fixed
+
+- Giam rui ro xung dot z-index cho modal form chuan bang top-layer cua `<dialog>` thay vi phu thuoc hoan toan vao stack manager thu cong.
+- Tranh resolve promise trung lap khi modal form bi dong tu nhieu duong khac nhau (programmatic close, cancel, close event).
+
+## [v1.15.3] - 2026-04-05
+
+### Added
+
+- Chuyen engine `appConfirm/appPrompt/appSelect` sang native `<dialog>` (top layer) de giam xung dot xep lop modal ve mat nen tang.
+- Bo sung phong cach hien dai cho dialog shell: backdrop blur nhe, panel animation vao, va ton trong `prefers-reduced-motion`.
+
+### Changed
+
+- Giu nguyen API nghiep vu hien tai (`appConfirm`, `appPrompt`, `appSelect`) nhung thay implementation ben duoi de tranh pha vo cac module dang su dung.
+- Nang cap xu ly dong dialog theo huong an toan hon: ESC, click backdrop, dong chuong trinh va fallback native khi `showModal()` khong kha dung.
+- Cap nhat version metadata va version hien thi len `v1.15.3`.
+
+### Fixed
+
+- Loai bo nhom rui ro tiem an do z-index stack manager doi voi confirm/prompt/select bang top-layer cua browser.
+- Tranh double-resolve trong luong dong dialog, han che loi ngat quang promise khi modal dong bang nhieu duong khac nhau.
+
+## [v1.15.2] - 2026-04-05
+
+### Added
+
+- Nang cap runtime modal layer manager theo thu tu mo modal tuyet doi, dam bao modal mo sau luon noi len tren modal mo truoc bat ke base z-index.
+
+### Changed
+
+- Dieu chinh cong thuc xep lop modal tu cong don truc tiep sang co che stride lon theo so lan mo modal de tranh xung dot giua cac nhom base z-index (160/165/170/...).
+- Bo sung buoc dua modal root ve cuoi `body` truoc khi nang lop de giam rui ro stacking-context khi modal duoc gan trong host container.
+- Cap nhat version metadata va version hien thi len `v1.15.2`.
+
+### Fixed
+
+- Sua triệt de truong hop bam `Sua nhom` trong modal chi tiet nhom day nhung modal xac nhan/cong cu sua van nam duoi modal chi tiet.
+- Giam nguy co loi tiem an cho cac modal khac khi mo long nhau (dialog, form, eval, QR, schedule editor).
+
+## [v1.15.1] - 2026-04-05
+
+### Added
+
+- Bo sung co che nang modal len lop hien thi truoc (runtime stack manager) de dam bao modal mo sau luon nam tren modal dang mo.
+
+### Changed
+
+- Tich hop co che stack modal cho cac luong mo modal quan trong: app dialog, app form, sua ca day, sua nhom ca day, danh gia buoi hoc va modal QR cham cong.
+- Dong bo baseline z-index cua eval modal partial ve nhom modal nghiep vu de tranh xung dot lop hien thi khi khoi tao.
+- Cap nhat version metadata va version hien thi len `v1.15.1`.
+
+### Fixed
+
+- Sua loi thu tu modal khi mo modal `Sua` tu modal chi tiet (modal moi bi nam duoi modal cu).
+- Giam rui ro loi tiem an do z-index cung phan tan o nhieu module bang co che nang lop dong theo thu tu mo modal.
+
+## [v1.15.0] - 2026-04-05
+
+### Added
+
+- Bo sung modal chinh sua `nhom ca day` chuyen biet, ho tro chon nhieu giao vien trong mot lan cap nhat.
+- Bo sung reconcile nhom/lop khi sua nhom ca day (admin): co the them nhom/lop moi hoac bo nhom/lop khong con ap dung ngay trong mot lan luu.
+
+### Changed
+
+- Toi uu luong sua nhom ca day theo huong helper nho va typed-safe de giam do phuc tap ham, han che loi tiem an khi mo rong ve sau.
+- Toi uu giao dien Board: thong nhat cach goi `Ca day`, bo cuc card gon hon, gom thao tac vao menu `Tac vu`, giam roi khi co nhieu nut.
+- Cap nhat version metadata va version hien thi len `v1.15.0`.
+
+### Fixed
+
+- Loai bo cac canh bao static-analysis trong module quan ly lich sau refactor (bao gom complexity va string coercion risk).
+- Duy tri day du hanh vi sua/xoa nhom ca day trong khi giu rang buoc an toan theo role.
+
+## [v1.14.7] - 2026-04-05
+
+### Added
+
+- Chua co.
+
+### Changed
+
+- Cap nhat version metadata va version hien thi len `v1.14.7`.
+
+### Fixed
+
+- Sua triet de loi mojibake tieng Viet tren toan bo app (bao gom danh sach va cac view ngoai che do `TKB tuan`) bang bo loc phuc hoi cp1252 an toan.
+- Quet lai marker mojibake toan workspace va xac nhan khong con chuoi loi trong runtime TS.
+- Xac nhan full gate `typecheck`, `test`, `build` pass sau khi sua.
+
+## [v1.14.6] - 2026-04-05
+
+### Added
+
+- Chua co.
+
+### Changed
+
+- Cap nhat version metadata va version hien thi len `v1.14.6`.
+
+### Fixed
+
+- Sua loi hien thi tieng Viet o Trang chinh khi xem `Ca day` dang `TKB tuan` bang cach bo sung lop phuc hoi chuoi mojibake ngay tai tang render.
+- Co che phuc hoi chi kich hoat khi phat hien marker encoding loi va chi chap nhan ket qua khi marker giam va co ky tu tieng Viet, tranh lam bien dang chuoi hop le.
+- Xac nhan full gate `typecheck`, `test`, `build` pass sau khi sua.
+
+## [v1.14.5] - 2026-04-05
+
+### Added
+
+- Chua co.
+
+### Changed
+
+- Cap nhat version metadata va version hien thi len `v1.14.5`.
+
+### Fixed
+
+- Sua loi mojibake tieng Viet tren runtime TS sau dot migration JS -> TS (cau hinh app va cac module runtime).
+- Chuan hoa lai encoding UTF-8 cho cac file anh huong de tranh loi hien thi chuoi UI.
+- Xac nhan full gate `typecheck`, `test`, `build` pass sau khi sua encoding.
+
+## [v1.14.4] - 2026-04-05
+
+### Added
+
+- Chua co.
+
+### Changed
+
+- Don dep `package.json`: xoa block cau hinh `ts-node` khong con su dung de giu metadata gon va dong nhat.
+- Cap nhat version metadata va version hien thi len `v1.14.4`.
+
+### Fixed
+
+- On dinh lai toolchain test bang cach giu `postcss.config.js` (tranh loi nap config TypeScript trong Vitest).
+- Xac nhan full gate `typecheck`, `test`, `build` deu pass sau cleanup.
+
+## [v1.14.3] - 2026-04-05
+
+### Added
+
+- Them component helper `src/widgets/schedule-board/components/render-schedule-group-class-chips.ts` de tach renderer chip lop hoc khoi `render-core`.
+- Them tai lieu roadmap migration `docs/COMPONENT_TS_MIGRATION_ROADMAP.md` de lap ke hoach chuyen toan bo JS sang TS va tach component theo pha.
+- Them module TypeScript moi cho nhom helper rui ro thap:
+  - `assets/js/modules/security-utils.ts`
+  - `assets/js/modules/student-grade-utils.ts`
+  - `assets/js/modules/subject-management.ts`
+
+### Changed
+
+- `render-core` da su dung component helper cho class chips, giam duplicate va tang kha nang tai su dung khi doi UI framework.
+- Cap nhat import tai cac module de dung utility TypeScript thay vi JS o batch migration dau tien.
+- Mo rong `tsconfig` include voi `assets/js/**/*.ts` de bat loi sớm cho cac module da migrate.
+- Cap nhat version metadata va version hien thi len `v1.14.3`.
+
+### Fixed
+
+- Giam coupling renderer lon trong `render-core`, giam nguy co drift khi tiep tuc tach component.
+
+## [v1.14.2] - 2026-04-05
+
+### Added
+
+- Them boundary model thuần TypeScript `src/entities/schedule/model/compact-group.ts` de gom identity ca day va tong hop trang thai duyet theo nhom.
+- Them test `src/entities/schedule/model/compact-group.test.ts` de khoa hanh vi grouping/approval summary, giam rui ro regression khi doi UI framework.
+
+### Changed
+
+- Tach logic nhom lich khoi `render-core` ve model co test, giu `render-core` tap trung vao render va thao tac UI.
+- Chuan hoa them type `ScheduleRecord` (classLabel, studentIds, topic, attendance, evaluations) de tang do an toan migration sang React.
+- Cap nhat version metadata va version hien thi len `v1.14.2`.
+
+### Fixed
+
+- Giam coupling giua business logic va giao dien legacy, han che loi tiem an khi tai su dung logic lich o nhieu tang UI.
+
+## [v1.14.1] - 2026-04-05
+
+### Added
+
+- Them tai lieu `docs/GIOI_THIEU_TRANG_WEB.md` tong hop phan tich chuc nang va luong su dung de gioi thieu website cho phu huynh/doi tac/doi van hanh.
+
+### Changed
+
+- Cap nhat version metadata va version hien thi len `v1.14.1` de dong bo voi tai lieu gioi thieu moi.
+
+### Fixed
+
+- Chua co.
+
+## [v1.14.0] - 2026-04-05
+
+### Changed
+
+- Bo sung thao tac cap nhom cho lich da gom: card nhom tren Board co them nut `Sua nhom` va `Xoa nhom` (theo phan quyen).
+- Bo sung thao tac nhanh trong popup `Chi tiet nhom ca day` de sua/xoa ca nhom ma khong can mo tung ca rieng le.
+- Chuan hoa luong sua nhom: patch cap nhat dong loat chi tac dong cac truong chung (tuan, thu, gio, phong, mon, giao vien, noi dung), giu nguyen nhom/lop va hoc sinh tung ca.
+
+### Fixed
+
+- Giam rui ro ghi de du lieu lop/hoc sinh sai khi sua nhom nhieu ca bang cach gioi han pham vi cap nhat.
+- Them canh bao va chan thao tac khi nguoi dung khong du quyen sua toan bo cac ca trong nhom.
+
+## [v1.13.2] - 2026-04-05
+
+### Changed
+
+- Tiep tuc tinh gon giao dien theo huong toan cuc (khong chi man hinh xep lich): rut gon nhan tab dieu huong de de quet nhanh tren mobile/desktop.
+- Tinh gon man hinh Master: dua cac thao tac phu (cap nhat lop dong loat, quan tri nang cao) vao khoi thu gon `Tac vu them` de giu bo cuc chinh gon va de tap trung hon.
+- Tinh gon form xep lich: chuyen truong `Noi dung bai hoc` vao khoi `Tuy chon bo sung`, giu nguyen hanh vi submit va cau truc du lieu.
+
+### Fixed
+
+- Giam nguy co sai thao tac do qua nhieu nut hanh dong hien dong thoi o cac man hinh quan tri.
+- Duy tri dong bo giao dien giua `public/partials` va `src/partials` de tranh lech hanh vi/dev-build.
+
+## [v1.13.1] - 2026-04-05
+
+### Changed
+
+- Bo sung lai vung chon hoc sinh trong form xep lich sau khi chon nhom/lop, theo huong mac dinh chon tat ca nhung cho phep bo chon tung hoc sinh nghi ca.
+- Them thao tac nhanh `Chon tat ca` / `Bo tat ca` va bo dem so hoc sinh duoc chon de giao vien/admin kiem soat nhanh truoc khi luu lich.
+
+### Fixed
+
+- Sua luong submit de uu tien danh sach hoc sinh da duoc tick trong form, khong con bat buoc lay toan bo hoc sinh cua nhom/lop trong moi truong hop.
+
+## [v1.13.0] - 2026-04-05
+
+### Changed
+
+- Tiep tuc tinh gon giao dien tren nhieu man hinh: Board giu bo loc chinh, Master/Attendance dua thao tac phu vao khu `Tac vu` de giam nhieu nut hien thi dong thoi.
+- Tinh gon form xep lich: bo buoc/toggle chon hoc sinh thu cong; he thong tu dong lay danh sach hoc sinh theo tung nhom/lop da chon.
+- Cap nhat luong giao vien xep lich: cho phep giao vien chon nhieu nhom/lop trong mot lan tao lich va chon them dong giang cung chuyen mon, sau do gui tat ca de admin duyet.
+- Dong bo huong dan va thong diep giao dien cho ca role `admin` va `teacher` de giam nham lan thao tac.
+
+### Fixed
+
+- Loai bo rang buoc cu chan giao vien tao nhieu nhom/lop trong mot lan submit, tranh phat sinh thao tac lap lai khong can thiet.
+- Giam rui ro sai lech layout/hanh vi giua ban phat trien va ban build bang cach dong bo thay doi giua `public/partials` va `src/partials`.
+
+## [v1.12.0] - 2026-04-05
+
+### Changed
+
+- Toi gian man hinh Board: dua tim kiem va chuyen doi che do xem vao khu `Bo loc nang cao`, giu bo loc tuan la thao tac chinh.
+- Toi uu render lich theo huong gop ca: cac lich trung `thu + khung gio + mon + giao vien + dia diem` duoc gom thanh nhom de giam roi giao dien.
+- Bo sung popup chi tiet cho nhom ca gop, cho phep mo tung ca con de xem chi tiet/cham danh gia/chinh sua/xoa theo quyen hien tai.
+- Toi gian form tao lich: them che do mac dinh tu dong lay hoc sinh theo nhom/lop, an danh sach chon thu cong khi khong can.
+- Rut gon phan tom tat nhom/lop tren form de giam luong thong tin hien thi ngay khi bat dau tao lich.
+
+### Fixed
+
+- Giam nguy co sai thao tac do danh sach card lich qua dai, dong thoi giu nguyen luong validation va approval hien co.
+- Dong bo thay doi giao dien giua `public/partials` va `src/partials` de tranh lech layout giua cac moi truong.
+
 ## [v1.11.11] - 2026-04-04
 
 ### Changed
