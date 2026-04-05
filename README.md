@@ -2,9 +2,13 @@
 
 Ứng dụng web quản lý vận hành trung tâm học tập: quản lý môn học, giáo viên, học sinh, lớp học, xếp lịch dạy, chấm công, đánh giá và xuất báo cáo Excel.
 
-Phiên bản hiện tại: v1.11.9
+Phiên bản hiện tại: v1.14.6
 
 Lich su thay doi theo version: xem file CHANGELOG.md
+
+Tai lieu gioi thieu website: xem file docs/GIOI_THIEU_TRANG_WEB.md
+
+Roadmap migration component + TypeScript: xem file docs/COMPONENT_TS_MIGRATION_ROADMAP.md
 
 ## 1. Tính năng chính
 
@@ -128,7 +132,7 @@ Khong khuyen nghi o che do phat trien TypeScript.
 
 ## 5. Cau hinh Firebase
 
-File khoi tao: `assets/js/app.js`.
+File khoi tao: `assets/js/app.ts`.
 
 - Mac dinh su dung `fallbackFirebaseConfig`.
 - Neu chay trong moi truong co inject bien toan cuc:
@@ -177,7 +181,7 @@ Luu y quan trong: phan quyen phia client chi la lop bo sung. Can cau hinh Firest
 
 ### `SyntaxError: "undefined" is not valid JSON`
 
-- Da duoc harden trong `assets/js/app.js`
+- Da duoc harden trong `assets/js/app.ts`
 - Neu van gap, thu tat extension trinh duyet dang inject script vao trang
 
 ## 10. Quy trinh commit

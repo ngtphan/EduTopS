@@ -60,8 +60,8 @@ refactor(frontend): modularize app into partials and feature modules
 2. Bao mat va CSP/CDN fix
 
 - `index.html`
-- `assets/js/app.js`
-- `assets/js/modules/security-utils.js`
+- `assets/js/app.ts`
+- `assets/js/modules/security-utils.ts`
 - cac module render/data/reporting lien quan
 
 Message goi y:
@@ -93,7 +93,7 @@ git commit -m "refactor(frontend): modularize app into partials and feature modu
 ### Commit 2: security/csp
 
 ```bash
-git add index.html assets/js/app.js assets/js/modules
+git add index.html assets/js/app.ts assets/js/modules
 git commit -m "feat(security): harden rendering, cloud writes, and CSP compatibility"
 ```
 
