@@ -1,30 +1,41 @@
 // @ts-nocheck
+const createId = (prefix) => {
+  const uuid = String(globalThis.crypto?.randomUUID?.() || "").replaceAll(
+    "-",
+    "",
+  );
+  if (uuid) return `${prefix}_${uuid}`;
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+};
+
+const isValidGmail = (normalizeEmail, value) =>
+  normalizeEmail(value)?.endsWith("@gmail.com");
+
 export const registerTeacherActions = ({
   ADMIN_EMAIL,
   normalizeEmail,
   isFixedAdmin,
   getCurrentRole,
-  getCurrentUser,
 }) => {
-  window.grantTeacherAccount = async (teacherId) => {
+  globalThis.grantTeacherAccount = async (teacherId) => {
     if (getCurrentRole() !== "admin")
       return alert("Bạn không có quyền thực hiện thao tác này!");
 
-    const teacher = window.db.teachers.find((t) => t.id === teacherId);
+    const teacher = globalThis.db.teachers.find((t) => t.id === teacherId);
     if (!teacher) return alert("Không tìm thấy giáo viên.");
 
     const email = normalizeEmail(teacher.email);
-    if (!email || !email.endsWith("@gmail.com"))
+    if (!isValidGmail(normalizeEmail, teacher.email))
       return alert("Giáo viên cần có Gmail hợp lệ để tạo tài khoản.");
     if (email === ADMIN_EMAIL)
       return alert(
         "Email admin cố định, không thể cấp thành tài khoản giáo viên.",
       );
-    if (window.db.accounts.some((a) => normalizeEmail(a.email) === email))
+    if (globalThis.db.accounts.some((a) => normalizeEmail(a.email) === email))
       return alert("Email này đã có tài khoản đăng nhập.");
 
-    await window.cloudSave("accounts", {
-      id: "acc_" + Date.now(),
+    await globalThis.cloudSave("accounts", {
+      id: createId("acc"),
       teacherId: teacher.id,
       name: teacher.name,
       email,
@@ -34,20 +45,20 @@ export const registerTeacherActions = ({
     });
   };
 
-  window.grantAdminAccount = async (email, name = "Admin phụ") => {
+  globalThis.grantAdminAccount = async (email, name = "Admin phụ") => {
     if (getCurrentRole() !== "admin" || !isFixedAdmin()) {
       return alert("Chỉ admin cố định mới có quyền thêm admin phụ!");
     }
 
     const normalizedEmail = normalizeEmail(email);
-    if (!normalizedEmail || !normalizedEmail.endsWith("@gmail.com")) {
+    if (!isValidGmail(normalizeEmail, email)) {
       return alert("Vui lòng nhập Gmail hợp lệ cho admin phụ.");
     }
     if (normalizedEmail === ADMIN_EMAIL) {
       return alert("Email này đã là admin cố định.");
     }
     if (
-      window.db.accounts.some(
+      globalThis.db.accounts.some(
         (a) =>
           normalizeEmail(a.email) === normalizedEmail && a.role === "admin",
       )
@@ -55,8 +66,8 @@ export const registerTeacherActions = ({
       return alert("Email này đã được cấp quyền admin.");
     }
 
-    await window.cloudSave("accounts", {
-      id: "acc_" + Date.now(),
+    await globalThis.cloudSave("accounts", {
+      id: createId("acc"),
       name,
       email: normalizedEmail,
       role: "admin",
@@ -64,9 +75,6 @@ export const registerTeacherActions = ({
       createdAt: Date.now(),
     });
   };
-
-  // Keep reference to ensure closures include current user state when module initializes.
-  void getCurrentUser;
 };
 
 export const registerTeacherForms = ({
@@ -104,7 +112,7 @@ export const registerTeacherForms = ({
       <div>
         <label class="block text-[12px] font-bold text-slate-600 mb-1">Chuyên môn</label>
         <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-44 overflow-y-auto custom-scrollbar p-2 border border-slate-200 rounded-lg bg-slate-50">
-          ${window.db.subjects
+          ${globalThis.db.subjects
             .map((subject) => {
               const checked = selectedSubjects.has(String(subject.id))
                 ? "checked"
@@ -117,15 +125,13 @@ export const registerTeacherForms = ({
       ${
         isEdit
           ? ""
-          : '<label class="flex items-center gap-2 text-xs text-slate-600"><input type="checkbox" name="grantLogin" checked class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" /> Cấp tài khoản đăng nhập ngay</label>'
+          : '<label class="flex items-center gap-2 text-xs text-slate-600"><input type="checkbox" name="grantLogin" checked class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" /> Cấp login</label>'
       }
     `;
 
-    return window.appFormModal({
+    return globalThis.appFormModal({
       title: isEdit ? "Chỉnh sửa giáo viên" : "Thêm giáo viên",
-      description: isEdit
-        ? "Cập nhật thông tin giáo viên và tự đồng bộ tài khoản liên kết."
-        : "Thêm hồ sơ giáo viên bằng modal tập trung.",
+      description: "",
       submitText: isEdit ? "Lưu thay đổi" : "Thêm giáo viên",
       size: "lg",
       bodyHtml,
@@ -143,7 +149,7 @@ export const registerTeacherForms = ({
           alert("Vui lòng nhập tên giáo viên.");
           return false;
         }
-        if (!email || !email.endsWith("@gmail.com")) {
+        if (!isValidGmail(normalizeEmail, values.email || "")) {
           alert("Chỉ chấp nhận tài khoản Gmail hợp lệ.");
           return false;
         }
@@ -156,7 +162,7 @@ export const registerTeacherForms = ({
           return false;
         }
 
-        const teacherEmailConflict = window.db.teachers.some(
+        const teacherEmailConflict = globalThis.db.teachers.some(
           (item) =>
             normalizeEmail(item.email) === email &&
             (!isEdit || String(item.id) !== String(teacher.id)),
@@ -179,7 +185,7 @@ export const registerTeacherForms = ({
     const payload = await openTeacherFormModal();
     if (!payload) return;
 
-    const hasAnyAccount = window.db.accounts.some(
+    const hasAnyAccount = globalThis.db.accounts.some(
       (account) => normalizeEmail(account.email) === payload.email,
     );
     if (payload.grantLogin && hasAnyAccount) {
@@ -187,17 +193,17 @@ export const registerTeacherForms = ({
     }
 
     const newTeacher = {
-      id: "tea_" + Date.now(),
+      id: createId("tea"),
       name: payload.name,
       email: payload.email,
       phone: payload.phone,
       subjectIds: payload.subjectIds,
     };
-    await window.cloudSave("teachers", newTeacher);
+    await globalThis.cloudSave("teachers", newTeacher);
 
     if (payload.grantLogin) {
-      await window.cloudSave("accounts", {
-        id: "acc_" + Date.now(),
+      await globalThis.cloudSave("accounts", {
+        id: createId("acc"),
         teacherId: newTeacher.id,
         name: newTeacher.name,
         email: newTeacher.email,
@@ -213,7 +219,7 @@ export const registerTeacherForms = ({
       return alert("Bạn không có quyền thực hiện thao tác này!");
     }
 
-    const teacher = window.db.teachers.find(
+    const teacher = globalThis.db.teachers.find(
       (item) => String(item.id) === String(teacherId),
     );
     if (!teacher) return alert("Không tìm thấy giáo viên.");
@@ -223,7 +229,7 @@ export const registerTeacherForms = ({
 
     const oldEmail = normalizeEmail(teacher.email);
     const nextEmail = payload.email;
-    const linkedTeacherAccounts = window.db.accounts.filter(
+    const linkedTeacherAccounts = globalThis.db.accounts.filter(
       (account) =>
         account.role === "teacher" &&
         (String(account.teacherId || "") === String(teacher.id) ||
@@ -231,7 +237,7 @@ export const registerTeacherForms = ({
     );
     const linkedAccountIds = new Set(linkedTeacherAccounts.map((a) => a.id));
 
-    const accountEmailConflict = window.db.accounts.some(
+    const accountEmailConflict = globalThis.db.accounts.some(
       (account) =>
         normalizeEmail(account.email) === nextEmail &&
         !linkedAccountIds.has(account.id),
@@ -240,7 +246,7 @@ export const registerTeacherForms = ({
       return alert("Email này đã được dùng bởi tài khoản khác.");
     }
 
-    await window.cloudSave("teachers", {
+    await globalThis.cloudSave("teachers", {
       ...teacher,
       name: payload.name,
       email: payload.email,
@@ -249,7 +255,7 @@ export const registerTeacherForms = ({
     });
 
     for (const account of linkedTeacherAccounts) {
-      await window.cloudSave("accounts", {
+      await globalThis.cloudSave("accounts", {
         ...account,
         teacherId: teacher.id,
         name: payload.name,
@@ -263,13 +269,13 @@ export const registerTeacherForms = ({
       return alert("Bạn không có quyền thực hiện thao tác này!");
     }
 
-    const teacherAccounts = window.db.accounts.filter(
+    const teacherAccounts = globalThis.db.accounts.filter(
       (account) => account.role === "teacher",
     );
     const teacherAccountEmails = new Set(
       teacherAccounts.map((account) => normalizeEmail(account.email)),
     );
-    const availableTeachers = window.db.teachers.filter((teacher) => {
+    const availableTeachers = globalThis.db.teachers.filter((teacher) => {
       const email = normalizeEmail(teacher.email);
       return email && email !== ADMIN_EMAIL && !teacherAccountEmails.has(email);
     });
@@ -294,9 +300,9 @@ export const registerTeacherForms = ({
         </select>
       </div>`;
 
-    const result = await window.appFormModal({
+    const result = await globalThis.appFormModal({
       title: "Cấp tài khoản giáo viên",
-      description: "Chọn giáo viên để cấp quyền đăng nhập.",
+      description: "",
       submitText: "Cấp tài khoản",
       bodyHtml,
       onSubmit: ({ values }) => {
@@ -310,7 +316,7 @@ export const registerTeacherForms = ({
     });
 
     if (!result) return;
-    await window.grantTeacherAccount(result.teacherId);
+    await globalThis.grantTeacherAccount(result.teacherId);
   };
 
   const openGrantAdminAccountModal = async () => {
@@ -330,9 +336,9 @@ export const registerTeacherForms = ({
         </div>
       </div>`;
 
-    const result = await window.appFormModal({
+    const result = await globalThis.appFormModal({
       title: "Thêm admin phụ",
-      description: "Tài khoản admin phụ có quyền quản trị hệ thống.",
+      description: "",
       submitText: "Thêm admin",
       bodyHtml,
       onSubmit: ({ values }) => {
@@ -347,13 +353,13 @@ export const registerTeacherForms = ({
     });
 
     if (!result) return;
-    await window.grantAdminAccount(result.email, result.name);
+    await globalThis.grantAdminAccount(result.email, result.name);
   };
 
-  window.openTeacherCreateModal = openCreateTeacherModal;
-  window.openTeacherEditModal = openEditTeacherModal;
-  window.openGrantTeacherAccountModal = openGrantTeacherAccountModal;
-  window.openGrantAdminAccountModal = openGrantAdminAccountModal;
+  globalThis.openTeacherCreateModal = openCreateTeacherModal;
+  globalThis.openTeacherEditModal = openEditTeacherModal;
+  globalThis.openGrantTeacherAccountModal = openGrantTeacherAccountModal;
+  globalThis.openGrantAdminAccountModal = openGrantAdminAccountModal;
 
   const openTeacherCreateBtn = document.getElementById(
     "btnOpenTeacherCreateModal",
@@ -368,5 +374,3 @@ export const registerTeacherForms = ({
   const openGrantAdminBtn = document.getElementById("btnOpenGrantAdminModal");
   openGrantAdminBtn?.addEventListener("click", openGrantAdminAccountModal);
 };
-
-

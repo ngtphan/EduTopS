@@ -16,6 +16,9 @@ export const registerDataManagement = ({
   isFixedAdmin,
   getCurrentRole,
   getCurrentUser,
+  canCurrentUserAccessSchedule,
+  getCurrentParentStudentIds,
+  reportAccessDenied,
   getSubjectInfo,
   getStudentInfo,
   getClassInfo,
@@ -33,6 +36,13 @@ export const registerDataManagement = ({
     const parsedBase = Number.parseInt(String(baseZ || ""), 10);
     if (modalRoot?.style && Number.isFinite(parsedBase)) {
       modalRoot.style.zIndex = String(parsedBase);
+    }
+  };
+
+  const closeTopLayerFormDialogIfNeeded = () => {
+    const dismissRuntimeFormModal = globalThis.dismissAppFormModal;
+    if (typeof dismissRuntimeFormModal === "function") {
+      dismissRuntimeFormModal();
     }
   };
 
@@ -481,14 +491,74 @@ export const registerDataManagement = ({
   let activeEvalId = null;
   const evalModal = document.getElementById("evalModal");
   window.openEvalModal = (schId) => {
-    activeEvalId = schId;
+    closeTopLayerFormDialogIfNeeded();
+    const role = getCurrentRole();
+    const currentUser = getCurrentUser();
     const sch = window.db.schedules.find((s) => s.id === schId);
+    if (!sch) {
+      return alert("Không tìm thấy ca dạy để xem đánh giá.");
+    }
+
+    if (
+      typeof canCurrentUserAccessSchedule === "function" &&
+      !canCurrentUserAccessSchedule(sch, role, currentUser)
+    ) {
+      if (typeof reportAccessDenied === "function") {
+        reportAccessDenied({
+          action: "schedule.eval.open",
+          reason: "schedule_not_visible_for_role",
+          resourceType: "schedule",
+          resourceId: String(schId || ""),
+          details: {
+            role: String(role || ""),
+          },
+        });
+      }
+      return alert("Bạn không có quyền xem đánh giá của ca dạy này.");
+    }
+
+    activeEvalId = schId;
+    const isParentReadOnly = role === "parent";
+    const parentStudentIdSet = new Set(
+      isParentReadOnly && typeof getCurrentParentStudentIds === "function"
+        ? (getCurrentParentStudentIds() || [])
+            .map((id) => String(id || "").trim())
+            .filter(Boolean)
+        : [],
+    );
     const cls = getClassInfo(sch.classId);
     const scheduleSubjectId = sch.subjectId || cls?.subjectId;
-    const scheduleStudentIds =
+    let scheduleStudentIds =
       Array.isArray(sch.studentIds) && sch.studentIds.length > 0
         ? sch.studentIds
         : cls?.studentIds || [];
+
+    if (isParentReadOnly) {
+      scheduleStudentIds = scheduleStudentIds.filter((stuId) =>
+        parentStudentIdSet.has(String(stuId || "").trim()),
+      );
+    }
+
+    if (isParentReadOnly && scheduleStudentIds.length === 0) {
+      if (typeof reportAccessDenied === "function") {
+        reportAccessDenied({
+          action: "schedule.eval.open",
+          reason: "parent_not_linked_to_schedule_students",
+          resourceType: "schedule",
+          resourceId: String(schId || ""),
+          details: {
+            role: String(role || ""),
+            parentLinkedStudentCount: parentStudentIdSet.size,
+          },
+        });
+      }
+      activeEvalId = null;
+      return alert("Không có dữ liệu đánh giá thuộc học sinh được liên kết.");
+    }
+
+    const controlDisabledAttr = isParentReadOnly ? "disabled" : "";
+    const textAreaReadOnlyAttr = isParentReadOnly ? "readonly" : "";
+
     const classLabel = cls
       ? `${cls.name}${cls.groupName ? ` - ${cls.groupName}` : ""}`
       : sch.classLabel || "Lớp đã xóa";
@@ -509,9 +579,16 @@ export const registerDataManagement = ({
               ? currentEval.level
               : "fair";
           const currentNote = currentEval?.note || "";
-          return `<div class="bg-white border border-slate-200 rounded-xl p-4 mb-4 shadow-sm"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-700 font-bold text-sm uppercase">${escapeHtml(stu.name.charAt(0) || "?")}</div><div><h4 class="font-bold text-slate-800 text-sm">${escapeHtml(stu.name)}</h4><div class="text-[11px] text-slate-500">Phụ huynh: ${escapeHtml(stu.parentPhone || "N/A")}</div></div></div><div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2"><label class="flex items-center gap-2 text-[12px] border border-emerald-200 bg-emerald-50 rounded px-2 py-1.5"><input type="radio" name="eval_level_${fieldToken}" value="good" ${currentLevel === "good" ? "checked" : ""}> Tốt</label><label class="flex items-center gap-2 text-[12px] border border-amber-200 bg-amber-50 rounded px-2 py-1.5"><input type="radio" name="eval_level_${fieldToken}" value="fair" ${currentLevel === "fair" ? "checked" : ""}> Khá</label><label class="flex items-center gap-2 text-[12px] border border-rose-200 bg-rose-50 rounded px-2 py-1.5"><input type="radio" name="eval_level_${fieldToken}" value="watch" ${currentLevel === "watch" ? "checked" : ""}> Cần theo dõi</label></div><label class="flex items-center gap-2 text-[12px] border border-rose-200 bg-rose-50 rounded px-3 py-2 mb-2 text-rose-700 font-medium"><input type="checkbox" id="eval_absent_${fieldToken}" ${currentAbsent ? "checked" : ""} class="rounded border-rose-300 text-rose-600 focus:ring-rose-500"> Đánh dấu vắng buổi này</label><textarea id="eval_note_${fieldToken}" rows="2" placeholder="Ghi chú thêm (tuỳ chọn)..." class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">${escapeHtml(currentNote)}</textarea></div>`;
+          return `<div class="bg-white border border-slate-200 rounded-xl p-4 mb-4 shadow-sm"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-700 font-bold text-sm uppercase">${escapeHtml(stu.name.charAt(0) || "?")}</div><div><h4 class="font-bold text-slate-800 text-sm">${escapeHtml(stu.name)}</h4><div class="text-[11px] text-slate-500">Phụ huynh: ${escapeHtml(stu.parentPhone || "N/A")}</div></div></div><div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2"><label class="flex items-center gap-2 text-[12px] border border-emerald-200 bg-emerald-50 rounded px-2 py-1.5"><input type="radio" name="eval_level_${fieldToken}" value="good" ${currentLevel === "good" ? "checked" : ""} ${controlDisabledAttr}> Tốt</label><label class="flex items-center gap-2 text-[12px] border border-amber-200 bg-amber-50 rounded px-2 py-1.5"><input type="radio" name="eval_level_${fieldToken}" value="fair" ${currentLevel === "fair" ? "checked" : ""} ${controlDisabledAttr}> Khá</label><label class="flex items-center gap-2 text-[12px] border border-rose-200 bg-rose-50 rounded px-2 py-1.5"><input type="radio" name="eval_level_${fieldToken}" value="watch" ${currentLevel === "watch" ? "checked" : ""} ${controlDisabledAttr}> Cần theo dõi</label></div><label class="flex items-center gap-2 text-[12px] border border-rose-200 bg-rose-50 rounded px-3 py-2 mb-2 text-rose-700 font-medium"><input type="checkbox" id="eval_absent_${fieldToken}" ${currentAbsent ? "checked" : ""} ${controlDisabledAttr} class="rounded border-rose-300 text-rose-600 focus:ring-rose-500"> Đánh dấu vắng buổi này</label><textarea id="eval_note_${fieldToken}" rows="2" placeholder="Ghi chú thêm (tuỳ chọn)..." ${textAreaReadOnlyAttr} class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">${escapeHtml(currentNote)}</textarea></div>`;
         })
         .join("");
+
+    const saveEvalBtn = document.getElementById("saveEvalBtn");
+    if (saveEvalBtn) {
+      saveEvalBtn.classList.toggle("hidden", isParentReadOnly);
+      saveEvalBtn.disabled = isParentReadOnly;
+    }
+
     bringModalToFront(evalModal, 172);
     evalModal.classList.remove("hidden");
     evalModal.classList.add("flex");
@@ -525,6 +602,20 @@ export const registerDataManagement = ({
   };
 
   document.getElementById("saveEvalBtn").addEventListener("click", async () => {
+    if (getCurrentRole() === "parent") {
+      if (typeof reportAccessDenied === "function") {
+        reportAccessDenied({
+          action: "schedule.eval.submit",
+          reason: "read_only_parent_role",
+          resourceType: "schedule",
+          resourceId: String(activeEvalId || ""),
+          details: {
+            role: String(getCurrentRole() || ""),
+          },
+        });
+      }
+      return alert("Tài khoản phụ huynh chỉ có quyền xem đánh giá.");
+    }
     if (!activeEvalId) return;
     const btn = document.getElementById("saveEvalBtn");
     btn.innerHTML =

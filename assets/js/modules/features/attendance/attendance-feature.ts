@@ -2,6 +2,12 @@
 import { normalizeScheduleApprovalStatus } from "@/entities/schedule/model/approval";
 import { isTeacherAssignedToSchedule } from "@/entities/schedule/model/teacher-assignment";
 import {
+  canParentAccessAttendanceRequest,
+  canParentAccessSchedule,
+  getScheduleStudentIdsForAccess,
+} from "@/features/parent-guards/model/access";
+import {
+  formatWeekTokenLabel,
   normalizeWeekToken,
   toIsoWeekTokenFromDateToken,
 } from "@/shared/lib/week-token";
@@ -18,6 +24,8 @@ const ATTENDANCE_QR_PAYLOAD_VERSION = "json_v1";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const ATTENDANCE_MAX_WORKED_MINUTES = 16 * 60;
+let runtimeGetCurrentRole = () => "";
+let runtimeGetCurrentUser = () => null;
 
 const bringModalToFront = (modalRoot, baseZ = 170) => {
   const runtimeRaiseModal = globalThis.raiseModalToFront;
@@ -381,12 +389,29 @@ const getScheduleSubjectName = (schedule) => {
   return getSubjectNameById(subjectId);
 };
 
-const getTeachingContextForTeacherDate = ({ teacherId, attendanceDate }) => {
+const resolveClassStudentIds = (classId) => {
+  const classInfo = (globalThis.db.classes || []).find(
+    (item) => String(item.id) === String(classId || ""),
+  );
+  return Array.isArray(classInfo?.studentIds) ? classInfo.studentIds : [];
+};
+
+const getTeachingContextForTeacherDate = ({
+  teacherId,
+  attendanceDate,
+  allowedStudentIds = [],
+}) => {
   const weekToken = toIsoWeekTokenFromDateToken(attendanceDate);
   const dayToken = toDayOfWeekValueFromDateToken(attendanceDate);
+  const hasAllowedStudentFilter =
+    Array.isArray(allowedStudentIds) && allowedStudentIds.length > 0;
+  const allowedStudentSet = hasAllowedStudentFilter
+    ? new Set(allowedStudentIds.map((studentId) => String(studentId || "")))
+    : null;
   if (!teacherId || !weekToken || !dayToken) {
     return {
       teachingSubjects: [],
+      teachingStudentIds: [],
       teachingSubjectsText: "Không có dữ liệu môn dạy trong ngày.",
       teachingSessionsText: "",
     };
@@ -397,9 +422,25 @@ const getTeachingContextForTeacherDate = ({ teacherId, attendanceDate }) => {
     .filter((item) => normalizeWeekToken(item.week) === weekToken)
     .filter((item) => String(item.dayOfWeek || "") === dayToken)
     .filter((item) => getScheduleApprovalStatus(item) === "approved")
+    .filter((item) => {
+      if (!allowedStudentSet) return true;
+      return canParentAccessSchedule({
+        schedule: item,
+        parentStudentIds: Array.from(allowedStudentSet),
+        resolveClassStudentIds,
+      });
+    })
     .sort((a, b) =>
       String(a.startTime || "").localeCompare(String(b.startTime || "")),
     );
+
+  const teachingStudentIds = Array.from(
+    new Set(
+      sessions.flatMap((session) =>
+        getScheduleStudentIdsForAccess(session, resolveClassStudentIds),
+      ),
+    ),
+  ).filter(Boolean);
 
   const teachingSubjects = Array.from(
     new Set(sessions.map((session) => getScheduleSubjectName(session))),
@@ -417,6 +458,7 @@ const getTeachingContextForTeacherDate = ({ teacherId, attendanceDate }) => {
 
   return {
     teachingSubjects,
+    teachingStudentIds,
     teachingSubjectsText:
       teachingSubjects.length > 0
         ? teachingSubjects.join(", ")
@@ -468,9 +510,8 @@ const getAttendancePeriodLabel = (selection) => {
   const mode = normalizePeriodMode(selection?.mode);
   if (mode === "week") {
     const weekToken = normalizeWeekToken(selection?.week);
-    const match = /^(\d{4})-W(\d{2})$/.exec(weekToken);
-    if (!match) return "Tuần chưa chọn";
-    return `Tuần ${Number(match[2])}/${match[1]}`;
+    if (!weekToken) return "Chưa chọn tuần";
+    return formatWeekTokenLabel(weekToken, "Chưa chọn tuần");
   }
 
   if (mode === "month") {
@@ -559,16 +600,35 @@ const normalizeAttendanceRequest = (request) => {
 
 const getAttendanceDashboardData = (selectionInput) => {
   const selection = selectionInput || getAttendancePeriodSelection();
+  const currentRole = String(runtimeGetCurrentRole?.() || "")
+    .trim()
+    .toLowerCase();
+  const currentUser =
+    typeof runtimeGetCurrentUser === "function"
+      ? runtimeGetCurrentUser()
+      : null;
+  const parentStudentIds =
+    currentRole === "parent" && Array.isArray(currentUser?.studentIds)
+      ? Array.from(
+          new Set(
+            currentUser.studentIds
+              .map((studentId) => String(studentId || "").trim())
+              .filter(Boolean),
+          ),
+        )
+      : [];
+  const parentStudentKey = parentStudentIds.join(",");
   const teachingContextCache = new Map();
 
   const withTeachingContext = (item) => {
-    const key = `${String(item.teacherId || "")}|${String(item.attendanceDate || "")}`;
+    const key = `${String(item.teacherId || "")}|${String(item.attendanceDate || "")}|${parentStudentKey}`;
     if (!teachingContextCache.has(key)) {
       teachingContextCache.set(
         key,
         getTeachingContextForTeacherDate({
           teacherId: item.teacherId,
           attendanceDate: item.attendanceDate,
+          allowedStudentIds: parentStudentIds,
         }),
       );
     }
@@ -579,9 +639,24 @@ const getAttendanceDashboardData = (selectionInput) => {
     };
   };
 
-  const requests = (globalThis.db.attendanceRequests || [])
+  let requests = (globalThis.db.attendanceRequests || [])
     .map((item) => normalizeAttendanceRequest(item))
-    .map((item) => withTeachingContext(item))
+    .map((item) => withTeachingContext(item));
+
+  if (currentRole === "teacher") {
+    requests = requests.filter(
+      (item) => String(item.teacherId || "") === String(currentUser?.id || ""),
+    );
+  } else if (currentRole === "parent") {
+    requests = requests.filter((item) =>
+      canParentAccessAttendanceRequest({
+        parentStudentIds,
+        teachingStudentIds: item.teachingStudentIds || [],
+      }),
+    );
+  }
+
+  requests = requests
     .filter((item) => isRequestInSelection(item, selection))
     .sort((a, b) => {
       const dateDiff = String(b.attendanceDate).localeCompare(
@@ -746,7 +821,7 @@ const getTeacherQrAttendanceModalController = (() => {
         <div class="px-4 sm:px-5 py-3 border-b border-slate-200 bg-cyan-50 flex items-start justify-between gap-3">
           <div>
             <h3 class="text-base font-bold text-cyan-900">Chấm công bằng QR cố định</h3>
-            <p class="text-[11px] text-cyan-700/80 mt-1">Quét đúng mã QR cố định của trung tâm để mở biểu mẫu giờ vào/ra.</p>
+            <p class="text-[11px] text-cyan-700/80 mt-1">Quét QR trung tâm để mở form giờ vào/ra.</p>
           </div>
           <button type="button" id="teacherQrCloseBtn" class="text-slate-400 hover:text-slate-700 text-xl leading-none">&times;</button>
         </div>
@@ -761,7 +836,7 @@ const getTeacherQrAttendanceModalController = (() => {
           </div>
 
           <form id="teacherAttendanceForm" class="hidden space-y-3">
-            <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">QR hợp lệ. Vui lòng điền giờ vào/ra để gửi duyệt.</div>
+            <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">QR hợp lệ. Nhập giờ vào/ra.</div>
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label class="block text-[11px] font-bold text-slate-600 mb-1">Ngày chấm công</label>
@@ -777,8 +852,8 @@ const getTeacherQrAttendanceModalController = (() => {
               </div>
             </div>
             <div>
-              <label class="block text-[11px] font-bold text-slate-600 mb-1">Ghi chú (tuỳ chọn)</label>
-              <textarea id="teacherAttendanceNote" rows="2" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg" placeholder="Ví dụ: dạy bù ca tối, trực CLB STEM..."></textarea>
+              <label class="block text-[11px] font-bold text-slate-600 mb-1">Ghi chú</label>
+              <textarea id="teacherAttendanceNote" rows="2" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg" placeholder="Ví dụ: dạy bù, trực CLB..."></textarea>
             </div>
             <div class="text-xs text-slate-500" id="teacherAttendanceWorkedPreview"></div>
           </form>
@@ -839,12 +914,12 @@ const getTeacherQrAttendanceModalController = (() => {
       );
       if (workedMinutes === null) {
         refs.workedPreview.innerText =
-          "Giờ vào/ra chưa hợp lệ. Giờ ra cần lớn hơn giờ vào và không quá 16h.";
+          "Giờ vào/ra chưa hợp lệ. Giờ ra phải lớn hơn giờ vào, tối đa 16h.";
         refs.workedPreview.className = "text-xs text-rose-600";
         return;
       }
 
-      refs.workedPreview.innerText = `Tổng giờ công dự kiến: ${formatWorkedMinutes(workedMinutes)} (${workedMinutes} phút).`;
+      refs.workedPreview.innerText = `Giờ dự kiến: ${formatWorkedMinutes(workedMinutes)} (${workedMinutes} phút).`;
       refs.workedPreview.className = "text-xs text-emerald-700";
     };
 
@@ -917,10 +992,7 @@ const getTeacherQrAttendanceModalController = (() => {
       try {
         const parsed = parseFixedAttendanceQrPayload(decodedRaw);
         if (!parsed.isValid) {
-          setStatus(
-            "Mã QR không hợp lệ. Vui lòng quét đúng mã cố định.",
-            "error",
-          );
+          setStatus("Mã QR sai. Quét lại mã cố định.", "error");
           return;
         }
 
@@ -938,16 +1010,13 @@ const getTeacherQrAttendanceModalController = (() => {
 
     const startScanner = async (sessionId) => {
       if (!navigator.mediaDevices?.getUserMedia) {
-        setStatus(
-          "Trình duyệt không hỗ trợ camera. Hãy nhập mã thủ công.",
-          "error",
-        );
+        setStatus("Trình duyệt không hỗ trợ camera. Dùng nhập tay.", "error");
         return;
       }
 
       if (!isCameraSecureContext()) {
         setStatus(
-          "Thiết bị di động yêu cầu HTTPS để mở camera. Hãy mở web qua HTTPS hoặc dùng Nhập mã thủ công.",
+          "Thiết bị cần HTTPS để mở camera. Dùng HTTPS hoặc nhập tay.",
           "error",
         );
         return;
@@ -956,10 +1025,7 @@ const getTeacherQrAttendanceModalController = (() => {
       const isLoaded = await loadQrScannerLibrary();
       if (!state.isOpen || sessionId !== state.sessionId) return;
       if (!isLoaded || !globalThis.Html5Qrcode) {
-        setStatus(
-          "Không tải được thư viện quét QR. Vui lòng kiểm tra mạng.",
-          "error",
-        );
+        setStatus("Không tải được thư viện quét QR.", "error");
         return;
       }
 
@@ -1007,13 +1073,13 @@ const getTeacherQrAttendanceModalController = (() => {
 
       if (!started) {
         setStatus(
-          "Không thể mở camera trên thiết bị này. Hãy cấp quyền camera, dùng HTTPS, hoặc nhập mã thủ công.",
+          "Không mở được camera. Kiểm tra quyền hoặc nhập tay.",
           "error",
         );
         return;
       }
 
-      setStatus("Đưa mã QR vào giữa khung camera để quét.", "info");
+      setStatus("Đưa QR vào giữa khung.", "info");
     };
 
     refs.checkIn.addEventListener("change", syncWorkedPreview);
@@ -1034,7 +1100,7 @@ const getTeacherQrAttendanceModalController = (() => {
     refs.manualBtn.addEventListener("click", async () => {
       const raw = await globalThis.appPrompt(
         "Nhập dữ liệu QR",
-        "Dán nội dung mã QR đang hiệu lực để xác thực.",
+        "Dán nội dung QR đang hiệu lực.",
         getActiveAttendanceQrToken(),
       );
       if (raw === null || raw === false) return;
@@ -1049,7 +1115,7 @@ const getTeacherQrAttendanceModalController = (() => {
 
     refs.submitBtn.addEventListener("click", async () => {
       if (!state.hasValidScan) {
-        setStatus("Bạn cần quét QR hợp lệ trước khi gửi duyệt.", "error");
+        setStatus("Cần QR hợp lệ trước khi gửi.", "error");
         return;
       }
 
@@ -1061,11 +1127,11 @@ const getTeacherQrAttendanceModalController = (() => {
       });
 
       if (!result?.ok) {
-        setStatus(result?.message || "Không thể gửi chấm công.", "error");
+        setStatus(result?.message || "Gửi chấm công thất bại.", "error");
         return;
       }
 
-      setStatus("Đã gửi chấm công thành công. Chờ admin duyệt.", "success");
+      setStatus("Đã gửi. Chờ admin duyệt.", "success");
       setTimeout(() => {
         close();
       }, 760);
@@ -1109,7 +1175,7 @@ const getAttendanceQrAdminModalController = (() => {
         <div class="px-4 sm:px-5 py-3 border-b border-slate-200 bg-cyan-50 flex items-start justify-between gap-3">
           <div>
             <h3 class="text-base font-bold text-cyan-900">Quản lý mã QR chấm công</h3>
-            <p class="text-[11px] text-cyan-700/80 mt-1">Admin tạo và xoay vòng mã QR. Giáo viên chỉ quét được mã đang hiệu lực.</p>
+            <p class="text-[11px] text-cyan-700/80 mt-1">Admin tạo/đổi mã QR, giáo viên quét mã đang hiệu lực.</p>
           </div>
           <button type="button" id="attendanceQrAdminCloseBtn" class="text-slate-400 hover:text-slate-700 text-xl leading-none">&times;</button>
         </div>
@@ -1121,7 +1187,7 @@ const getAttendanceQrAdminModalController = (() => {
               <div id="attendanceQrAdminToken" class="mt-1 text-xs font-mono break-all text-slate-800"></div>
               <div id="attendanceQrAdminMeta" class="mt-1 text-[11px] text-slate-500"></div>
               <div id="attendanceQrAdminLegacyNote" class="mt-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 hidden">
-                Đang dùng mã mặc định. Nên khởi tạo mã riêng để admin chủ động quản lý.
+                Đang dùng mã mặc định. Nên tạo mã riêng.
               </div>
             </div>
 
@@ -1175,7 +1241,7 @@ const getAttendanceQrAdminModalController = (() => {
 
     const toUpdatedMetaText = (config) => {
       if (!config) {
-        return "Chưa khởi tạo mã riêng. Hệ thống đang dùng mã mặc định.";
+        return "Chưa có mã riêng, đang dùng mã mặc định.";
       }
       const updatedAt = config.updatedAt
         ? new Date(config.updatedAt).toLocaleString("vi-VN")
@@ -1207,7 +1273,7 @@ const getAttendanceQrAdminModalController = (() => {
       }
 
       const shouldRotate = await globalThis.appConfirm(
-        "Tạo mã QR mới? Mã cũ sẽ không còn quét được ngay sau khi lưu.",
+        "Tạo mã QR mới? Mã cũ sẽ hết hiệu lực ngay.",
         "Xoay vòng mã QR",
       );
       if (!shouldRotate) return;
@@ -1347,6 +1413,11 @@ export const registerAttendanceFeature = ({
   getCurrentUser,
   showToast,
 }) => {
+  runtimeGetCurrentRole =
+    typeof getCurrentRole === "function" ? getCurrentRole : () => "";
+  runtimeGetCurrentUser =
+    typeof getCurrentUser === "function" ? getCurrentUser : () => null;
+
   const submitTeacherAttendanceRequest = async ({
     checkInTime,
     checkOutTime,

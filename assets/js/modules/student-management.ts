@@ -5,6 +5,15 @@ import {
 } from "./student-grade-utils";
 
 export const registerStudentAndClassForms = () => {
+  const createId = (prefix) => {
+    const uuid = String(globalThis.crypto?.randomUUID?.() || "").replaceAll(
+      "-",
+      "",
+    );
+    if (uuid) return `${prefix}_${uuid}`;
+    return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  };
+
   const escapeHtml = (value) =>
     String(value || "")
       .replaceAll("&", "&amp;")
@@ -96,7 +105,7 @@ export const registerStudentAndClassForms = () => {
   const renderBulkStudentCards = ({ listEl, students, selectedIds }) => {
     if (!students.length) {
       listEl.innerHTML =
-        '<div class="rounded-lg border border-dashed border-slate-300 bg-white px-3 py-4 text-center text-[12px] text-slate-500">Không có học sinh khớp bộ lọc hiện tại.</div>';
+        '<div class="rounded-lg border border-dashed border-slate-300 bg-white px-3 py-4 text-center text-[12px] text-slate-500">Không có học sinh khớp.</div>';
       return;
     }
 
@@ -134,9 +143,7 @@ export const registerStudentAndClassForms = () => {
 
     return globalThis.appFormModal({
       title: isEdit ? "Chỉnh sửa học sinh" : "Thêm học sinh",
-      description: isEdit
-        ? "Cập nhật hồ sơ học sinh bằng modal tập trung."
-        : "Thêm mới học sinh bằng modal gọn và tối ưu.",
+      description: "",
       submitText: isEdit ? "Lưu thay đổi" : "Thêm học sinh",
       bodyHtml: `
         <div>
@@ -161,11 +168,11 @@ export const registerStudentAndClassForms = () => {
         const gradeLevel = normalizeStudentGradeLevel(values.gradeLevel);
 
         if (!name) {
-          alert("Vui lòng nhập tên học sinh.");
+          alert("Nhập tên học sinh.");
           return false;
         }
         if (!gradeLevel) {
-          alert("Vui lòng chọn lớp từ Lớp 1 đến Lớp 12.");
+          alert("Chọn lớp hợp lệ (Lớp 1-12).");
           return false;
         }
 
@@ -178,7 +185,7 @@ export const registerStudentAndClassForms = () => {
     const payload = await openStudentFormModal();
     if (!payload) return;
     await globalThis.cloudSave("students", {
-      id: "stu_" + Date.now(),
+      id: createId("stu"),
       ...payload,
     });
   };
@@ -346,7 +353,7 @@ export const registerStudentAndClassForms = () => {
     );
 
     if (!sourceGrade || !targetGrade) {
-      alert("Vui lòng chọn đầy đủ lớp nguồn và lớp đích.");
+      alert("Chọn đủ lớp nguồn và lớp đích.");
       return false;
     }
 
@@ -357,13 +364,13 @@ export const registerStudentAndClassForms = () => {
 
     const sourceStudents = getStudentsByGradeLevel(sourceGrade);
     if (sourceStudents.length === 0) {
-      alert("Không có học sinh để cập nhật trong lớp nguồn này.");
+      alert("Lớp nguồn không có học sinh.");
       return false;
     }
 
     const selectedIds = getBulkSelectedIdsFromForm(form);
     if (selectedIds.size === 0) {
-      alert("Vui lòng chọn ít nhất 1 học sinh để lên lớp.");
+      alert("Chọn ít nhất 1 học sinh.");
       return false;
     }
 
@@ -372,19 +379,18 @@ export const registerStudentAndClassForms = () => {
     );
 
     if (selectedStudents.length === 0) {
-      alert("Không có học sinh hợp lệ để cập nhật lớp.");
+      alert("Không có học sinh hợp lệ.");
       return false;
     }
 
     const retainedCount = sourceStudents.length - selectedStudents.length;
     const confirmText =
-      `Sẽ cập nhật ${selectedStudents.length} học sinh từ ${sourceGrade} lên ${targetGrade}.` +
-      `\n${retainedCount} học sinh sẽ ở lại lớp.` +
-      "\nBạn có chắc chắn muốn tiếp tục?";
+      `Cập nhật ${selectedStudents.length} học sinh từ ${sourceGrade} lên ${targetGrade}?` +
+      `\nGiữ lại ${retainedCount} học sinh.`;
 
     const accepted = await globalThis.appConfirm(
       confirmText,
-      "Xác nhận cập nhật lớp đồng loạt",
+      "Xác nhận cập nhật lớp",
     );
     if (!accepted) return false;
 
@@ -414,15 +420,15 @@ export const registerStudentAndClassForms = () => {
     }
 
     alert(
-      `Đã cập nhật thành công ${successCount} học sinh lên ${targetGrade}.` +
-        `\n${retainedCount} học sinh được giữ lại ${sourceGrade}.`,
+      `Đã cập nhật ${successCount} học sinh lên ${targetGrade}.` +
+        `\nGiữ lại ${retainedCount} học sinh ở ${sourceGrade}.`,
     );
     return true;
   };
 
   const openBulkStudentClassUpdateModal = async () => {
     if (typeof globalThis.appFormModal !== "function") {
-      alert("Không thể mở biểu mẫu cập nhật lớp.");
+      alert("Không mở được form cập nhật lớp.");
       return;
     }
 
@@ -433,8 +439,7 @@ export const registerStudentAndClassForms = () => {
 
     await globalThis.appFormModal({
       title: "Cập nhật lớp đồng loạt",
-      description:
-        "Chọn lớp nguồn, lớp đích và bỏ chọn các học sinh cần ở lại lớp.",
+      description: "Chọn lớp nguồn/đích, bỏ chọn học sinh ở lại.",
       submitText: "Cập nhật lớp",
       size: "xl",
       bodyHtml: `
@@ -495,7 +500,7 @@ export const registerStudentAndClassForms = () => {
           <div id="bulkStudentUpdateList" class="max-h-[320px] overflow-y-auto custom-scrollbar rounded-xl border border-slate-200 bg-slate-50 p-2 space-y-2"></div>
 
           <div class="text-[11px] text-slate-500">
-            Học sinh bị bỏ chọn sẽ giữ nguyên lớp hiện tại.
+            Học sinh bỏ chọn sẽ giữ lớp cũ.
           </div>
         </div>
       `,
@@ -518,10 +523,6 @@ export const registerStudentAndClassForms = () => {
   const classForm = document.getElementById("classForm");
   classForm?.addEventListener("submit", async (e) => {
     e.preventDefault();
-    alert(
-      "Tính năng Ghép lớp đã được thay bằng thuộc tính lớp trong hồ sơ học sinh.",
-    );
+    alert("Ghép lớp đã thay bằng thuộc tính lớp trong hồ sơ học sinh.");
   });
 };
-
-

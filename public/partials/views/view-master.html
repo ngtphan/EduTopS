@@ -179,6 +179,87 @@
             >
               Quản lý tài khoản
             </button>
+
+            <div
+              id="masterSecurityTelemetryPanel"
+              class="hidden mt-2 rounded-lg border border-rose-200 bg-rose-50/30 p-2.5 space-y-2"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <div class="text-[11px] font-bold text-rose-700 uppercase">
+                  Security Telemetry
+                </div>
+                <button
+                  id="btnMasterSecurityTelemetryClear"
+                  type="button"
+                  class="text-[10px] font-bold px-2 py-1 rounded border border-rose-200 bg-white text-rose-700 hover:bg-rose-100"
+                >
+                  Xóa log phiên
+                </button>
+              </div>
+
+              <div
+                class="rounded-md border border-rose-200 bg-white px-2 py-1.5"
+              >
+                <div class="text-[10px] font-bold uppercase text-rose-700">
+                  Tổng số deny event
+                </div>
+                <div
+                  id="masterSecurityTelemetryTotal"
+                  class="text-base font-bold text-rose-800"
+                >
+                  0
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 gap-2">
+                <div
+                  class="rounded-md border border-slate-200 bg-white px-2 py-1.5"
+                >
+                  <div
+                    class="text-[10px] font-bold uppercase text-slate-600 mb-1"
+                  >
+                    Theo action
+                  </div>
+                  <div
+                    id="masterSecurityTelemetryActionList"
+                    class="space-y-1"
+                  ></div>
+                </div>
+                <div
+                  class="rounded-md border border-slate-200 bg-white px-2 py-1.5"
+                >
+                  <div
+                    class="text-[10px] font-bold uppercase text-slate-600 mb-1"
+                  >
+                    Theo reason
+                  </div>
+                  <div
+                    id="masterSecurityTelemetryReasonList"
+                    class="space-y-1"
+                  ></div>
+                </div>
+              </div>
+
+              <div
+                class="rounded-md border border-slate-200 bg-white px-2 py-1.5"
+              >
+                <div
+                  class="text-[10px] font-bold uppercase text-slate-600 mb-1"
+                >
+                  Sự kiện gần nhất
+                </div>
+                <div
+                  id="masterSecurityTelemetryRecentList"
+                  class="space-y-1 max-h-48 overflow-y-auto custom-scrollbar"
+                ></div>
+                <div
+                  id="masterSecurityTelemetryEmpty"
+                  class="text-[11px] text-slate-400 italic"
+                >
+                  Chưa có sự kiện deny trong phiên hiện tại.
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -255,8 +336,7 @@
           >
             <div class="space-y-2">
               <div class="text-[11px] text-slate-600 leading-relaxed">
-                Tạo mới hoặc chỉnh sửa giáo viên bằng modal để thao tác gọn và
-                đồng nhất.
+                Thêm/sửa giáo viên bằng modal.
               </div>
               <button
                 id="btnOpenTeacherCreateModal"
@@ -331,7 +411,7 @@
               class="list-none cursor-pointer text-[11px] font-bold text-blue-700 inline-flex items-center gap-1.5"
             >
               <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5"></i>
-              Tác vụ thêm
+              Tác vụ
             </summary>
             <div class="mt-2 space-y-2">
               <button
@@ -343,7 +423,7 @@
                 lớp đồng loạt
               </button>
               <div class="text-[11px] text-slate-500">
-                Chọn lớp nguồn, lớp đích và bỏ chọn các học sinh cần ở lại lớp.
+                Bỏ chọn học sinh ở lại lớp.
               </div>
             </div>
           </details>
@@ -470,14 +550,14 @@
               id="accountSearchEmptyHint"
               class="hidden rounded-lg border border-dashed border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-500 italic"
             >
-              Không có kết quả phù hợp với từ khóa tìm kiếm.
+              Không có kết quả.
             </div>
 
             <div
               id="accountSecondaryEmptyHint"
               class="hidden rounded-lg border border-dashed border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-500 italic"
             >
-              Không có giáo viên chờ cấp quyền hoặc admin phụ cần quản lý.
+              Không có dữ liệu.
             </div>
 
             <div

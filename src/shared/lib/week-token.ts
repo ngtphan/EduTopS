@@ -1,7 +1,10 @@
 const ISO_WEEK_TOKEN_REGEX = /^(\d{4})-W(\d{1,2})$/i;
 const ISO_DATE_TOKEN_REGEX = /^(\d{4})-(\d{2})-(\d{2})$/;
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
 const toInteger = (value: string): number => Number.parseInt(value, 10);
+
+const pad2 = (value: number): string => String(value).padStart(2, "0");
 
 const toPrimitiveToken = (value: unknown): string => {
   if (
@@ -14,6 +17,45 @@ const toPrimitiveToken = (value: unknown): string => {
   return "";
 };
 
+const toIsoDateTokenFromUtcDate = (date: Date): string => {
+  const year = date.getUTCFullYear();
+  const month = pad2(date.getUTCMonth() + 1);
+  const day = pad2(date.getUTCDate());
+  return `${year}-${month}-${day}`;
+};
+
+const formatIsoDateTokenForDisplay = (dateToken: string): string => {
+  const [year, month, day] = dateToken.split("-");
+  return `${day}/${month}/${year}`;
+};
+
+const getIsoWeekNumberFromUtcDate = (date: Date): number => {
+  const shifted = new Date(date);
+  const dayNum = shifted.getUTCDay() || 7;
+  shifted.setUTCDate(shifted.getUTCDate() + 4 - dayNum);
+
+  const isoYear = shifted.getUTCFullYear();
+  const isoYearStart = new Date(Date.UTC(isoYear, 0, 1));
+  return Math.ceil(
+    ((shifted.getTime() - isoYearStart.getTime()) / DAY_IN_MS + 1) / 7,
+  );
+};
+
+const getIsoWeeksInYear = (year: number): number =>
+  getIsoWeekNumberFromUtcDate(new Date(Date.UTC(year, 11, 28)));
+
+const getIsoWeekStartUtcDate = (year: number, weekNo: number): Date => {
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const jan4DayNum = jan4.getUTCDay() || 7;
+
+  const week1Monday = new Date(jan4);
+  week1Monday.setUTCDate(jan4.getUTCDate() - jan4DayNum + 1);
+
+  const weekStart = new Date(week1Monday);
+  weekStart.setUTCDate(week1Monday.getUTCDate() + (weekNo - 1) * 7);
+  return weekStart;
+};
+
 export const normalizeWeekToken = (value: unknown): string => {
   const raw = toPrimitiveToken(value);
   const match = ISO_WEEK_TOKEN_REGEX.exec(raw);
@@ -22,7 +64,8 @@ export const normalizeWeekToken = (value: unknown): string => {
   const year = toInteger(match[1]);
   const weekNo = toInteger(match[2]);
   if (!Number.isInteger(year) || year < 1000 || year > 9999) return "";
-  if (!Number.isInteger(weekNo) || weekNo < 1 || weekNo > 53) return "";
+  if (!Number.isInteger(weekNo) || weekNo < 1) return "";
+  if (weekNo > getIsoWeeksInYear(year)) return "";
 
   return `${year}-W${String(weekNo).padStart(2, "0")}`;
 };
@@ -34,14 +77,30 @@ export const formatWeekTokenLabel = (
   value: unknown,
   fallbackValue = "",
 ): string => {
-  const normalized = normalizeWeekToken(value);
-  if (!normalized) {
+  const range = getWeekDateRangeTokens(value);
+  if (!range) {
     const raw = toPrimitiveToken(value);
     return raw || toPrimitiveToken(fallbackValue);
   }
 
+  return `Từ ngày ${formatIsoDateTokenForDisplay(range.startDateToken)} đến ngày ${formatIsoDateTokenForDisplay(range.endDateToken)}`;
+};
+
+export const getWeekDateRangeTokens = (
+  value: unknown,
+): { startDateToken: string; endDateToken: string } | null => {
+  const normalized = normalizeWeekToken(value);
+  if (!normalized) return null;
+
   const [year, weekNo] = normalized.split("-W");
-  return `Tuần ${Number(weekNo)}, ${year}`;
+  const weekStart = getIsoWeekStartUtcDate(toInteger(year), toInteger(weekNo));
+  const weekEnd = new Date(weekStart);
+  weekEnd.setUTCDate(weekStart.getUTCDate() + 6);
+
+  return {
+    startDateToken: toIsoDateTokenFromUtcDate(weekStart),
+    endDateToken: toIsoDateTokenFromUtcDate(weekEnd),
+  };
 };
 
 const toUtcDate = (value: Date | string | number): Date | null => {
@@ -90,10 +149,7 @@ export const toIsoWeekTokenFromDate = (
   date.setUTCDate(date.getUTCDate() + 4 - dayNum);
 
   const isoYear = date.getUTCFullYear();
-  const isoYearStart = new Date(Date.UTC(isoYear, 0, 1));
-  const weekNo = Math.ceil(
-    ((date.getTime() - isoYearStart.getTime()) / 86400000 + 1) / 7,
-  );
+  const weekNo = getIsoWeekNumberFromUtcDate(date);
 
   return `${isoYear}-W${String(weekNo).padStart(2, "0")}`;
 };

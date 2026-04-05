@@ -41,23 +41,27 @@ const deepFreeze = (value) => {
 };
 
 export const DEFAULT_APP_CONFIG = {
-  version: "v1.15.6",
+  version: "v1.17.2",
   branding: {
-    shortName: "CuiEduTop",
-    fullName: "CuiEduTop",
-    acronym: "CET",
-    pageTitle: "CuiEduTop",
-    loadingSecureConnectText: "Kết nối an toàn đến hệ thống CuiEduTop",
+    shortName: "EduTopS",
+    fullName: "EduTopS",
+    acronym: "ETS",
+    pageTitle: "EduTopS",
+    loadingSecureConnectText: "Kết nối an toàn đến hệ thống EduTopS",
   },
   auth: {
     fixedAdminEmail: "ngoctaiphan.edu@gmail.com",
   },
   board: {
-    adminTitle: "Lịch giảng dạy CuiEduTop",
+    adminTitle: "Lịch giảng dạy EduTopS",
     adminSubtitle: "Đồng bộ Cloud theo thời gian thực",
     teacherTitlePrefix: "Lịch giảng dạy của",
     teacherSubtitle:
       "Tạo lịch hoặc gửi đề xuất để admin duyệt. Quét QR để gửi giờ công.",
+  },
+  features: {
+    parentDashboardEnabled: false,
+    securityTelemetryEnabled: true,
   },
   ui: {
     placeholders: {

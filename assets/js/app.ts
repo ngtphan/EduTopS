@@ -39,6 +39,17 @@ import {
 } from "./modules/features/attendance/attendance-feature";
 import { normalizeScheduleApprovalStatus } from "@/entities/schedule/model/approval";
 import { getScheduleTeacherIds } from "@/entities/schedule/model/teacher-assignment";
+import { getParentStudentIds } from "@/entities/parent/model/student-access";
+import { canParentAccessSchedule } from "@/features/parent-guards/model/access";
+import {
+  createAccessContextSnapshot,
+  shouldResetAccessScopedCache,
+} from "@/features/parent-guards/model/access-context";
+import {
+  appendAccessDeniedEvent,
+  createAccessDeniedEvent,
+  shouldDedupeAccessDeniedEvent,
+} from "@/shared/lib/access-denied-telemetry";
 import {
   normalizeWeekToken,
   toIsoWeekTokenFromDate,
@@ -215,6 +226,15 @@ const DATA_COLLECTIONS = [
   "attendanceRequests",
   "settings",
 ];
+const dataRevision = Object.fromEntries(
+  DATA_COLLECTIONS.map((collectionName) => [collectionName, 0]),
+);
+
+const bumpDataRevision = (collectionName) => {
+  if (!Object.hasOwn(dataRevision, collectionName)) return;
+  dataRevision[collectionName] = Number(dataRevision[collectionName] || 0) + 1;
+};
+
 let currentUser = null;
 let currentRole = null;
 let isDataLoaded = false;
@@ -233,11 +253,150 @@ const syncState = {
 const syncErrorNotified = new Set();
 
 const normalizeEmail = (email) => (email || "").trim().toLowerCase();
+const toToken = (value) =>
+  typeof value === "string" ||
+  typeof value === "number" ||
+  typeof value === "boolean"
+    ? String(value).trim()
+    : "";
+const uniqTokens = (values = []) =>
+  Array.from(
+    new Set((values || []).map((value) => toToken(value)).filter(Boolean)),
+  );
+const toBooleanFlag = (value, fallbackValue = false) => {
+  if (typeof value === "boolean") return value;
+
+  const token = toToken(value).toLowerCase();
+  if (!token) return fallbackValue;
+  if (token === "1" || token === "true" || token === "yes" || token === "on") {
+    return true;
+  }
+  if (token === "0" || token === "false" || token === "no" || token === "off") {
+    return false;
+  }
+
+  return fallbackValue;
+};
 const ADMIN_EMAIL = normalizeEmail(
   getAppConfigValue("auth.fixedAdminEmail", "ngoctaiphan.edu@gmail.com"),
 );
+const PARENT_DASHBOARD_FEATURE_ENABLED = toBooleanFlag(
+  getAppConfigValue("features.parentDashboardEnabled", false),
+  false,
+);
+const SECURITY_TELEMETRY_ENABLED = toBooleanFlag(
+  getAppConfigValue("features.securityTelemetryEnabled", true),
+  true,
+);
+
+let accessContextState = createAccessContextSnapshot({
+  role: "",
+  userId: "",
+  parentStudentIds: [],
+});
+let accessDeniedEvents = [];
+let lastAccessDeniedEvent = null;
+
+const syncAccessContextState = () => {
+  const nextState = createAccessContextSnapshot({
+    role: currentRole,
+    userId: currentUser?.id,
+    parentStudentIds: Array.isArray(currentUser?.studentIds)
+      ? currentUser.studentIds
+      : [],
+  });
+
+  if (shouldResetAccessScopedCache(accessContextState, nextState)) {
+    // Reset dedupe window when auth scope changes to avoid hiding critical deny logs.
+    lastAccessDeniedEvent = null;
+  }
+
+  accessContextState = nextState;
+};
+
+const reportAccessDenied = ({
+  action,
+  reason,
+  resourceType,
+  resourceId,
+  details,
+  roleOverride,
+  userIdOverride,
+}) => {
+  if (!SECURITY_TELEMETRY_ENABLED) return;
+
+  const event = createAccessDeniedEvent({
+    action,
+    reason,
+    resourceType,
+    resourceId,
+    details,
+    role: roleOverride ?? currentRole,
+    userId: userIdOverride ?? currentUser?.id,
+  });
+
+  if (shouldDedupeAccessDeniedEvent(lastAccessDeniedEvent, event)) {
+    return;
+  }
+
+  accessDeniedEvents = appendAccessDeniedEvent(accessDeniedEvents, event, 300);
+  lastAccessDeniedEvent = event;
+  console.warn("[Security][AccessDenied]", event);
+};
+
+globalThis.getAccessDeniedEvents = () => {
+  if (!Array.isArray(accessDeniedEvents)) return [];
+  return [...accessDeniedEvents];
+};
+globalThis.clearAccessDeniedEvents = () => {
+  const removedCount = Array.isArray(accessDeniedEvents)
+    ? accessDeniedEvents.length
+    : 0;
+  accessDeniedEvents = [];
+  lastAccessDeniedEvent = null;
+  return removedCount;
+};
+globalThis.EDUTOPS_FEATURE_FLAGS = {
+  parentDashboardEnabled: PARENT_DASHBOARD_FEATURE_ENABLED,
+  securityTelemetryEnabled: SECURITY_TELEMETRY_ENABLED,
+};
+
 const isFixedAdmin = () =>
   normalizeEmail(currentUser?.email) === normalizeEmail(ADMIN_EMAIL);
+
+const getParentIdFromAccount = ({ account, user, loginEmail }) =>
+  toToken(account?.parentId) ||
+  toToken(account?.id) ||
+  toToken(user?.uid) ||
+  toToken(loginEmail);
+
+const getParentLinkRecordsFromAccounts = () =>
+  (globalThis.db.accounts || [])
+    .filter((account) => String(account?.role || "") === "parent")
+    .filter((account) => account?.active !== false)
+    .map((account) => {
+      const parentId = getParentIdFromAccount({
+        account,
+        user: null,
+        loginEmail: normalizeEmail(account?.email),
+      });
+
+      return {
+        parentId,
+        studentId: account?.studentId,
+        studentIds: Array.isArray(account?.studentIds)
+          ? account.studentIds
+          : [],
+      };
+    });
+
+const getParentStudentIdsByParentId = (parentId) =>
+  getParentStudentIds(getParentLinkRecordsFromAccounts(), toToken(parentId));
+
+const getCurrentParentStudentIds = () => {
+  if (accessContextState.role !== "parent") return [];
+  return accessContextState.parentStudentIds;
+};
 
 const EVAL_LEVELS = {
   good: {
@@ -359,7 +518,61 @@ const toClassToken = (value) =>
 const getStudentGradeLevel = (student) =>
   String(student?.gradeLevel || student?.classLevel || "Chưa phân lớp").trim();
 
+const createCollectionIndexCache = () => ({
+  revision: -1,
+  byId: new Map(),
+});
+
+const idLookupCache = {
+  subjects: createCollectionIndexCache(),
+  teachers: createCollectionIndexCache(),
+  students: createCollectionIndexCache(),
+  classes: createCollectionIndexCache(),
+};
+
+const getCollectionIndexById = (collectionName) => {
+  const cache = idLookupCache[collectionName];
+  if (!cache) return new Map();
+
+  const revision = Number(dataRevision?.[collectionName] || 0);
+  if (cache.revision === revision) {
+    return cache.byId;
+  }
+
+  const nextMap = new Map();
+  const rows = Array.isArray(globalThis.db?.[collectionName])
+    ? globalThis.db[collectionName]
+    : [];
+
+  rows.forEach((row) => {
+    const id = String(row?.id || "").trim();
+    if (!id) return;
+    nextMap.set(id, row);
+  });
+
+  cache.byId = nextMap;
+  cache.revision = revision;
+  return cache.byId;
+};
+
+const autoClassGroupsCache = {
+  studentsRevision: -1,
+  groups: [],
+};
+
+const selectableClassesCache = {
+  studentsRevision: -1,
+  classesRevision: -1,
+  classes: [],
+  byId: new Map(),
+};
+
 const buildAutoClassGroups = () => {
+  const studentsRevision = Number(dataRevision.students || 0);
+  if (autoClassGroupsCache.studentsRevision === studentsRevision) {
+    return autoClassGroupsCache.groups;
+  }
+
   const grouped = new Map();
   globalThis.db.students.forEach((student) => {
     const gradeLevel = getStudentGradeLevel(student);
@@ -367,7 +580,7 @@ const buildAutoClassGroups = () => {
     grouped.get(gradeLevel).push(student.id);
   });
 
-  return Array.from(grouped.entries())
+  const groups = Array.from(grouped.entries())
     .map(([gradeLevel, studentIds]) => ({
       id: `grade_${toClassToken(gradeLevel)}`,
       name: gradeLevel,
@@ -376,12 +589,45 @@ const buildAutoClassGroups = () => {
       defaultDays: [],
     }))
     .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+
+  autoClassGroupsCache.studentsRevision = studentsRevision;
+  autoClassGroupsCache.groups = groups;
+  return groups;
 };
 
 const getSelectableClasses = () => {
+  const studentsRevision = Number(dataRevision.students || 0);
+  const classesRevision = Number(dataRevision.classes || 0);
+  if (
+    selectableClassesCache.studentsRevision === studentsRevision &&
+    selectableClassesCache.classesRevision === classesRevision
+  ) {
+    return selectableClassesCache.classes;
+  }
+
   const autoGroups = buildAutoClassGroups();
-  if (autoGroups.length > 0) return autoGroups;
-  return globalThis.db.classes;
+  const classes = autoGroups.length > 0 ? autoGroups : globalThis.db.classes;
+  const byId = new Map();
+
+  classes.forEach((item) => {
+    const id = String(item?.id || "").trim();
+    if (!id) return;
+    byId.set(id, item);
+  });
+
+  selectableClassesCache.studentsRevision = studentsRevision;
+  selectableClassesCache.classesRevision = classesRevision;
+  selectableClassesCache.classes = classes;
+  selectableClassesCache.byId = byId;
+
+  return selectableClassesCache.classes;
+};
+
+const getSelectableClassById = (id) => {
+  const normalizedId = String(id || "").trim();
+  if (!normalizedId) return null;
+  getSelectableClasses();
+  return selectableClassesCache.byId.get(normalizedId) || null;
 };
 
 const getAttendanceWeekSchedules = (week) => {
@@ -440,6 +686,25 @@ const renderMasterOverview = () => {
   const teachersEl = document.getElementById("masterStatTeachers");
   const studentsEl = document.getElementById("masterStatStudents");
   const schedulesWeekEl = document.getElementById("masterStatSchedulesWeek");
+  const securityPanel = document.getElementById("masterSecurityTelemetryPanel");
+  const securityTotalEl = document.getElementById(
+    "masterSecurityTelemetryTotal",
+  );
+  const securityActionListEl = document.getElementById(
+    "masterSecurityTelemetryActionList",
+  );
+  const securityReasonListEl = document.getElementById(
+    "masterSecurityTelemetryReasonList",
+  );
+  const securityRecentListEl = document.getElementById(
+    "masterSecurityTelemetryRecentList",
+  );
+  const securityEmptyEl = document.getElementById(
+    "masterSecurityTelemetryEmpty",
+  );
+  const securityClearBtn = document.getElementById(
+    "btnMasterSecurityTelemetryClear",
+  );
 
   if (!subjectsEl || !teachersEl || !studentsEl) return;
 
@@ -456,6 +721,106 @@ const renderMasterOverview = () => {
       : 0;
     schedulesWeekEl.innerText = `${weekCount}`;
   }
+
+  if (
+    !securityPanel ||
+    !securityTotalEl ||
+    !securityActionListEl ||
+    !securityReasonListEl ||
+    !securityRecentListEl ||
+    !securityEmptyEl
+  ) {
+    return;
+  }
+
+  const canShowSecurityTelemetry =
+    currentRole === "admin" && SECURITY_TELEMETRY_ENABLED;
+  securityPanel.classList.toggle("hidden", !canShowSecurityTelemetry);
+  if (!canShowSecurityTelemetry) {
+    return;
+  }
+
+  if (securityClearBtn && securityClearBtn.dataset.boundClick !== "1") {
+    securityClearBtn.addEventListener("click", () => {
+      if (typeof globalThis.clearAccessDeniedEvents === "function") {
+        globalThis.clearAccessDeniedEvents();
+        renderMasterOverview();
+      }
+    });
+    securityClearBtn.dataset.boundClick = "1";
+  }
+
+  const events =
+    typeof globalThis.getAccessDeniedEvents === "function"
+      ? globalThis.getAccessDeniedEvents()
+      : [];
+
+  securityTotalEl.innerText = `${events.length}`;
+
+  const toTopCountRows = (items, keyName) => {
+    const grouped = new Map();
+    (items || []).forEach((item) => {
+      const key = toToken(item?.[keyName]) || "unknown";
+      grouped.set(key, Number(grouped.get(key) || 0) + 1);
+    });
+
+    return Array.from(grouped.entries())
+      .sort((left, right) => right[1] - left[1])
+      .slice(0, 5);
+  };
+
+  const actionRows = toTopCountRows(events, "action");
+  securityActionListEl.innerHTML =
+    actionRows.length > 0
+      ? actionRows
+          .map(
+            ([action, count]) =>
+              `<div class="flex items-center justify-between gap-2"><span class="text-[11px] text-slate-700 truncate">${escapeHtml(action)}</span><span class="text-[10px] font-bold px-1.5 py-0.5 rounded border border-slate-200 bg-slate-50 text-slate-700">${count}</span></div>`,
+          )
+          .join("")
+      : '<div class="text-[11px] text-slate-400 italic">Chưa có dữ liệu.</div>';
+
+  const reasonRows = toTopCountRows(events, "reason");
+  securityReasonListEl.innerHTML =
+    reasonRows.length > 0
+      ? reasonRows
+          .map(
+            ([reason, count]) =>
+              `<div class="flex items-center justify-between gap-2"><span class="text-[11px] text-slate-700 truncate">${escapeHtml(reason)}</span><span class="text-[10px] font-bold px-1.5 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700">${count}</span></div>`,
+          )
+          .join("")
+      : '<div class="text-[11px] text-slate-400 italic">Chưa có dữ liệu.</div>';
+
+  const recentRows = [...events]
+    .sort((left, right) => Number(right?.at || 0) - Number(left?.at || 0))
+    .slice(0, 8);
+
+  securityRecentListEl.innerHTML =
+    recentRows.length > 0
+      ? recentRows
+          .map((eventItem) => {
+            const action = escapeHtml(
+              toToken(eventItem?.action) || "unknown_action",
+            );
+            const reason = escapeHtml(
+              toToken(eventItem?.reason) || "unspecified",
+            );
+            const resourceType = escapeHtml(
+              toToken(eventItem?.resourceType) || "unknown_resource",
+            );
+            const resourceId = escapeHtml(
+              toToken(eventItem?.resourceId) || "-",
+            );
+            const role = escapeHtml(toToken(eventItem?.role) || "guest");
+            const atLabel = Number.isFinite(Number(eventItem?.at || 0))
+              ? new Date(Number(eventItem.at)).toLocaleString("vi-VN")
+              : "N/A";
+            return `<div class="rounded-lg border border-slate-200 bg-white px-2.5 py-2"><div class="text-[11px] font-bold text-slate-800 truncate">${action}</div><div class="text-[10px] text-slate-500 mt-0.5">${reason} • role: ${role}</div><div class="text-[10px] text-slate-500">${resourceType}: ${resourceId}</div><div class="text-[10px] text-slate-400 mt-0.5">${escapeHtml(atLabel)}</div></div>`;
+          })
+          .join("")
+      : "";
+
+  securityEmptyEl.classList.toggle("hidden", recentRows.length > 0);
 };
 
 const syncStatusUI = {
@@ -1220,6 +1585,20 @@ globalThis.appFormModal = ({
   });
 };
 
+globalThis.dismissAppFormModal = () => {
+  if (!formModalState.resolve || formModalState.isSubmitting) {
+    return false;
+  }
+
+  formModalState.onSubmit = null;
+  formModalState.isSubmitting = false;
+  resolveFormModalResult(null);
+
+  const refs = getFormModalRefs();
+  refs.modalService.close({ skipDismiss: true, skipRestoreFocus: true });
+  return true;
+};
+
 appDialog.btnCancel?.addEventListener("click", () => {
   closeDialog(getDialogCancelValue());
 });
@@ -1346,10 +1725,18 @@ const setupRealtimeSync = () => {
       getColRef(colName),
       { includeMetadataChanges: true },
       (snapshot) => {
-        globalThis.db[colName] = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
+        const wasCollectionLoaded = syncState.loadedCollections.has(colName);
+        const hasDocumentDataChanges = snapshot.docChanges().length > 0;
+        const shouldRefreshCollectionData =
+          hasDocumentDataChanges || !wasCollectionLoaded;
+
+        if (shouldRefreshCollectionData) {
+          globalThis.db[colName] = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }));
+          bumpDataRevision(colName);
+        }
 
         syncState.collectionMeta[colName] = {
           fromCache: snapshot.metadata.fromCache,
@@ -1361,7 +1748,9 @@ const setupRealtimeSync = () => {
 
         syncState.loadedCollections.add(colName);
         if (isDataLoaded) {
-          requestRenderAll();
+          if (hasDocumentDataChanges) {
+            requestRenderAll();
+          }
         } else if (syncState.loadedCollections.size === collections.length) {
           const totalLoadedDocs = Object.values(
             syncState.collectionMeta,
@@ -1458,6 +1847,9 @@ const initApp = async () => {
       isDataLoaded = false;
       currentUser = null;
       currentRole = null;
+      syncAccessContextState();
+      accessDeniedEvents = [];
+      lastAccessDeniedEvent = null;
       syncState.loadedCollections = new Set();
       syncState.collectionMeta = {};
       if (syncState.initialLoadTimer) {
@@ -1504,6 +1896,17 @@ const checkAuthAndMapRole = async (user) => {
 
   const loginEmail = normalizeEmail(user.email);
   if (!loginEmail) {
+    reportAccessDenied({
+      action: "auth.signin",
+      reason: "missing_login_email",
+      resourceType: "auth_session",
+      resourceId: toToken(user?.uid),
+      details: {
+        provider: "google",
+      },
+      roleOverride: "guest",
+      userIdOverride: toToken(user?.uid),
+    });
     pendingLoginError =
       "Không lấy được email từ tài khoản Google. Vui lòng dùng tài khoản Gmail hợp lệ.";
     await signOut(auth);
@@ -1516,6 +1919,18 @@ const checkAuthAndMapRole = async (user) => {
       a.role === "admin" &&
       a.active !== false,
   );
+  const teacherAccount = globalThis.db.accounts.find(
+    (a) =>
+      normalizeEmail(a.email) === loginEmail &&
+      a.role === "teacher" &&
+      a.active !== false,
+  );
+  const parentAccount = globalThis.db.accounts.find(
+    (a) =>
+      normalizeEmail(a.email) === loginEmail &&
+      a.role === "parent" &&
+      a.active !== false,
+  );
 
   if (loginEmail === ADMIN_EMAIL || adminAccount) {
     currentUser = {
@@ -1524,31 +1939,80 @@ const checkAuthAndMapRole = async (user) => {
       email: loginEmail,
     };
     currentRole = "admin";
-  } else {
-    const account = globalThis.db.accounts.find(
-      (a) =>
-        normalizeEmail(a.email) === loginEmail &&
-        a.role === "teacher" &&
-        a.active !== false,
-    );
-    if (!account) {
-      pendingLoginError =
-        "Email chưa được cấp quyền truy cập. Vui lòng liên hệ admin để cấp ở mục 5 - Tài khoản đăng nhập.";
-      await signOut(auth);
-      return;
-    }
-
+  } else if (teacherAccount) {
     const tea = globalThis.db.teachers.find(
       (t) => normalizeEmail(t.email) === loginEmail,
     );
     currentUser = tea || {
-      id: account.teacherId || user.uid,
-      name: account.name || user.displayName || "Giáo viên",
+      id: teacherAccount.teacherId || user.uid,
+      name: teacherAccount.name || user.displayName || "Giáo viên",
       email: loginEmail,
       phone: "",
     };
     currentRole = "teacher";
+  } else if (parentAccount) {
+    const parentId = getParentIdFromAccount({
+      account: parentAccount,
+      user,
+      loginEmail,
+    });
+    const linkedStudentIds = uniqTokens([
+      ...getParentStudentIdsByParentId(parentId),
+      ...(Array.isArray(parentAccount.studentIds)
+        ? parentAccount.studentIds
+        : []),
+      parentAccount.studentId,
+    ]);
+
+    if (!parentId || linkedStudentIds.length === 0) {
+      reportAccessDenied({
+        action: "auth.signin",
+        reason: "parent_account_without_linked_students",
+        resourceType: "parent_account",
+        resourceId:
+          toToken(parentAccount.id) ||
+          parentId ||
+          normalizeEmail(parentAccount.email),
+        details: {
+          linkedStudentCount: linkedStudentIds.length,
+          loginEmail,
+        },
+        roleOverride: "parent",
+        userIdOverride: parentId || toToken(parentAccount.id) || loginEmail,
+      });
+      pendingLoginError =
+        "Tai khoan phu huynh chua duoc lien ket hoc sinh. Vui long lien he admin de cau hinh.";
+      await signOut(auth);
+      return;
+    }
+
+    currentUser = {
+      id: parentId,
+      name: parentAccount.name || user.displayName || "Phụ huynh",
+      email: loginEmail,
+      studentIds: linkedStudentIds,
+      parentAccountId: toToken(parentAccount.id),
+    };
+    currentRole = "parent";
+  } else {
+    reportAccessDenied({
+      action: "auth.signin",
+      reason: "account_not_granted",
+      resourceType: "account",
+      resourceId: loginEmail,
+      details: {
+        loginEmail,
+      },
+      roleOverride: "guest",
+      userIdOverride: toToken(user?.uid),
+    });
+    pendingLoginError =
+      "Email chưa được cấp quyền truy cập. Vui lòng liên hệ admin để cấp ở mục 5 - Tài khoản đăng nhập.";
+    await signOut(auth);
+    return;
   }
+
+  syncAccessContextState();
 
   document.getElementById("headerUserName").innerText = currentUser.name;
   const badge = document.getElementById("headerRoleBadge");
@@ -1556,10 +2020,14 @@ const checkAuthAndMapRole = async (user) => {
     badge.innerText = "Admin";
     badge.className =
       "text-[10px] font-bold uppercase tracking-wider text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100";
-  } else {
+  } else if (currentRole === "teacher") {
     badge.innerText = "Teacher";
     badge.className =
       "text-[10px] font-bold uppercase tracking-wider text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-100";
+  } else {
+    badge.innerText = "Parent";
+    badge.className =
+      "text-[10px] font-bold uppercase tracking-wider text-cyan-700 bg-cyan-50 px-2 py-0.5 rounded border border-cyan-100";
   }
 
   const loginOverlay = document.getElementById("loginOverlay");
@@ -1888,29 +2356,61 @@ const dotColors = {
 };
 
 // --- RENDER LOGIC ---
+const SUBJECT_DELETED_INFO = Object.freeze({
+  name: "Môn đã xóa",
+  color: "slate",
+});
+const TEACHER_DELETED_INFO = Object.freeze({
+  name: "GV đã xóa",
+  phone: "",
+  email: "",
+});
+const STUDENT_DELETED_INFO = Object.freeze({
+  name: "HS đã xóa",
+  parentPhone: "",
+});
+
 const getSubjectInfo = (id) =>
-  globalThis.db.subjects.find((s) => s.id === id) || {
-    name: "Môn đã xóa",
-    color: "slate",
-  };
+  getCollectionIndexById("subjects").get(String(id || "").trim()) ||
+  SUBJECT_DELETED_INFO;
 const getTeacherInfo = (id) =>
-  globalThis.db.teachers.find((t) => t.id === id) || {
-    name: "GV đã xóa",
-    phone: "",
-    email: "",
-  };
+  getCollectionIndexById("teachers").get(String(id || "").trim()) ||
+  TEACHER_DELETED_INFO;
 const getStudentInfo = (id) =>
-  globalThis.db.students.find((s) => s.id === id) || {
-    name: "HS đã xóa",
-    parentPhone: "",
-  };
-const getClassInfo = (id) =>
-  getSelectableClasses().find((c) => String(c.id) === String(id));
+  getCollectionIndexById("students").get(String(id || "").trim()) ||
+  STUDENT_DELETED_INFO;
+const getClassInfo = (id) => getSelectableClassById(id);
+
+const getClassStudentIdsForAccess = (classId) => {
+  const cls = getClassInfo(classId);
+  if (!Array.isArray(cls?.studentIds)) return [];
+  return uniqTokens(cls.studentIds);
+};
+
+const canCurrentUserAccessSchedule = (schedule) => {
+  if (currentRole === "admin") return true;
+
+  if (currentRole === "teacher") {
+    return isTeacherAssignedToSchedule(schedule, currentUser?.id);
+  }
+
+  if (currentRole === "parent") {
+    return canParentAccessSchedule({
+      schedule,
+      parentStudentIds: getCurrentParentStudentIds(),
+      resolveClassStudentIds: getClassStudentIdsForAccess,
+    });
+  }
+
+  return false;
+};
 
 // --- FORMS SUBMIT LOGIC ---
 const attendanceFeature = registerAttendanceFeature({
   getCurrentRole: () => currentRole,
   getCurrentUser: () => currentUser,
+  canCurrentUserAccessSchedule,
+  getCurrentParentStudentIds,
   showToast,
 });
 
@@ -1940,6 +2440,10 @@ const renderCore = registerRenderCore({
   formatWorkedMinutes: attendanceFeature.formatWorkedMinutes,
   getBoardTeacherAttendanceSummary:
     attendanceFeature.getBoardTeacherAttendanceSummary,
+  canCurrentUserAccessSchedule,
+  getCurrentParentStudentIds,
+  reportAccessDenied,
+  isParentDashboardFeatureEnabled: () => PARENT_DASHBOARD_FEATURE_ENABLED,
 });
 
 applyRBAC = renderCore.applyRBAC;
@@ -1982,6 +2486,9 @@ registerDataManagement({
   isFixedAdmin,
   getCurrentRole: () => currentRole,
   getCurrentUser: () => currentUser,
+  canCurrentUserAccessSchedule,
+  getCurrentParentStudentIds,
+  reportAccessDenied,
   getSubjectInfo,
   getStudentInfo,
   getClassInfo,

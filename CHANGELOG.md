@@ -19,6 +19,280 @@ Quy uoc version: Semantic Versioning (MAJOR.MINOR.PATCH)
 
 - Chua co.
 
+## [v1.17.2] - 2026-04-05
+
+### Added
+
+- Hoan tat Step E dot 2: bo sung mini dashboard telemetry cho admin tai tab Tong (`Master`) de theo doi nhanh deny event theo action/reason va danh sach su kien gan nhat.
+- Bo sung thao tac xoa log deny trong phien hien tai (`clearAccessDeniedEvents`) de admin debug nhanh tren runtime.
+- Bo sung test tich hop role-switch + realtime snapshot update:
+  - `src/features/parent-guards/model/runtime-role-switch.test.ts`
+
+### Changed
+
+- Mo rong `renderMasterOverview` de render security telemetry panel co dieu kien theo role `admin` va feature flag `securityTelemetryEnabled`.
+- Dong bo partial giao dien `view-master` (ca `src/partials` va `public/partials`) voi khu vuc telemetry moi.
+
+### Fixed
+
+- Giam rui ro bo sot su kien deny khi van hanh: admin co the quan sat phan bo su kien theo action/reason va timeline su kien ngay trong UI.
+- Tang do tin cay regression role-switch khi snapshot lien ket parent-student thay doi trong session realtime.
+
+## [v1.17.1] - 2026-04-05
+
+### Added
+
+- Bo sung telemetry su kien `access_denied` cho cac luong deny quyen quan trong (dang nhap, mo chi tiet lich, mo tab khong du quyen, mo/submit danh gia).
+- Bo sung helper runtime access-context de chuan hoa scope role-user-parentStudents va ho tro reset cache theo role switch.
+- Bo sung unit test cho:
+  - `src/shared/lib/access-denied-telemetry.ts`
+  - `src/features/parent-guards/model/access-context.ts`
+
+### Changed
+
+- Dong bo scaffolding feature flag:
+  - `features.securityTelemetryEnabled`
+  - `features.parentDashboardEnabled`
+- Runtime board RBAC gan `data-parent-dashboard-enabled` tren `body` de mo rong parent dashboard o release sau ma khong pha hanh vi hien tai.
+
+### Fixed
+
+- Giam rui ro mat dau vet security deny do spam event lap lai (dedupe theo fingerprint + cua so thoi gian ngan).
+- Chan nguy co leak state role-scoped khi chuyen nguoi dung/role bang access scope key reset ro rang.
+
+## [v1.17.0] - 2026-04-05
+
+### Added
+
+- Hoan tat Step C/D cua Feature 1 (Cong phu huynh): map role `parent` o runtime va bo guard doc du lieu theo hoc sinh duoc lien ket.
+- Bo sung model guard thuần cho parent visibility:
+  - `src/features/parent-guards/model/access.ts`
+  - `src/features/parent-guards/model/access.test.ts`
+
+### Changed
+
+- Luong Board da loc lich theo quyen trung tam (admin/teacher/parent) va chan mo chi tiet ca dạy khi khong du quyen.
+- Luong Attendance da them guard cho parent: chi hien thi ban ghi chấm công lien quan hoc sinh duoc lien ket.
+- Modal danh gia chuyen sang read-only cho parent va chan bypass submit tu client path.
+- Cap nhat tien do trong `docs/FEATURE_IMPLEMENTATION_ROADMAP.md` va dong bo version metadata/runtime + README len `v1.17.0`.
+
+### Fixed
+
+- Giam rui ro permission bypass khi goi truc tiep action chi tiet lich/danh gia tu runtime console.
+
+## [v1.16.0] - 2026-04-05
+
+### Added
+
+- Khoi dong Feature 1 (Cong phu huynh) theo huong domain-first: bo sung model mapping `parentId -> studentIds` va guard truy cap hoc sinh cho phu huynh.
+- Them type `AppRole` ho tro `parent` va schema lien ket parent-student tai tang shared type.
+- Them unit test cho luong normalize mapping, kiem tra quyen truy cap, loc danh sach hoc sinh theo permission.
+
+### Changed
+
+- Bo sung tai lieu tien do trien khai trong `docs/FEATURE_IMPLEMENTATION_ROADMAP.md` de theo doi cac buoc Step B -> Step C/D cua Feature 1.
+- Cap nhat version metadata/runtime va README len `v1.16.0`.
+
+### Fixed
+
+- Chua co.
+
+## [v1.15.18] - 2026-04-05
+
+### Added
+
+- Bo sung tai lieu `docs/FEATURE_IMPLEMENTATION_ROADMAP.md` lam nguon ghi nho trung tam cho backlog tinh nang moi va trinh tu trien khai tung buoc.
+
+### Changed
+
+- Chuan hoa quy trinh them tinh nang theo huong domain-first + quality gate bat buoc (typecheck/test/build) de giam no ky thuat va loi tiem an.
+- Cap nhat version metadata/runtime va README len `v1.15.18`.
+
+### Fixed
+
+- Chua co.
+
+## [v1.15.17] - 2026-04-05
+
+### Added
+
+- Chua co.
+
+### Changed
+
+- Dong bo hien thi ky tuan tren toan app sang dinh dang khoang ngay `Tu ngay dd/mm/yyyy den ngay dd/mm/yyyy` de nguoi dung nhin truc tiep moc bat dau va ket thuc.
+- Chuan hoa formatter ky tuan dung chung cho Board/Attendance/chi tiet lich/chinh sua lich, loai bo cach hien thi `Tuan x, yyyy` va `Tuan x/yyyy` phan manh truoc day.
+- Cap nhat version metadata/runtime va README len `v1.15.17`.
+
+### Fixed
+
+- Tang do an toan helper tuan: validate theo dung so tuan ISO cua tung nam (khong cho token tuan khong ton tai), giam rui ro du lieu tuan sai gay loi am tham.
+- Bo sung test cho khoang ngay tuan (Thu 2 -> Chu nhat), bao dam tinh dung tren bien nam.
+
+## [v1.15.16] - 2026-04-05
+
+### Added
+
+- Chua co.
+
+### Changed
+
+- Rut gon them micro-copy trong luong quan ly hoc sinh va mot so thong bao UI de giao dien ngan gon, de doc hon nhung van du nghia thao tac.
+- Dong bo version metadata/runtime va README len `v1.15.16`.
+
+### Fixed
+
+- Tang do an toan tao ID cho ban ghi hoc sinh/tai khoan/giao vien bang helper uu tien `crypto.randomUUID` (co fallback), giam rui ro trung ID khi thao tac nhanh.
+
+## [v1.15.15] - 2026-04-05
+
+### Added
+
+- Chua co.
+
+### Changed
+
+- Don gon text UI tren cac view Board/Master/Attendance va cac message runtime lien quan, giu noi dung cot loi de thao tac nhanh va de nhin hon.
+- Rut gon copy trong cac modal/chuc nang quan ly hoc sinh, tai khoan va QR cham cong de giao dien nhat quan va it nhieu chu hon.
+- Cap nhat version metadata va version hien thi len `v1.15.15`.
+
+### Fixed
+
+- Giam rui ro trung ID khi tao nhanh tai khoan/giao vien/hoc sinh bang cach chuyen sang helper tao ID co them entropy ngau nhien.
+- Loai bo them canh bao/style debt cuc bo trong cac file vua duoc toi uu text.
+
+## [v1.15.14] - 2026-04-05
+
+### Added
+
+- Chua co.
+
+### Changed
+
+- Chuan hoa module quan ly giao vien theo huong dung `globalThis` thay cho `window` de dong nhat voi cac module runtime khac.
+- Rut gon mot so check Gmail bang optional chain de code ngan gon, de doc hon ma khong doi hanh vi.
+- Cap nhat version metadata va version hien thi len `v1.15.14`.
+
+### Fixed
+
+- Loai bo loat canh bao static analysis trong `teacher-management` (global object convention, optional chain, toan tu `void` du thua).
+
+## [v1.15.13] - 2026-04-05
+
+### Added
+
+- Chua co.
+
+### Changed
+
+- Rut gon text UI o cac luong Tao/Chinh sua ca day va Chinh sua nhom ca day: bo helper text dai, rut gon label/hint, giu lai thong tin can thiet de thao tac.
+- Rut gon mot so mo ta modal quan ly giao vien de man hinh gon va de tap trung vao hanh dong chinh.
+- Cap nhat version metadata va version hien thi len `v1.15.13`.
+
+### Fixed
+
+- Loai bo canh bao static analysis do nhanh `if/else` trung logic trong `schedule-management` sau dot toi uu text.
+
+## [v1.15.12] - 2026-04-05
+
+### Added
+
+- Bo sung co che toggle "Hiện danh sách/Ẩn danh sách" cho tat ca khu vuc chon giao vien/hoc sinh bang card trong luong Tao ca day va Chinh sua ca day.
+- Bo sung toggle tuong tu cho khu vuc chon giao vien (va nhom/lop) trong modal Chinh sua nhom ca day de thao tac dong nhat.
+
+### Changed
+
+- Card giao vien/hoc sinh chi hien thi khi nguoi dung chu dong bam mo danh sach, giam roi mat va gon bo cuc khi vua mo form/modal.
+- Dong bo hanh vi mo/dong danh sach card giua cac man hinh co chon giao vien/hoc sinh.
+- Cap nhat version metadata va version hien thi len `v1.15.12`.
+
+### Fixed
+
+- Loai bo tinh trang danh sach card giao vien/hoc sinh tu bung mo ngay khi vao form, gay nhieu thong tin tren man hinh.
+- Giam do lech trai nghiem giua cac modal tao/sua lich do moi noi da co cung mot kieu tuong tac click moi hien card.
+
+## [v1.15.11] - 2026-04-05
+
+### Added
+
+- Bo sung giao dien chon giao vien theo card cho form Tao ca day va cac modal Chinh sua ca day/Chinh sua nhom ca day, co badge trang thai (Da chon, Chinh, Ngoai mon).
+- Bo sung card picker cho nhom/lop trong modal Chinh sua nhom ca day de thao tac nhieu muc nhanh va ro rang hon.
+
+### Changed
+
+- Dong bo trai nghiem chon hoc sinh theo card hien dai hon trong form Tao ca day, giu co che dem so luong da chon/tong so.
+- Dong bo luong submit sua ca day de ho tro payload giao vien nhieu nguoi (`teacherId` + `coTeacherIds`) tu card selection.
+- Cap nhat version metadata va version hien thi len `v1.15.11`.
+
+### Fixed
+
+- Loai bo bat tien khi phai giu Ctrl/Command de multi-select giao vien trong ca them/sua; giam nguy co bo sot giao vien dong giang.
+- Giam xung dot UX giua cac man hinh lap lich do truoc day mot so man hinh da dung card, mot so man hinh con dung select list.
+
+## [v1.15.10] - 2026-04-05
+
+### Added
+
+- Bo sung helper runtime `dismissAppFormModal` de dong an toan `appFormModal` truoc khi chuyen sang cac modal overlay legacy.
+
+### Changed
+
+- Dong bo luong handoff modal trong cac action mo `Sua ca day`, `Sua nhom ca day`, `Chi tiet danh gia` de uu tien dong dialog top-layer dang mo truoc khi mo overlay tiep theo.
+- Cap nhat version metadata va version hien thi len `v1.15.10`.
+
+### Fixed
+
+- Sua loi xep lop modal: `Chi tiet ca day` khong con che/sau sai thu tu voi `Chinh sua nhom ca day` va cac modal overlay tuong tu.
+
+## [v1.15.9] - 2026-04-05
+
+### Added
+
+- Chua co.
+
+### Changed
+
+- Doi ten branding hien thi cua du an/trang web tu `CuiEduTop` sang `EduTopS` tren cau hinh runtime va cac fallback HTML (header, login overlay, loading overlay, page title, README).
+- Dong bo acronym giao dien tu `CET` sang `ETS`.
+- Cap nhat version metadata va version hien thi len `v1.15.9`.
+
+### Fixed
+
+- Loai bo sai lech ten thuong hieu giua cac man hinh/tang render khi tai partial fallback va khi apply config runtime.
+
+## [v1.15.8] - 2026-04-05
+
+### Added
+
+- Bo sung data revision layer cho cac collection runtime de lam nen cho cache/index cap du lieu an toan, de theo doi khi nao can rebuild.
+
+### Changed
+
+- Toi uu realtime sync: chi kich hoat `requestRenderAll()` khi snapshot co thay doi du lieu thuc, bo qua metadata-only update.
+- Chuyen lookup `subject/teacher/student/class` sang index map O(1) thay cho quet tuyen tinh lặp lai.
+- Cache `buildAutoClassGroups` va `getSelectableClasses` theo revision de tranh rebuild khong can thiet.
+- Cap nhat version metadata va version hien thi len `v1.15.8`.
+
+### Fixed
+
+- Giam hien tuong re-render du thua khi Firestore chi cap nhat metadata (fromCache/hasPendingWrites), nhat la luc dong bo realtime day.
+- Giam rui ro nghen UI do lap lai tinh toan nhom/lop tu dong va tra cuu ID nhieu lan trong vong render lon.
+
+## [v1.15.7] - 2026-04-05
+
+### Added
+
+- Chua co.
+
+### Changed
+
+- Dong bo class tab runtime voi class responsive goc de giu chieu cao header/tab strip on dinh khi chuyen tab.
+- Cap nhat version metadata va version hien thi len `v1.15.7`.
+
+### Fixed
+
+- Sua hien tuong lech UI khi bam sang tab `Xep lich` do class runtime cua `switchTab` khac spacing/typography so voi markup ban dau.
+
 ## [v1.15.6] - 2026-04-05
 
 ### Added

@@ -13,7 +13,10 @@ import {
   hasScheduleConflictIdentity as hasScheduleConflictIdentityEntity,
 } from "@/entities/schedule/model/conflict-key";
 import { pickConflictTarget } from "@/features/schedule-merge/model/pick-conflict-target";
-import { normalizeWeekToken } from "@/shared/lib/week-token";
+import {
+  formatWeekTokenLabel,
+  normalizeWeekToken,
+} from "@/shared/lib/week-token";
 
 const SCHEDULE_EDITABLE_FIELDS = [
   "week",
@@ -81,6 +84,13 @@ const toTrimmedToken = (value) => toTokenString(value).trim();
 
 const getStudentGradeLevel = (student) =>
   String(student?.gradeLevel || student?.classLevel || "Chưa phân lớp").trim();
+
+const closeTopLayerFormDialogIfNeeded = () => {
+  const dismissRuntimeFormModal = globalThis.dismissAppFormModal;
+  if (typeof dismissRuntimeFormModal === "function") {
+    dismissRuntimeFormModal();
+  }
+};
 
 const buildAutoClassGroups = () => {
   const grouped = new Map();
@@ -417,6 +427,16 @@ const closeModalDialog = (rootEl, state, result) => {
   }
 };
 
+const applyCardPanelExpandedState = ({ panel, toggleBtn, expanded }) => {
+  if (panel) {
+    panel.classList.toggle("hidden", !expanded);
+  }
+  if (toggleBtn) {
+    toggleBtn.textContent = expanded ? "Ẩn danh sách" : "Hiện danh sách";
+    toggleBtn.setAttribute("aria-expanded", expanded ? "true" : "false");
+  }
+};
+
 const bringModalToFront = (modalRoot, baseZ) => {
   const runtimeRaiseModal = globalThis.raiseModalToFront;
   if (typeof runtimeRaiseModal === "function") {
@@ -442,6 +462,21 @@ const findStudentById = (studentId) =>
     (student) => String(student.id) === String(studentId),
   );
 
+const findTeacherById = (teacherId) =>
+  globalThis.db.teachers.find(
+    (teacher) => String(teacher.id) === String(teacherId),
+  );
+
+const getTeacherMetaText = (teacher) => {
+  if (!teacher) return "Không xác định";
+  const subjectCount = Array.isArray(teacher.subjectIds)
+    ? teacher.subjectIds.length
+    : 0;
+  const phone = String(teacher.phone || "").trim();
+  const subjectText = `${subjectCount} môn`;
+  return phone ? `${subjectText} • ${phone}` : subjectText;
+};
+
 const getScheduleEditModalController = (() => {
   let controller = null;
 
@@ -457,7 +492,7 @@ const getScheduleEditModalController = (() => {
         <div class="px-5 py-3 border-b border-slate-200 bg-indigo-50 flex items-start justify-between gap-3 shrink-0">
           <div>
             <h3 class="text-base font-bold text-indigo-900">Chỉnh sửa lịch dạy đã xếp</h3>
-            <p id="scheduleEditCurrentSummary" class="text-[11px] text-indigo-700/80 mt-1"></p>
+            <p id="scheduleEditCurrentSummary" class="hidden"></p>
           </div>
           <button type="button" id="scheduleEditCloseBtn" class="text-slate-400 hover:text-slate-700 text-xl leading-none">&times;</button>
         </div>
@@ -472,7 +507,19 @@ const getScheduleEditModalController = (() => {
               <div><label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Cơ sở/Phòng</label><select id="scheduleEditLocation" class="w-full px-2.5 py-1.5 text-sm border border-slate-300 rounded-lg"></select></div>
               <div><label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Nhóm/Lớp</label><select id="scheduleEditClass" class="w-full px-2.5 py-1.5 text-sm border border-slate-300 rounded-lg"></select></div>
               <div><label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Môn học</label><select id="scheduleEditSubject" class="w-full px-2.5 py-1.5 text-sm border border-slate-300 rounded-lg"></select></div>
-              <div><label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Giáo viên</label><select id="scheduleEditTeacher" class="w-full px-2.5 py-1.5 text-sm border border-slate-300 rounded-lg"></select></div>
+              <div class="md:col-span-2 xl:col-span-4">
+                <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Giáo viên</label>
+                <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
+                  <div class="flex items-center justify-between gap-2">
+                    <div class="text-[11px] text-slate-600">Đã chọn <span id="scheduleEditTeacherCount" class="font-bold text-slate-900">0</span></div>
+                    <div class="flex items-center gap-2">
+                      <div id="scheduleEditTeacherHint" class="text-[10px] font-medium text-indigo-700"></div>
+                      <button type="button" id="scheduleEditTeacherToggleBtn" class="px-2 py-1 text-[10px] font-semibold rounded border border-indigo-200 text-indigo-700 bg-white hover:bg-indigo-50" aria-expanded="false">Hiện danh sách</button>
+                    </div>
+                  </div>
+                  <div id="scheduleEditTeacherCards" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2"></div>
+                </div>
+              </div>
             </div>
 
             <div>
@@ -484,10 +531,12 @@ const getScheduleEditModalController = (() => {
             <div class="border border-slate-200 rounded-xl p-3 bg-slate-50">
               <div class="flex items-center justify-between gap-2 mb-2">
                 <div class="text-xs font-bold text-slate-700 uppercase">Học sinh tham gia ca học</div>
-                <div id="scheduleEditStudentCount" class="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-700">0/0</div>
+                <div class="flex items-center gap-2">
+                  <div id="scheduleEditStudentCount" class="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-700">0/0</div>
+                  <button type="button" id="scheduleEditStudentToggleBtn" class="px-2 py-1 text-[10px] font-semibold rounded border border-indigo-200 text-indigo-700 bg-white hover:bg-indigo-50" aria-expanded="false">Hiện danh sách</button>
+                </div>
               </div>
-              <p class="text-[11px] text-slate-500 mb-2">Chạm vào card để chọn/bỏ học sinh trong ca này.</p>
-              <div id="scheduleEditStudentCards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2"></div>
+              <div id="scheduleEditStudentCards" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2"></div>
             </div>
           </div>
 
@@ -513,11 +562,15 @@ const getScheduleEditModalController = (() => {
       location: root.querySelector("#scheduleEditLocation"),
       classId: root.querySelector("#scheduleEditClass"),
       subjectId: root.querySelector("#scheduleEditSubject"),
-      teacherId: root.querySelector("#scheduleEditTeacher"),
+      teacherCards: root.querySelector("#scheduleEditTeacherCards"),
+      teacherCount: root.querySelector("#scheduleEditTeacherCount"),
+      teacherHint: root.querySelector("#scheduleEditTeacherHint"),
+      teacherToggleBtn: root.querySelector("#scheduleEditTeacherToggleBtn"),
       topic: root.querySelector("#scheduleEditTopic"),
       topicList: root.querySelector("#scheduleEditTopicList"),
       studentCards: root.querySelector("#scheduleEditStudentCards"),
       studentCount: root.querySelector("#scheduleEditStudentCount"),
+      studentToggleBtn: root.querySelector("#scheduleEditStudentToggleBtn"),
     };
 
     const state = {
@@ -528,6 +581,9 @@ const getScheduleEditModalController = (() => {
       originalClassId: "",
       originalStudentIds: [],
       selectedStudentIds: new Set(),
+      selectedTeacherIds: new Set(),
+      teacherCardsExpanded: false,
+      studentCardsExpanded: false,
     };
 
     const getCurrentClassStudentIds = () => {
@@ -577,6 +633,11 @@ const getScheduleEditModalController = (() => {
       }
 
       refs.studentCount.textContent = `${state.selectedStudentIds.size}/${poolIds.length}`;
+      applyCardPanelExpandedState({
+        panel: refs.studentCards,
+        toggleBtn: refs.studentToggleBtn,
+        expanded: state.studentCardsExpanded,
+      });
     };
 
     const updateEndTimeOptions = () => {
@@ -587,25 +648,135 @@ const getScheduleEditModalController = (() => {
       });
     };
 
-    const updateTeacherOptions = () => {
-      if (!state.isAdmin) {
-        const teacherName = state.user?.name || "Giáo viên";
-        setSelectOptions(
-          refs.teacherId,
-          [{ value: String(state.user?.id || ""), label: teacherName }],
-          String(state.user?.id || ""),
-        );
-        refs.teacherId.disabled = true;
+    const syncTeacherSummary = () => {
+      if (refs.teacherCount) {
+        refs.teacherCount.textContent = String(state.selectedTeacherIds.size);
+      }
+
+      if (!refs.teacherHint) return;
+      refs.teacherHint.textContent = "";
+    };
+
+    const renderTeacherCards = ({ availableTeacherIds = [] } = {}) => {
+      if (!refs.teacherCards) return;
+      const availableSet = new Set((availableTeacherIds || []).map(String));
+      const isTeacherMode = state.isAdmin === false;
+      const mandatoryTeacherId = isTeacherMode
+        ? String(state.user?.id || state.schedule?.teacherId || "")
+        : "";
+      if (mandatoryTeacherId) {
+        state.selectedTeacherIds.add(mandatoryTeacherId);
+      }
+
+      const cardTeacherIds = uniqIds([
+        ...availableTeacherIds,
+        ...Array.from(state.selectedTeacherIds),
+      ]);
+
+      refs.teacherCards.innerHTML = "";
+      if (cardTeacherIds.length === 0) {
+        refs.teacherCards.innerHTML =
+          '<div class="text-[11px] text-rose-700">Không có giáo viên phù hợp để chọn.</div>';
+        syncTeacherSummary(0);
         return;
       }
 
-      refs.teacherId.disabled = false;
-      const options = getTeacherOptions(refs.subjectId.value);
-      setSelectOptions(
-        refs.teacherId,
-        options,
-        refs.teacherId.value || state.schedule?.teacherId,
+      const createTeacherCard = ({
+        teacher,
+        teacherId,
+        selected,
+        locked,
+        outOfFilter,
+      }) => {
+        const card = document.createElement("button");
+        card.type = "button";
+        card.dataset.teacherId = String(teacherId);
+        card.className = selected
+          ? "text-left rounded-xl border p-2.5 bg-indigo-50 border-indigo-300 shadow-sm"
+          : "text-left rounded-xl border p-2.5 bg-white border-slate-200 hover:border-indigo-200";
+
+        const header = document.createElement("div");
+        header.className = "flex items-start justify-between gap-2";
+
+        const textWrap = document.createElement("div");
+        textWrap.className = "min-w-0";
+
+        const name = document.createElement("div");
+        name.className = "text-sm font-bold text-slate-800 truncate";
+        name.textContent = String(teacher.name || "Giáo viên");
+        textWrap.appendChild(name);
+
+        const meta = document.createElement("div");
+        meta.className = "text-[11px] text-slate-500 mt-0.5";
+        meta.textContent = getTeacherMetaText(teacher);
+        textWrap.appendChild(meta);
+
+        header.appendChild(textWrap);
+
+        const chips = document.createElement("div");
+        chips.className = "flex items-center gap-1.5 flex-wrap justify-end";
+
+        if (locked) {
+          const badge = document.createElement("span");
+          badge.className =
+            "text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700";
+          badge.textContent = "Chính";
+          chips.appendChild(badge);
+        }
+
+        if (outOfFilter) {
+          const badge = document.createElement("span");
+          badge.className =
+            "text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700";
+          badge.textContent = "Ngoài môn";
+          chips.appendChild(badge);
+        }
+
+        if (selected) {
+          const badge = document.createElement("span");
+          badge.className =
+            "text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700";
+          badge.textContent = "Đã chọn";
+          chips.appendChild(badge);
+        }
+
+        header.appendChild(chips);
+        card.appendChild(header);
+        return card;
+      };
+
+      for (const teacherId of cardTeacherIds) {
+        const teacher = findTeacherById(teacherId);
+        if (!teacher) continue;
+
+        const selected = state.selectedTeacherIds.has(String(teacherId));
+        const locked =
+          mandatoryTeacherId && String(teacherId) === mandatoryTeacherId;
+        const outOfFilter = !availableSet.has(String(teacherId));
+
+        const card = createTeacherCard({
+          teacher,
+          teacherId,
+          selected,
+          locked,
+          outOfFilter,
+        });
+        refs.teacherCards.appendChild(card);
+      }
+
+      syncTeacherSummary(availableTeacherIds.length);
+      applyCardPanelExpandedState({
+        panel: refs.teacherCards,
+        toggleBtn: refs.teacherToggleBtn,
+        expanded: state.teacherCardsExpanded,
+      });
+    };
+
+    const updateTeacherOptions = () => {
+      const availableTeacherIds = getTeacherOptions(refs.subjectId.value).map(
+        (option) => String(option.value || ""),
       );
+      renderTeacherCards({ availableTeacherIds });
     };
 
     const updateTopicOptions = () => {
@@ -672,6 +843,24 @@ const getScheduleEditModalController = (() => {
       updateStudentSelectionByClass();
     });
 
+    refs.teacherToggleBtn?.addEventListener("click", () => {
+      state.teacherCardsExpanded = !state.teacherCardsExpanded;
+      applyCardPanelExpandedState({
+        panel: refs.teacherCards,
+        toggleBtn: refs.teacherToggleBtn,
+        expanded: state.teacherCardsExpanded,
+      });
+    });
+
+    refs.studentToggleBtn?.addEventListener("click", () => {
+      state.studentCardsExpanded = !state.studentCardsExpanded;
+      applyCardPanelExpandedState({
+        panel: refs.studentCards,
+        toggleBtn: refs.studentToggleBtn,
+        expanded: state.studentCardsExpanded,
+      });
+    });
+
     refs.studentCards.addEventListener("click", (event) => {
       const button = event.target.closest("button[data-student-id]");
       if (!button) return;
@@ -686,8 +875,63 @@ const getScheduleEditModalController = (() => {
       renderStudentCards();
     });
 
+    refs.teacherCards?.addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-teacher-id]");
+      if (!button) return;
+      const teacherId = String(button.dataset.teacherId || "");
+      if (!teacherId) return;
+
+      const isTeacherMode = state.isAdmin === false;
+      const lockedTeacherId = isTeacherMode
+        ? String(state.user?.id || state.schedule?.teacherId || "")
+        : "";
+      if (lockedTeacherId && teacherId === lockedTeacherId) {
+        return;
+      }
+
+      if (state.selectedTeacherIds.has(teacherId)) {
+        state.selectedTeacherIds.delete(teacherId);
+      } else {
+        state.selectedTeacherIds.add(teacherId);
+      }
+
+      if (lockedTeacherId) {
+        state.selectedTeacherIds.add(lockedTeacherId);
+      }
+
+      updateTeacherOptions();
+    });
+
     refs.form.addEventListener("submit", (event) => {
       event.preventDefault();
+
+      const selectedTeacherIds = state.isAdmin
+        ? uniqIds(Array.from(state.selectedTeacherIds))
+        : uniqIds([
+            String(state.user?.id || state.schedule?.teacherId || ""),
+            ...Array.from(state.selectedTeacherIds),
+          ]);
+
+      if (selectedTeacherIds.length === 0) {
+        alert("Vui lòng chọn ít nhất 1 giáo viên phụ trách ca dạy.");
+        return;
+      }
+
+      const primaryTeacherId = state.isAdmin
+        ? toTrimmedToken(selectedTeacherIds[0])
+        : toTrimmedToken(state.user?.id) ||
+          toTrimmedToken(selectedTeacherIds[0]) ||
+          toTrimmedToken(state.schedule?.teacherId);
+      const normalizedTeacherFields = normalizeScheduleTeachers(
+        {
+          teacherId: primaryTeacherId,
+          coTeacherIds: selectedTeacherIds.filter(
+            (teacherId) => String(teacherId) !== String(primaryTeacherId),
+          ),
+        },
+        primaryTeacherId,
+      );
+
       const patch = {
         week: String(refs.week.value || "").trim(),
         dayOfWeek: String(refs.day.value || "").trim(),
@@ -697,9 +941,8 @@ const getScheduleEditModalController = (() => {
         classId: String(refs.classId.value || "").trim(),
         studentIds: uniqIds(Array.from(state.selectedStudentIds)),
         subjectId: String(refs.subjectId.value || "").trim(),
-        teacherId: state.isAdmin
-          ? String(refs.teacherId.value || "").trim()
-          : String(state.user?.id || state.schedule?.teacherId || "").trim(),
+        teacherId: String(normalizedTeacherFields.teacherId || "").trim(),
+        coTeacherIds: uniqIds(normalizedTeacherFields.coTeacherIds || []),
         topic: String(refs.topic.value || "").trim(),
       };
 
@@ -721,8 +964,20 @@ const getScheduleEditModalController = (() => {
         state.selectedStudentIds = new Set(
           state.originalStudentIds.map(String),
         );
+        const scheduleTeacherIds = uniqIds(getScheduleTeacherIds(schedule));
+        state.selectedTeacherIds = new Set(
+          state.isAdmin
+            ? scheduleTeacherIds
+            : uniqIds([String(user?.id || ""), ...scheduleTeacherIds]),
+        );
+        state.teacherCardsExpanded = false;
+        state.studentCardsExpanded = false;
 
-        refs.summary.textContent = `Hiện tại: Tuần ${String(schedule.week || "")} • ${String(schedule.startTime || "")} - ${String(schedule.endTime || "")} • ${getScheduleClassLabel(schedule)}`;
+        const weekLabel = formatWeekTokenLabel(
+          schedule.week || "",
+          String(schedule.week || ""),
+        );
+        refs.summary.textContent = `Hiện tại: ${weekLabel} • ${String(schedule.startTime || "")} - ${String(schedule.endTime || "")} • ${getScheduleClassLabel(schedule)}`;
 
         setSelectOptions(
           refs.week,
@@ -795,7 +1050,7 @@ const getScheduleGroupEditModalController = (() => {
         <div class="px-5 py-3 border-b border-slate-200 bg-indigo-50 flex items-start justify-between gap-3 shrink-0">
           <div>
             <h3 class="text-base font-bold text-indigo-900">Chỉnh sửa nhóm ca dạy</h3>
-            <p id="scheduleGroupEditCurrentSummary" class="text-[11px] text-indigo-700/80 mt-1"></p>
+            <p id="scheduleGroupEditCurrentSummary" class="hidden"></p>
           </div>
           <button type="button" id="scheduleGroupEditCloseBtn" class="text-slate-400 hover:text-slate-700 text-xl leading-none">&times;</button>
         </div>
@@ -809,7 +1064,17 @@ const getScheduleGroupEditModalController = (() => {
               <div><label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Kết thúc</label><select id="scheduleGroupEditEnd" class="w-full px-2.5 py-1.5 text-sm border border-slate-300 rounded-lg"></select></div>
               <div><label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Cơ sở/Phòng</label><select id="scheduleGroupEditLocation" class="w-full px-2.5 py-1.5 text-sm border border-slate-300 rounded-lg"></select></div>
               <div><label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Môn học</label><select id="scheduleGroupEditSubject" class="w-full px-2.5 py-1.5 text-sm border border-slate-300 rounded-lg"></select></div>
-              <div class="md:col-span-2 xl:col-span-2"><label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Giáo viên (chọn nhiều)</label><select id="scheduleGroupEditTeachers" multiple size="6" class="w-full px-2.5 py-1.5 text-sm border border-slate-300 rounded-lg"></select></div>
+              <div class="md:col-span-2 xl:col-span-4">
+                <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Giáo viên</label>
+                <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
+                  <div class="flex items-center justify-between gap-2">
+                    <div class="text-[11px] text-slate-600">Đã chọn <span id="scheduleGroupEditTeacherCount" class="font-bold text-slate-900">0</span></div>
+                    <button type="button" id="scheduleGroupEditTeacherToggleBtn" class="px-2 py-1 text-[10px] font-semibold rounded border border-indigo-200 text-indigo-700 bg-white hover:bg-indigo-50" aria-expanded="false">Hiện danh sách</button>
+                  </div>
+                  <div id="scheduleGroupEditTeacherCards" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2"></div>
+                </div>
+                <select id="scheduleGroupEditTeachers" multiple size="6" class="hidden"></select>
+              </div>
             </div>
 
             <div>
@@ -820,10 +1085,14 @@ const getScheduleGroupEditModalController = (() => {
 
             <div class="border border-slate-200 rounded-xl p-3 bg-slate-50">
               <div class="flex items-center justify-between gap-2 mb-2">
-                <div class="text-xs font-bold text-slate-700 uppercase">Nhóm/lớp áp dụng (chọn nhiều)</div>
-                <div id="scheduleGroupEditClassCount" class="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-700">0</div>
+                <div class="text-xs font-bold text-slate-700 uppercase">Nhóm/Lớp</div>
+                <div class="flex items-center gap-2">
+                  <div id="scheduleGroupEditClassCount" class="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-700">0</div>
+                  <button type="button" id="scheduleGroupEditClassToggleBtn" class="px-2 py-1 text-[10px] font-semibold rounded border border-indigo-200 text-indigo-700 bg-white hover:bg-indigo-50" aria-expanded="false">Hiện danh sách</button>
+                </div>
               </div>
-              <select id="scheduleGroupEditClasses" multiple size="8" class="w-full px-2.5 py-1.5 text-sm border border-slate-300 rounded-lg"></select>
+              <div id="scheduleGroupEditClassCards" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2"></div>
+              <select id="scheduleGroupEditClasses" multiple size="8" class="hidden"></select>
               <p id="scheduleGroupEditClassHint" class="text-[11px] text-slate-500 mt-2"></p>
             </div>
           </div>
@@ -850,10 +1119,17 @@ const getScheduleGroupEditModalController = (() => {
       location: root.querySelector("#scheduleGroupEditLocation"),
       subjectId: root.querySelector("#scheduleGroupEditSubject"),
       teachers: root.querySelector("#scheduleGroupEditTeachers"),
+      teacherCards: root.querySelector("#scheduleGroupEditTeacherCards"),
+      teacherCount: root.querySelector("#scheduleGroupEditTeacherCount"),
+      teacherToggleBtn: root.querySelector(
+        "#scheduleGroupEditTeacherToggleBtn",
+      ),
       topic: root.querySelector("#scheduleGroupEditTopic"),
       topicList: root.querySelector("#scheduleGroupEditTopicList"),
       classes: root.querySelector("#scheduleGroupEditClasses"),
+      classCards: root.querySelector("#scheduleGroupEditClassCards"),
       classCount: root.querySelector("#scheduleGroupEditClassCount"),
+      classToggleBtn: root.querySelector("#scheduleGroupEditClassToggleBtn"),
       classHint: root.querySelector("#scheduleGroupEditClassHint"),
     };
 
@@ -866,17 +1142,179 @@ const getScheduleGroupEditModalController = (() => {
       initialClassIds: new Set(),
       selectedClassIds: new Set(),
       selectedTeacherIds: new Set(),
+      teacherCardsExpanded: false,
+      classCardsExpanded: false,
     };
 
     const syncClassSummary = () => {
       refs.classCount.textContent = `${state.selectedClassIds.size}`;
-      if (state.isAdmin) {
-        refs.classHint.textContent =
-          "Admin có thể thêm/bỏ nhiều nhóm lớp khi chỉnh sửa nhóm ca dạy.";
-      } else {
-        refs.classHint.textContent =
-          "Tài khoản giáo viên chỉ được chỉnh các lớp hiện có trong nhóm ca dạy.";
+      refs.classHint.textContent = "";
+
+      applyCardPanelExpandedState({
+        panel: refs.classCards,
+        toggleBtn: refs.classToggleBtn,
+        expanded: state.classCardsExpanded,
+      });
+    };
+
+    const syncTeacherSummary = () => {
+      if (refs.teacherCount) {
+        refs.teacherCount.textContent = `${state.selectedTeacherIds.size}`;
       }
+
+      applyCardPanelExpandedState({
+        panel: refs.teacherCards,
+        toggleBtn: refs.teacherToggleBtn,
+        expanded: state.teacherCardsExpanded,
+      });
+    };
+
+    const applySelectedIdsToMultiSelect = (selectEl, selectedIds = []) => {
+      if (!selectEl) return;
+      const selectedSet = new Set((selectedIds || []).map(String));
+      Array.from(selectEl.options || []).forEach((option) => {
+        option.selected = selectedSet.has(String(option.value || ""));
+      });
+    };
+
+    const renderTeacherCards = () => {
+      if (!refs.teacherCards) return;
+
+      const availableTeacherIds = Array.from(refs.teachers.options || [])
+        .map((option) => String(option.value || "").trim())
+        .filter(Boolean);
+      const teacherIds = uniqIds([
+        ...availableTeacherIds,
+        ...Array.from(state.selectedTeacherIds),
+      ]);
+      const userTeacherId = String(state.user?.id || "");
+
+      refs.teacherCards.innerHTML = "";
+      if (teacherIds.length === 0) {
+        refs.teacherCards.innerHTML =
+          '<div class="text-[11px] text-rose-700">Không có giáo viên phù hợp để chọn.</div>';
+        syncTeacherSummary();
+        return;
+      }
+
+      const availableSet = new Set(availableTeacherIds);
+      teacherIds.forEach((teacherId) => {
+        const teacher = findTeacherById(teacherId);
+        if (!teacher) return;
+
+        const selected = state.selectedTeacherIds.has(String(teacherId));
+        const locked = !state.isAdmin && teacherId === userTeacherId;
+        const outOfFilter = !availableSet.has(String(teacherId));
+
+        const card = document.createElement("button");
+        card.type = "button";
+        card.dataset.teacherId = String(teacherId);
+        card.className = selected
+          ? "text-left rounded-xl border p-2.5 bg-indigo-50 border-indigo-300 shadow-sm"
+          : "text-left rounded-xl border p-2.5 bg-white border-slate-200 hover:border-indigo-200";
+
+        const name = document.createElement("div");
+        name.className = "text-sm font-bold text-slate-800";
+        name.textContent = String(teacher.name || "Giáo viên");
+        card.appendChild(name);
+
+        const meta = document.createElement("div");
+        meta.className = "text-[11px] text-slate-500 mt-0.5";
+        meta.textContent = getTeacherMetaText(teacher);
+        card.appendChild(meta);
+
+        const chips = document.createElement("div");
+        chips.className = "mt-1 flex items-center gap-1.5 flex-wrap";
+
+        if (selected) {
+          const badge = document.createElement("span");
+          badge.className =
+            "text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700";
+          badge.textContent = "Đã chọn";
+          chips.appendChild(badge);
+        }
+
+        if (locked) {
+          const badge = document.createElement("span");
+          badge.className =
+            "text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700";
+          badge.textContent = "Chính";
+          chips.appendChild(badge);
+        }
+
+        if (outOfFilter) {
+          const badge = document.createElement("span");
+          badge.className =
+            "text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700";
+          badge.textContent = "Ngoài môn";
+          chips.appendChild(badge);
+        }
+
+        card.appendChild(chips);
+        refs.teacherCards.appendChild(card);
+      });
+
+      syncTeacherSummary();
+    };
+
+    const renderClassCards = () => {
+      if (!refs.classCards) return;
+
+      const classIds = Array.from(refs.classes.options || [])
+        .map((option) => String(option.value || "").trim())
+        .filter(Boolean);
+
+      refs.classCards.innerHTML = "";
+      if (classIds.length === 0) {
+        refs.classCards.innerHTML =
+          '<div class="text-[11px] text-rose-700">Không có nhóm/lớp khả dụng.</div>';
+        syncClassSummary();
+        return;
+      }
+
+      classIds.forEach((classId) => {
+        const cls = resolveClassById(classId);
+        if (!cls) return;
+
+        const selected = state.selectedClassIds.has(String(classId));
+        const locked = !state.isAdmin;
+
+        const card = document.createElement("button");
+        card.type = "button";
+        card.dataset.classId = String(classId);
+        card.className = selected
+          ? "text-left rounded-xl border p-2.5 bg-indigo-50 border-indigo-300 shadow-sm"
+          : "text-left rounded-xl border p-2.5 bg-white border-slate-200 hover:border-indigo-200";
+
+        const name = document.createElement("div");
+        name.className = "text-sm font-bold text-slate-800";
+        name.textContent = formatClassOptionLabel(cls);
+        card.appendChild(name);
+
+        const chips = document.createElement("div");
+        chips.className = "mt-1 flex items-center gap-1.5 flex-wrap";
+
+        if (selected) {
+          const badge = document.createElement("span");
+          badge.className =
+            "text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700";
+          badge.textContent = "Đã chọn";
+          chips.appendChild(badge);
+        }
+
+        if (locked) {
+          const badge = document.createElement("span");
+          badge.className =
+            "text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700";
+          badge.textContent = "Khóa";
+          chips.appendChild(badge);
+        }
+
+        card.appendChild(chips);
+        refs.classCards.appendChild(card);
+      });
+
+      syncClassSummary();
     };
 
     const updateTopicOptions = () => {
@@ -920,6 +1358,12 @@ const getScheduleGroupEditModalController = (() => {
           }
         }
       }
+
+      applySelectedIdsToMultiSelect(
+        refs.teachers,
+        uniqIds(Array.from(state.selectedTeacherIds)),
+      );
+      renderTeacherCards();
     };
 
     const updateClassOptions = () => {
@@ -932,6 +1376,11 @@ const getScheduleGroupEditModalController = (() => {
       if (!state.isAdmin) {
         state.selectedClassIds = new Set(selectedClassIds);
       }
+      applySelectedIdsToMultiSelect(
+        refs.classes,
+        uniqIds(Array.from(state.selectedClassIds)),
+      );
+      renderClassCards();
       syncClassSummary();
     };
 
@@ -961,6 +1410,24 @@ const getScheduleGroupEditModalController = (() => {
       updateTopicOptions();
     });
 
+    refs.teacherToggleBtn?.addEventListener("click", () => {
+      state.teacherCardsExpanded = !state.teacherCardsExpanded;
+      applyCardPanelExpandedState({
+        panel: refs.teacherCards,
+        toggleBtn: refs.teacherToggleBtn,
+        expanded: state.teacherCardsExpanded,
+      });
+    });
+
+    refs.classToggleBtn?.addEventListener("click", () => {
+      state.classCardsExpanded = !state.classCardsExpanded;
+      applyCardPanelExpandedState({
+        panel: refs.classCards,
+        toggleBtn: refs.classToggleBtn,
+        expanded: state.classCardsExpanded,
+      });
+    });
+
     refs.classes.addEventListener("change", () => {
       state.selectedClassIds = new Set(
         getSelectedValuesFromSelect(refs.classes),
@@ -979,6 +1446,56 @@ const getScheduleGroupEditModalController = (() => {
         return;
       }
       state.selectedTeacherIds = new Set(uniqIds(selectedTeacherIds));
+    });
+
+    refs.classCards?.addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-class-id]");
+      if (!button) return;
+      if (!state.isAdmin) return;
+
+      const classId = String(button.dataset.classId || "");
+      if (!classId) return;
+
+      if (state.selectedClassIds.has(classId)) {
+        state.selectedClassIds.delete(classId);
+      } else {
+        state.selectedClassIds.add(classId);
+      }
+
+      applySelectedIdsToMultiSelect(
+        refs.classes,
+        uniqIds(Array.from(state.selectedClassIds)),
+      );
+      renderClassCards();
+    });
+
+    refs.teacherCards?.addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-teacher-id]");
+      if (!button) return;
+
+      const teacherId = String(button.dataset.teacherId || "");
+      if (!teacherId) return;
+      const userTeacherId = String(state.user?.id || "");
+
+      if (!state.isAdmin && teacherId === userTeacherId) {
+        return;
+      }
+
+      if (state.selectedTeacherIds.has(teacherId)) {
+        state.selectedTeacherIds.delete(teacherId);
+      } else {
+        state.selectedTeacherIds.add(teacherId);
+      }
+
+      if (!state.isAdmin && userTeacherId) {
+        state.selectedTeacherIds.add(userTeacherId);
+      }
+
+      applySelectedIdsToMultiSelect(
+        refs.teachers,
+        uniqIds(Array.from(state.selectedTeacherIds)),
+      );
+      renderTeacherCards();
     });
 
     refs.form.addEventListener("submit", (event) => {
@@ -1038,6 +1555,8 @@ const getScheduleGroupEditModalController = (() => {
             uniqIds([String(user?.id || ""), ...defaultTeacherIds]),
           );
         }
+        state.teacherCardsExpanded = false;
+        state.classCardsExpanded = false;
 
         refs.summary.textContent = `Hiện tại: ${String(schedules?.length || 0)} ca • ${String(state.initialClassIds.size)} nhóm/lớp`;
 
@@ -1771,6 +2290,7 @@ export const registerScheduleActions = ({ getCurrentRole, getCurrentUser }) => {
       return alert("Bạn không có quyền chỉnh sửa lịch này.");
     }
 
+    closeTopLayerFormDialogIfNeeded();
     const nextPatch = await promptSchedulePatch({ schedule, isAdmin, user });
     if (!nextPatch) return;
     if (!validateSchedulePatch(nextPatch, schedule)) {
@@ -1806,11 +2326,12 @@ export const registerScheduleActions = ({ getCurrentRole, getCurrentUser }) => {
     const representativeSchedule = schedules[0];
 
     const shouldProceed = await globalThis.appConfirm(
-      "Sửa nhóm ca dạy cho phép cập nhật đồng loạt tuần/thứ/giờ/phòng/môn/nội dung và nhiều giáo viên. Admin có thể thêm/bớt nhiều nhóm lớp ngay trong một lần lưu.",
+      "Áp dụng chỉnh sửa nhóm ca dạy?",
       "Chỉnh sửa nhóm ca dạy",
     );
     if (!shouldProceed) return;
 
+    closeTopLayerFormDialogIfNeeded();
     const nextPatch = await promptGroupSchedulePatch({
       schedules,
       isAdmin,
@@ -2315,22 +2836,19 @@ export const registerScheduleFormsAndFilters = ({
       teacherSelect.multiple = true;
       teacherSelect.size = 5;
       if (teacherMultiHelp) {
-        teacherMultiHelp.classList.remove("hidden");
-        teacherMultiHelp.innerText =
-          "Giáo viên: có thể chọn thêm đồng giảng cùng chuyên môn. Bạn luôn là giáo viên chính.";
+        teacherMultiHelp.classList.add("hidden");
+        teacherMultiHelp.innerText = "";
       }
 
       classSelect.multiple = true;
       classSelect.size = 6;
       if (classMultiHelp) {
-        classMultiHelp.classList.remove("hidden");
-        classMultiHelp.innerText =
-          "Giáo viên: Có thể chọn nhiều nhóm/lớp cùng lúc (giữ Ctrl/Command).";
+        classMultiHelp.classList.add("hidden");
+        classMultiHelp.innerText = "";
       }
 
       if (roleHint) {
-        roleHint.innerText =
-          "Giáo viên có thể chọn nhiều lớp và đồng giảng cùng chuyên môn. Tất cả lịch sẽ gửi admin duyệt.";
+        roleHint.innerText = "";
       }
       return;
     }
@@ -2338,21 +2856,19 @@ export const registerScheduleFormsAndFilters = ({
     teacherSelect.multiple = true;
     teacherSelect.size = 5;
     if (teacherMultiHelp) {
-      teacherMultiHelp.classList.remove("hidden");
-      teacherMultiHelp.innerText =
-        "Admin: Giữ Ctrl/Command để chọn nhiều giáo viên cùng chuyên môn.";
+      teacherMultiHelp.classList.add("hidden");
+      teacherMultiHelp.innerText = "";
     }
 
     classSelect.multiple = true;
     classSelect.size = 6;
     if (classMultiHelp) {
-      classMultiHelp.classList.remove("hidden");
-      classMultiHelp.innerText =
-        "Admin: Giữ Ctrl/Command để chọn nhiều nhóm/lớp trong cùng ca.";
+      classMultiHelp.classList.add("hidden");
+      classMultiHelp.innerText = "";
     }
 
     if (roleHint) {
-      roleHint.innerText = "Admin tạo lịch sẽ được áp dụng ngay.";
+      roleHint.innerText = "";
     }
   };
 
