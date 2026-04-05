@@ -10,7 +10,7 @@
         ],
         "strict": true,
         "skipLibCheck": true,
-        "allowJs": true,
+        "allowJs": false,
         "checkJs": false,
         "resolveJsonModule": true,
         "isolatedModules": true,
@@ -31,7 +31,7 @@
         "src/**/*.ts",
         "src/**/*.d.ts",
         "vite.config.ts",
-        "assets/js/**/*.js"
+        "assets/js/**/*.ts"
     ],
     "exclude": [
         "dist",

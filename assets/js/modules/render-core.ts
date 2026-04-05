@@ -1,6 +1,15 @@
-import { escapeHtml, escapeAttr } from "./security-utils.js";
-import { getConfigByPath } from "../config/app-config.js";
+// @ts-nocheck
+import { escapeHtml, escapeAttr } from "./security-utils";
+import { getConfigByPath } from "../config/app-config";
 import { normalizeScheduleApprovalStatus } from "@/entities/schedule/model/approval";
+import {
+  buildScheduleCompactIdentity,
+  groupSchedulesByCompactIdentity,
+  summarizeScheduleApprovalForGroup,
+} from "@/entities/schedule/model/compact-group";
+import { renderScheduleGroupClassChips as renderScheduleGroupClassChipsComponent } from "@/widgets/schedule-board/components/render-schedule-group-class-chips";
+import { renderStatusChip } from "@/widgets/schedule-board/components/render-status-chip";
+import { renderEmptyState } from "@/widgets/schedule-board/components/render-empty-state";
 import {
   getScheduleTeacherIds,
   isTeacherAssignedToSchedule,
@@ -133,6 +142,143 @@ export const registerRenderCore = ({
     return names.join(", ");
   };
 
+  const renderedScheduleGroupCache = new Map();
+
+  const clearRenderedScheduleGroupCache = () => {
+    renderedScheduleGroupCache.clear();
+  };
+
+  const cacheRenderedScheduleGroups = (groups = []) => {
+    groups.forEach((group) => {
+      const token = String(group?.token || "").trim();
+      if (!token) return;
+      renderedScheduleGroupCache.set(token, group);
+    });
+  };
+
+  globalThis.getRenderedScheduleGroup = (groupToken) => {
+    const normalizedToken = String(groupToken || "").trim();
+    if (!normalizedToken) return null;
+    return renderedScheduleGroupCache.get(normalizedToken) || null;
+  };
+
+  const buildScheduleCompactGroups = (
+    scheduleList = [],
+    tokenPrefix = "grp",
+  ) => {
+    const countUniqueStudents = (schedules = []) => {
+      const uniqueIds = new Set(
+        schedules
+          .flatMap((schedule) => {
+            const cls = getClassInfoSafe(schedule.classId);
+            return getScheduleStudentIds(schedule, cls);
+          })
+          .map((studentId) => String(studentId || "").trim())
+          .filter(Boolean),
+      );
+      return uniqueIds.size;
+    };
+
+    const grouped = groupSchedulesByCompactIdentity(scheduleList, (schedule) =>
+      buildScheduleCompactIdentity(schedule, getScheduleTeacherIds(schedule)),
+    );
+
+    return grouped
+      .map(({ identityKey, schedules }, index) => {
+        const orderedSchedules = [...schedules].sort((a, b) => {
+          const classA = getScheduleClassLabel(a, getClassInfoSafe(a.classId));
+          const classB = getScheduleClassLabel(b, getClassInfoSafe(b.classId));
+          const classDiff = String(classA || "").localeCompare(
+            String(classB || ""),
+          );
+          if (classDiff !== 0) return classDiff;
+          return String(a.id || "").localeCompare(String(b.id || ""));
+        });
+
+        const classEntries = orderedSchedules.map((schedule) => {
+          const cls = getClassInfoSafe(schedule.classId);
+          const studentIds = getScheduleStudentIds(schedule, cls);
+          return {
+            schedule,
+            classLabel: getScheduleClassLabel(schedule, cls),
+            studentCount: studentIds.length,
+          };
+        });
+
+        return {
+          token: `${tokenPrefix}_${toClassToken(identityKey)}_${index}`,
+          identityKey,
+          schedules: orderedSchedules,
+          representative: orderedSchedules[0] || null,
+          classEntries,
+          studentCount: countUniqueStudents(orderedSchedules),
+        };
+      })
+      .sort((a, b) => {
+        const aSchedule = a.representative || {};
+        const bSchedule = b.representative || {};
+        const startDiff = String(aSchedule.startTime || "").localeCompare(
+          String(bSchedule.startTime || ""),
+        );
+        if (startDiff !== 0) return startDiff;
+
+        const endDiff = String(aSchedule.endTime || "").localeCompare(
+          String(bSchedule.endTime || ""),
+        );
+        if (endDiff !== 0) return endDiff;
+
+        const subjectDiff = String(aSchedule.subjectId || "").localeCompare(
+          String(bSchedule.subjectId || ""),
+        );
+        if (subjectDiff !== 0) return subjectDiff;
+
+        return String(a.identityKey || "").localeCompare(
+          String(b.identityKey || ""),
+        );
+      });
+  };
+
+  const getScheduleGroupApprovalMeta = (group) => {
+    const summary = summarizeScheduleApprovalForGroup(group?.schedules || []);
+
+    if (summary.mode === "approved") {
+      return {
+        label: "Đã duyệt",
+        className: "bg-emerald-50 text-emerald-700 border-emerald-200",
+      };
+    }
+    if (summary.mode === "pending") {
+      return {
+        label: "Chờ duyệt",
+        className: "bg-amber-50 text-amber-700 border-amber-200",
+      };
+    }
+    if (summary.mode === "rejected") {
+      return {
+        label: "Từ chối",
+        className: "bg-rose-50 text-rose-700 border-rose-200",
+      };
+    }
+
+    const labelParts = [];
+    if (summary.approved > 0) labelParts.push(`${summary.approved} duyệt`);
+    if (summary.pending > 0) labelParts.push(`${summary.pending} chờ duyệt`);
+    if (summary.rejected > 0) labelParts.push(`${summary.rejected} từ chối`);
+
+    return {
+      label: labelParts.join(" • ") || "Nhiều trạng thái",
+      className: "bg-slate-50 text-slate-700 border-slate-200",
+    };
+  };
+
+  const renderScheduleGroupClassChips = (group, { limit = 6 } = {}) => {
+    return renderScheduleGroupClassChipsComponent({
+      entries: group?.classEntries || [],
+      limit,
+      toSafeText: safeText,
+    });
+  };
+
   const masterTabKeys = [
     "overview",
     "subjects",
@@ -191,6 +337,11 @@ export const registerRenderCore = ({
         invokeGlobalAction("openTimetableScheduleDetail", scheduleId);
       }
     },
+    "open-group-detail": (_scheduleId, scheduleGroupKey) => {
+      if (scheduleGroupKey) {
+        invokeGlobalAction("openScheduleGroupDetail", scheduleGroupKey);
+      }
+    },
     "open-eval": (scheduleId) => {
       if (scheduleId) {
         invokeGlobalAction("openEvalModal", scheduleId);
@@ -201,9 +352,19 @@ export const registerRenderCore = ({
         invokeGlobalAction("openScheduleEditor", scheduleId);
       }
     },
+    "open-group-editor": (_scheduleId, scheduleGroupKey) => {
+      if (scheduleGroupKey) {
+        invokeGlobalAction("openScheduleGroupEditor", scheduleGroupKey);
+      }
+    },
     "delete-schedule": (scheduleId) => {
       if (scheduleId) {
         invokeGlobalAction("deleteData", "schedules", scheduleId);
+      }
+    },
+    "delete-group-schedules": (_scheduleId, scheduleGroupKey) => {
+      if (scheduleGroupKey) {
+        invokeGlobalAction("deleteScheduleGroup", scheduleGroupKey);
       }
     },
     "add-student": (scheduleId) => {
@@ -223,10 +384,14 @@ export const registerRenderCore = ({
     },
   };
 
-  const runBoardScheduleAction = (action, scheduleId) => {
+  const runBoardScheduleAction = (
+    action,
+    scheduleId,
+    scheduleGroupKey = "",
+  ) => {
     const executor = boardScheduleActionExecutors[action];
     if (!executor) return;
-    executor(scheduleId);
+    executor(scheduleId, scheduleGroupKey);
   };
 
   const handleBoardActionClick = (event) => {
@@ -238,12 +403,15 @@ export const registerRenderCore = ({
 
     const action = String(actionEl.dataset.scheduleAction || "").trim();
     const scheduleId = String(actionEl.dataset.scheduleId || "").trim();
+    const scheduleGroupKey = String(
+      actionEl.dataset.scheduleGroupKey || "",
+    ).trim();
     if (!action) return;
 
     event.preventDefault();
     event.stopPropagation();
 
-    runBoardScheduleAction(action, scheduleId);
+    runBoardScheduleAction(action, scheduleId, scheduleGroupKey);
   };
 
   const bindBoardActionDelegation = (element) => {
@@ -773,14 +941,6 @@ export const registerRenderCore = ({
     return selectedClassId ? [selectedClassId] : [];
   };
 
-  const areIdSetsEqual = (a, b) => {
-    if (a.size !== b.size) return false;
-    for (const id of a) {
-      if (!b.has(id)) return false;
-    }
-    return true;
-  };
-
   const getUniqueStudentIdsFromClasses = (classes) => {
     const idSet = new Set();
     (classes || []).forEach((cls) => {
@@ -792,52 +952,59 @@ export const registerRenderCore = ({
     return Array.from(idSet);
   };
 
-  globalThis.updateScheduleStudentSelection = () => {
-    const studentWrap = document.getElementById("sch_studentPickerWrap");
-    const checkboxContainer = document.getElementById("sch_studentCheckboxes");
-    const summaryEl = document.getElementById("sch_studentSummary");
-    const countBadge = document.getElementById("sch_selectedStudentCount");
-    const statsEl = document.getElementById("sch_studentStats");
-    if (!studentWrap || !checkboxContainer || !summaryEl || !countBadge) return;
-
-    const all = checkboxContainer.querySelectorAll("input[type='checkbox']");
-    const checked = checkboxContainer.querySelectorAll(
-      "input[type='checkbox']:checked",
+  const getStudentPickerCheckboxes = (studentCheckboxes) =>
+    Array.from(
+      studentCheckboxes?.querySelectorAll('input[name="sch_studentIds[]"]') ||
+        [],
     );
-    const totalCount = all.length;
-    const selectedCount = checked.length;
-    const className = String(studentWrap.dataset.className || "Lớp đã chọn");
 
-    countBadge.innerText = `${selectedCount}/${totalCount}`;
+  const getStudentPickerSelectedIds = (studentCheckboxes) =>
+    getStudentPickerCheckboxes(studentCheckboxes)
+      .filter((checkbox) => checkbox.checked)
+      .map((checkbox) => String(checkbox.value || "").trim())
+      .filter(Boolean);
 
-    if (statsEl) {
-      const remaining = Math.max(totalCount - selectedCount, 0);
-      statsEl.innerHTML = `
-        <div class="rounded-lg border border-indigo-100 bg-indigo-50 px-2.5 py-2">
-          <div class="text-[10px] uppercase font-bold text-indigo-700">Sĩ số lớp</div>
-          <div class="text-sm font-bold text-indigo-900 mt-0.5">${safeText(String(totalCount))} HS</div>
-        </div>
-        <div class="rounded-lg border border-emerald-100 bg-emerald-50 px-2.5 py-2">
-          <div class="text-[10px] uppercase font-bold text-emerald-700">Đã chọn</div>
-          <div class="text-sm font-bold text-emerald-900 mt-0.5">${safeText(String(selectedCount))} HS</div>
-        </div>
-        <div class="rounded-lg border border-amber-100 bg-amber-50 px-2.5 py-2">
-          <div class="text-[10px] uppercase font-bold text-amber-700">Chưa chọn</div>
-          <div class="text-sm font-bold text-amber-900 mt-0.5">${safeText(String(remaining))} HS</div>
-        </div>`;
+  globalThis.updateScheduleStudentSelection = (mode = "refresh") => {
+    const studentWrap = document.getElementById("sch_studentPickerWrap");
+    const studentCheckboxes = document.getElementById("sch_studentCheckboxes");
+    if (!studentWrap || !studentCheckboxes) return;
+
+    const checkboxes = getStudentPickerCheckboxes(studentCheckboxes);
+    if (mode === "all") {
+      checkboxes.forEach((checkbox) => {
+        checkbox.checked = true;
+      });
+    } else if (mode === "none") {
+      checkboxes.forEach((checkbox) => {
+        checkbox.checked = false;
+      });
     }
 
-    if (checked.length === 0) {
-      summaryEl.innerText = `${className}: chưa chọn học sinh nào. Vui lòng chọn ít nhất 1 học sinh.`;
-      summaryEl.className = "text-[11px] text-rose-600 mb-1.5 font-medium";
-      return;
+    const totalCount = checkboxes.length;
+    const selectedCount = checkboxes.filter(
+      (checkbox) => checkbox.checked,
+    ).length;
+    const selectedCountEl = document.getElementById(
+      "sch_selectedStudentsCount",
+    );
+    const totalCountEl = document.getElementById("sch_totalStudentsCount");
+    if (selectedCountEl) {
+      selectedCountEl.textContent = String(selectedCount);
+      selectedCountEl.classList.toggle(
+        "text-rose-700",
+        totalCount > 0 && selectedCount === 0,
+      );
+      selectedCountEl.classList.toggle(
+        "text-slate-900",
+        !(totalCount > 0 && selectedCount === 0),
+      );
     }
-    summaryEl.innerText = `${className}: đã chọn ${selectedCount}/${totalCount} học sinh cho ca dạy.`;
-    summaryEl.className = "text-[11px] text-slate-500 mb-1.5";
+    if (totalCountEl) {
+      totalCountEl.textContent = String(totalCount);
+    }
   };
 
   const clearClassStudentPicker = (studentWrap, studentCheckboxes) => {
-    const statsEl = document.getElementById("sch_studentStats");
     if (studentWrap) {
       studentWrap.classList.add("hidden");
       delete studentWrap.dataset.classId;
@@ -847,9 +1014,7 @@ export const registerRenderCore = ({
     if (studentCheckboxes) {
       studentCheckboxes.innerHTML = "";
     }
-    if (statsEl) {
-      statsEl.innerHTML = "";
-    }
+    globalThis.updateScheduleStudentSelection("refresh");
   };
 
   const renderClassStudentPicker = (
@@ -857,62 +1022,11 @@ export const registerRenderCore = ({
     studentWrap,
     studentCheckboxes,
   ) => {
-    const prevSelectedIds = new Set(
-      Array.from(
-        document.querySelectorAll("#sch_studentCheckboxes input:checked"),
-      ).map((el) => String(el.value || "")),
-    );
-
     const currentClassIds = new Set(
       (selectedClasses || [])
         .map((cls) => String(cls?.id || ""))
         .filter(Boolean),
     );
-
-    const previousClassIds = new Set(
-      String(studentWrap?.dataset.classIds || "")
-        .split(",")
-        .map((value) => String(value || "").trim())
-        .filter(Boolean),
-    );
-
-    const combinedStudentIds = getUniqueStudentIdsFromClasses(selectedClasses);
-
-    const defaultSelectedIds =
-      areIdSetsEqual(previousClassIds, currentClassIds) &&
-      prevSelectedIds.size > 0
-        ? prevSelectedIds
-        : new Set(combinedStudentIds);
-
-    const classNameMap = new Map(
-      (selectedClasses || []).map((cls) => [
-        String(cls?.id || ""),
-        getClassDisplayName(cls),
-      ]),
-    );
-
-    if (studentCheckboxes) {
-      studentCheckboxes.innerHTML = combinedStudentIds
-        .map((id) => {
-          const student = getStudentInfo(id);
-          const checkedAttr = defaultSelectedIds.has(String(id))
-            ? "checked"
-            : "";
-          const gradeLabel = getStudentGradeLevel(student);
-          const parentPhone = student?.parentPhone
-            ? ` • PH: ${safeText(student.parentPhone)}`
-            : "";
-          const memberClassNames = (selectedClasses || [])
-            .filter((cls) =>
-              (cls?.studentIds || []).map(String).includes(String(id)),
-            )
-            .map((cls) => classNameMap.get(String(cls?.id || "")) || "")
-            .filter(Boolean)
-            .join(", ");
-          return `<label class="block cursor-pointer"><input type="checkbox" value="${safeAttr(id)}" ${checkedAttr} onchange="globalThis.updateScheduleStudentSelection()" class="peer sr-only"><div class="rounded-lg border border-slate-200 bg-white p-2 transition-all peer-checked:border-indigo-300 peer-checked:bg-indigo-50 hover:border-indigo-200"><div class="text-[12px] font-bold text-slate-800">${safeText(student.name)}</div><div class="text-[11px] text-slate-500 mt-0.5">${safeText(gradeLabel)}${parentPhone}</div><div class="text-[10px] text-indigo-600 mt-1 line-clamp-1">${safeText(memberClassNames || "Không xác định lớp")}</div></div></label>`;
-        })
-        .join("");
-    }
 
     const classNameSummary =
       (selectedClasses || []).length <= 1
@@ -925,9 +1039,63 @@ export const registerRenderCore = ({
       studentWrap.dataset.className = classNameSummary;
     }
 
-    if (typeof globalThis.updateScheduleStudentSelection === "function") {
-      globalThis.updateScheduleStudentSelection();
+    if (!studentCheckboxes) return;
+
+    const previousSelectedIds = new Set(
+      getStudentPickerSelectedIds(studentCheckboxes),
+    );
+    const uniqueStudentIds = getUniqueStudentIdsFromClasses(selectedClasses)
+      .filter((studentId) => {
+        const normalizedStudentId =
+          typeof studentId === "string" || typeof studentId === "number"
+            ? String(studentId)
+            : "";
+        if (!normalizedStudentId) return false;
+        return globalThis.db.students.some(
+          (student) => String(student?.id || "") === normalizedStudentId,
+        );
+      })
+      .sort((leftId, rightId) => {
+        const leftName = String(getStudentInfo(leftId)?.name || "").trim();
+        const rightName = String(getStudentInfo(rightId)?.name || "").trim();
+        return leftName.localeCompare(rightName);
+      });
+
+    if (uniqueStudentIds.length === 0) {
+      studentCheckboxes.innerHTML =
+        '<div class="text-[11px] text-rose-700">Không có học sinh trong nhóm/lớp đã chọn.</div>';
+      globalThis.updateScheduleStudentSelection("refresh");
+      return;
     }
+
+    const selectedIdsByDefault =
+      previousSelectedIds.size > 0
+        ? uniqueStudentIds.filter((studentId) =>
+            previousSelectedIds.has(studentId),
+          )
+        : uniqueStudentIds;
+    const hasIntersection = selectedIdsByDefault.length > 0;
+    const selectedIdSet = new Set(
+      hasIntersection ? selectedIdsByDefault : uniqueStudentIds,
+    );
+
+    studentCheckboxes.innerHTML = uniqueStudentIds
+      .map((studentId) => {
+        const student = getStudentInfo(studentId);
+        const studentName = String(student?.name || studentId).trim();
+        const gradeLevel = getStudentGradeLevel(student);
+        const isChecked = selectedIdSet.has(studentId);
+        return `<label class="flex items-start gap-2 rounded-md border border-slate-200 bg-white px-2 py-1.5 hover:border-indigo-300"><input type="checkbox" name="sch_studentIds[]" value="${safeAttr(studentId)}" ${isChecked ? "checked" : ""} class="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" /><span class="min-w-0"><span class="block text-[12px] font-medium text-slate-800 truncate">${safeText(studentName)}</span><span class="block text-[10px] text-slate-500">${safeText(gradeLevel)}</span></span></label>`;
+      })
+      .join("");
+
+    getStudentPickerCheckboxes(studentCheckboxes).forEach((checkbox) => {
+      checkbox.addEventListener("change", () => {
+        globalThis.updateScheduleStudentSelection("refresh");
+      });
+    });
+
+    globalThis.updateScheduleStudentSelection("refresh");
   };
 
   const renderClassHint = (hintDiv, selectedClasses) => {
@@ -940,23 +1108,8 @@ export const registerRenderCore = ({
           `<span class="text-[11px] font-bold px-2 py-0.5 rounded border bg-white border-indigo-200 text-indigo-700">${safeText(getClassDisplayName(cls))} (${safeText(String((cls?.studentIds || []).length))} HS)</span>`,
       )
       .join(" ");
-    const studentChips = uniqueStudentIds
-      .slice(0, 20)
-      .map(
-        (id) =>
-          `<span class="text-[11px] font-medium px-2 py-0.5 rounded border bg-white border-indigo-200 text-slate-700">${safeText(getStudentInfo(id).name)}</span>`,
-      )
-      .join(" ");
-    const hiddenCount = Math.max(uniqueStudentIds.length - 20, 0);
-    const studentChipsHtml =
-      studentChips ||
-      '<span class="text-[11px] italic text-slate-500">Chưa có học sinh.</span>';
-    const hiddenCountText =
-      hiddenCount > 0
-        ? `<div class="text-[11px] text-slate-500">... và ${safeText(String(hiddenCount))} học sinh khác</div>`
-        : "";
 
-    hintDiv.innerHTML = `<div class="space-y-1"><div><span class="font-bold text-indigo-800">Nhóm lớp đã chọn:</span> ${safeText(String((selectedClasses || []).length))}</div><div class="flex flex-wrap gap-1">${classChips}</div><div><span class="font-bold text-indigo-800">Tổng sĩ số hợp nhất:</span> ${safeText(String(uniqueStudentIds.length))} HS</div><div class="flex flex-wrap gap-1">${studentChipsHtml}</div>${hiddenCountText}</div>`;
+    hintDiv.innerHTML = `<div class="space-y-1.5"><div class="text-[11px] text-slate-700"><span class="font-bold text-indigo-800">Đã chọn:</span> ${safeText(String((selectedClasses || []).length))} nhóm/lớp • ${safeText(String(uniqueStudentIds.length))} học sinh</div><div class="flex flex-wrap gap-1">${classChips}</div><div class="text-[11px] text-slate-500">Bạn có thể bỏ chọn các học sinh nghỉ ca ngay bên dưới trước khi lưu lịch.</div></div>`;
     hintDiv.classList.remove("hidden");
   };
 
@@ -1288,10 +1441,141 @@ export const registerRenderCore = ({
     );
   };
 
+  globalThis.openScheduleGroupDetail = async (groupToken) => {
+    const normalizedToken = String(groupToken || "").trim();
+    const group = renderedScheduleGroupCache.get(normalizedToken);
+
+    if (!group?.representative) {
+      alert("Không tìm thấy ca dạy để xem chi tiết.");
+      return;
+    }
+
+    const representative = group.representative;
+    const currentRole = getCurrentRole();
+    const currentUser = getCurrentUser();
+    const subjectInfo = getScheduleSubjectInfo(representative);
+    const teacherLabel = getScheduleTeacherLabel(representative);
+    const approvalMeta = getScheduleGroupApprovalMeta(group);
+    const isGrouped = (group?.schedules || []).length > 1;
+    const canEditGroup = isGrouped
+      ? (group?.schedules || []).every((schedule) =>
+          canCurrentUserEditSchedule(schedule, currentRole, currentUser),
+        )
+      : false;
+
+    const groupEditBtn = canEditGroup
+      ? `<button type="button" onclick="globalThis.openScheduleGroupEditor('${safeAttr(group.token)}')" class="text-[11px] font-bold px-2 py-1 rounded border border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100">Sửa nhóm</button>`
+      : "";
+    const groupDeleteBtn =
+      currentRole === "admin"
+        ? `<button type="button" onclick="globalThis.deleteScheduleGroup('${safeAttr(group.token)}')" class="text-[11px] font-bold px-2 py-1 rounded border border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100">Xóa nhóm</button>`
+        : "";
+
+    const groupActionButtons = isGrouped
+      ? `<div class="flex flex-wrap gap-1.5 pt-1">
+          ${groupEditBtn}
+          ${groupDeleteBtn}
+        </div>`
+      : "";
+
+    const classRows = (group.classEntries || [])
+      .map((entry) => {
+        const schedule = entry.schedule;
+        const scheduleApprovalMeta = getScheduleApprovalMeta(schedule);
+        const canEditSchedule = canCurrentUserEditSchedule(
+          schedule,
+          currentRole,
+          currentUser,
+        );
+        const canOpenEvaluation = scheduleApprovalMeta.status === "approved";
+
+        const editBtn = canEditSchedule
+          ? `<button type="button" onclick="globalThis.openScheduleEditor('${safeAttr(schedule.id)}')" class="text-[11px] font-bold px-2 py-1 rounded border border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100">Sửa</button>`
+          : "";
+
+        const deleteBtn =
+          currentRole === "admin"
+            ? `<button type="button" onclick="globalThis.deleteData('schedules', '${safeAttr(schedule.id)}')" class="text-[11px] font-bold px-2 py-1 rounded border border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100">Xóa</button>`
+            : "";
+
+        const evalBtn = canOpenEvaluation
+          ? `<button type="button" onclick="globalThis.openEvalModal('${safeAttr(schedule.id)}')" class="text-[11px] font-bold px-2 py-1 rounded border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100">Đánh giá</button>`
+          : `<button type="button" disabled class="text-[11px] font-bold px-2 py-1 rounded border border-slate-200 text-slate-400 bg-slate-50 cursor-not-allowed">Đánh giá</button>`;
+
+        return `
+          <div class="rounded-lg border border-slate-200 bg-white p-2.5 space-y-2">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div class="min-w-0">
+                <div class="text-sm font-bold text-slate-800 truncate">${safeText(entry.classLabel)}</div>
+                <div class="text-[11px] text-slate-500">${safeText(String(entry.studentCount))} học sinh • ${safeText(schedule.topic || "Chưa có nội dung")}</div>
+              </div>
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded border ${scheduleApprovalMeta.className}">${safeText(scheduleApprovalMeta.label)}</span>
+            </div>
+            <div class="flex flex-wrap gap-1.5">
+              <button type="button" onclick="globalThis.openTimetableScheduleDetail('${safeAttr(schedule.id)}')" class="text-[11px] font-bold px-2 py-1 rounded border border-slate-200 text-slate-700 bg-slate-50 hover:bg-slate-100">Chi tiết</button>
+              ${evalBtn}
+              ${editBtn}
+              ${deleteBtn}
+            </div>
+          </div>`;
+      })
+      .join("");
+
+    const bodyHtml = `
+      <div class="space-y-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+            <div class="text-[10px] font-bold uppercase text-slate-500">Thời gian</div>
+            <div class="text-sm font-bold text-slate-800">${safeText(formatDayOfWeek(representative.dayOfWeek))} • ${safeText(representative.startTime || "")} - ${safeText(representative.endTime || "")}</div>
+          </div>
+          <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+            <div class="text-[10px] font-bold uppercase text-slate-500">Tổng quan</div>
+            <div class="text-sm font-bold text-slate-800">${safeText(String(group.classEntries.length))} lớp • ${safeText(String(group.studentCount))} học sinh</div>
+          </div>
+        </div>
+
+        <div class="rounded-lg border border-slate-200 bg-white px-3 py-2 space-y-1.5">
+          <div class="text-[12px] text-slate-600">Môn: <span class="font-semibold">${safeText(subjectInfo.name)}</span></div>
+          <div class="text-[12px] text-slate-600">Giáo viên: <span class="font-semibold">${safeText(teacherLabel)}</span></div>
+          <div class="text-[12px] text-slate-600">Địa điểm: <span class="font-semibold">${safeText(representative.location || "N/A")}</span></div>
+          <div class="flex flex-wrap items-center gap-1.5 pt-1"><span class="text-[10px] font-bold px-2 py-0.5 rounded border ${approvalMeta.className}">${safeText(approvalMeta.label)}</span></div>
+          ${groupActionButtons}
+        </div>
+
+        <div class="space-y-2">${classRows}</div>
+      </div>`;
+
+    if (typeof globalThis.appFormModal === "function") {
+      await globalThis.appFormModal({
+        title: "Chi tiết ca dạy",
+        description:
+          "Bao gồm cả ca dạy lẻ và nhóm ca dạy theo cùng khung giờ, môn, giáo viên, địa điểm.",
+        submitText: "Đóng",
+        size: "xl",
+        bodyHtml,
+        onSubmit: () => true,
+      });
+      return;
+    }
+
+    await globalThis.appConfirm(
+      "Không thể mở popup chi tiết ở phiên này.",
+      "Thông báo",
+    );
+  };
+
   const canCurrentUserEditSchedule = (schedule, currentRole, currentUser) =>
     currentRole === "admin" ||
     (currentRole === "teacher" &&
       isTeacherAssignedToSchedule(schedule, currentUser?.id));
+
+  const canCurrentUserEditScheduleGroup = (group, currentRole, currentUser) => {
+    const schedules = group?.schedules || [];
+    if (schedules.length === 0) return false;
+    return schedules.every((schedule) =>
+      canCurrentUserEditSchedule(schedule, currentRole, currentUser),
+    );
+  };
 
   const renderTimetableScheduleCard = (schedule, currentRole, currentUser) => {
     const cls = getClassInfoSafe(schedule.classId);
@@ -1336,12 +1620,76 @@ export const registerRenderCore = ({
       </div>`;
   };
 
-  const renderTimetableCellItems = (scheduleList, currentRole, currentUser) => {
-    let html = "";
-    for (const schedule of scheduleList) {
-      html += renderTimetableScheduleCard(schedule, currentRole, currentUser);
+  const renderTimetableGroupedCard = (group, currentRole, currentUser) => {
+    if ((group?.schedules || []).length <= 1) {
+      const singleSchedule = group?.representative;
+      if (!singleSchedule) return "";
+      return renderTimetableScheduleCard(
+        singleSchedule,
+        currentRole,
+        currentUser,
+      );
     }
-    return html;
+
+    const representative = group.representative;
+    const subInfo = getScheduleSubjectInfo(representative);
+    const teacherLabel = getScheduleTeacherLabel(representative);
+    const approvalMeta = getScheduleGroupApprovalMeta(group);
+    const subjectClass =
+      colorStyles[safeColorKey(subInfo.color)] ||
+      "bg-slate-100 text-slate-800 border-slate-200";
+    const classChips = renderScheduleGroupClassChips(group, { limit: 4 });
+
+    return `
+      <div class="rounded-lg border border-slate-200 bg-white p-2.5 mb-1.5 last:mb-0">
+        <div class="flex items-start justify-between gap-2">
+          <div class="min-w-0">
+            <div class="text-[11px] font-bold text-slate-800 truncate">${safeText(String(group.classEntries.length))} lớp • ${safeText(teacherLabel)}</div>
+            <div class="text-[10px] text-slate-500 truncate">${safeText(representative.location || "N/A")}</div>
+          </div>
+          <button type="button" data-schedule-action="open-group-detail" data-schedule-group-key="${safeAttr(group.token)}" class="text-slate-400 hover:text-indigo-600" title="Xem chi tiết nhóm ca dạy"><i data-lucide="list" class="w-3.5 h-3.5"></i></button>
+        </div>
+        <div class="flex items-center gap-1 flex-wrap mt-1.5">
+          <span class="text-[10px] font-bold px-1.5 py-0.5 rounded border ${subjectClass}">${safeText(subInfo.name)}</span>
+          <span class="text-[10px] font-bold px-1.5 py-0.5 rounded border ${approvalMeta.className}">${safeText(approvalMeta.label)}</span>
+        </div>
+        <div class="flex flex-wrap gap-1 mt-1.5">${classChips}</div>
+      </div>`;
+  };
+
+  const renderTimetableCellItems = (
+    scheduleList,
+    currentRole,
+    currentUser,
+    groupLookup = null,
+  ) => {
+    let groups = [];
+
+    if (groupLookup instanceof Map && groupLookup.size > 0) {
+      const seenTokens = new Set();
+      scheduleList.forEach((schedule) => {
+        const identityKey = buildScheduleCompactIdentity(
+          schedule,
+          getScheduleTeacherIds(schedule),
+        );
+        const matchedGroup = groupLookup.get(identityKey);
+        if (!matchedGroup) return;
+        if (seenTokens.has(matchedGroup.token)) return;
+        seenTokens.add(matchedGroup.token);
+        groups.push(matchedGroup);
+      });
+    } else {
+      groups = buildScheduleCompactGroups(scheduleList, "timetable");
+    }
+
+    if (groups.length === 0) return "";
+
+    cacheRenderedScheduleGroups(groups);
+    return groups
+      .map((group) =>
+        renderTimetableGroupedCard(group, currentRole, currentUser),
+      )
+      .join("");
   };
 
   const getScheduleEvaluationCount = (evaluations) => {
@@ -1352,20 +1700,6 @@ export const registerRenderCore = ({
       }
     }
     return count;
-  };
-
-  const renderScheduleStudentBadges = (scheduleStudentIds, evaluations) => {
-    let badges = "";
-    for (const id of scheduleStudentIds || []) {
-      const evalRecord = parseEvaluationRecord(evaluations?.[id]);
-      const levelMeta = evalRecord ? getEvalLevelMeta(evalRecord.level) : null;
-      const badgeClass = levelMeta
-        ? levelMeta.className
-        : "bg-slate-50 text-slate-600 border-slate-200";
-      const levelSuffix = levelMeta ? ` • ${safeText(levelMeta.label)}` : "";
-      badges += `<span class="text-[10px] font-medium px-2 py-0.5 rounded border ${badgeClass}">${safeText(getStudentInfo(id).name)}${levelSuffix}</span>`;
-    }
-    return badges;
   };
 
   const renderScheduleApprovalPanel = (week, currentRole) => {
@@ -1475,6 +1809,156 @@ export const registerRenderCore = ({
     return `${weekLabel} chưa có lịch.`;
   };
 
+  const buildScheduleActionMenu = (actionsHtml, summaryText = "Tác vụ") => {
+    if (!String(actionsHtml || "").trim()) return "";
+    return `<details class="w-full sm:w-auto rounded-lg border border-slate-200 bg-white px-2 py-1"><summary class="list-none cursor-pointer text-[11px] font-bold text-slate-700 inline-flex items-center gap-1.5"><i data-lucide="sliders-horizontal" class="w-3.5 h-3.5 text-slate-400"></i>${safeText(summaryText)}</summary><div class="mt-1.5 flex flex-col gap-1.5">${actionsHtml}</div></details>`;
+  };
+
+  const buildSingleScheduleActionButtons = (
+    schedule,
+    currentRole,
+    currentUser,
+  ) => {
+    const canEditSchedule = canCurrentUserEditSchedule(
+      schedule,
+      currentRole,
+      currentUser,
+    );
+    const scheduleApprovalMeta = getScheduleApprovalMeta(schedule);
+    const canOpenEvaluation = scheduleApprovalMeta.status === "approved";
+    const scheduleStudentIds = getScheduleStudentIds(
+      schedule,
+      getClassInfoSafe(schedule.classId),
+    );
+    const evalCount = getScheduleEvaluationCount(schedule.evaluations);
+    const isDone =
+      scheduleStudentIds.length > 0 && evalCount === scheduleStudentIds.length;
+
+    const evalBtn = `<button type="button" data-schedule-action="open-eval" data-schedule-id="${safeAttr(schedule.id)}" ${canOpenEvaluation ? "" : "disabled"} class="px-2.5 py-1.5 rounded-lg border text-[11px] font-bold ${isDone ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-slate-50 text-slate-700"} ${canOpenEvaluation ? "hover:bg-emerald-100" : "opacity-50 cursor-not-allowed"}">Đánh giá</button>`;
+
+    const addStudentBtn = canEditSchedule
+      ? `<button type="button" data-schedule-action="add-student" data-schedule-id="${safeAttr(schedule.id)}" class="px-2.5 py-1.5 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 text-[11px] font-bold hover:bg-blue-100">Thêm HS</button>`
+      : "";
+
+    const editBtn = canEditSchedule
+      ? `<button type="button" data-schedule-action="open-editor" data-schedule-id="${safeAttr(schedule.id)}" class="px-2.5 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 text-[11px] font-bold hover:bg-indigo-100">Sửa</button>`
+      : "";
+
+    const deleteBtn =
+      currentRole === "admin"
+        ? `<button type="button" data-schedule-action="delete-schedule" data-schedule-id="${safeAttr(schedule.id)}" class="px-2.5 py-1.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 text-[11px] font-bold hover:bg-rose-100">Xóa</button>`
+        : "";
+
+    return `${evalBtn}${addStudentBtn}${editBtn}${deleteBtn}`;
+  };
+
+  const buildGroupScheduleActionButtons = (group, currentRole, currentUser) => {
+    const groupToken = String(group?.token || "").trim();
+    if (!groupToken) return "";
+
+    const canEditGroup = canCurrentUserEditScheduleGroup(
+      group,
+      currentRole,
+      currentUser,
+    );
+
+    const editBtn = canEditGroup
+      ? `<button type="button" data-schedule-action="open-group-editor" data-schedule-group-key="${safeAttr(groupToken)}" class="px-2.5 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 text-[11px] font-bold hover:bg-indigo-100">Sửa nhóm</button>`
+      : "";
+
+    const deleteBtn =
+      currentRole === "admin"
+        ? `<button type="button" data-schedule-action="delete-group-schedules" data-schedule-group-key="${safeAttr(groupToken)}" class="px-2.5 py-1.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 text-[11px] font-bold hover:bg-rose-100">Xóa nhóm</button>`
+        : "";
+
+    return `${editBtn}${deleteBtn}`;
+  };
+
+  const renderScheduleGroupCard = (group, currentRole, currentUser) => {
+    const representative = group?.representative;
+    if (!representative) return "";
+
+    const subjectInfo = getScheduleSubjectInfo(representative);
+    const teacherLabel = getScheduleTeacherLabel(representative);
+    const approvalMeta = getScheduleGroupApprovalMeta(group);
+    const isGrouped = (group?.schedules || []).length > 1;
+    const classCount = (group?.classEntries || []).length;
+    const sessionTypeLabel = isGrouped ? "Nhóm ca dạy" : "Ca dạy lẻ";
+    const subjectClass =
+      colorStyles[safeColorKey(subjectInfo.color)] ||
+      "bg-slate-100 text-slate-800 border-slate-200";
+    const classPreviewChips = renderScheduleGroupClassChips(group, {
+      limit: 4,
+    });
+    const classFullChips = renderScheduleGroupClassChips(group, { limit: 200 });
+
+    const openActionAttrs = isGrouped
+      ? `data-schedule-action="open-group-detail" data-schedule-group-key="${safeAttr(group.token)}"`
+      : `data-schedule-action="open-detail" data-schedule-id="${safeAttr(representative.id)}"`;
+
+    const summaryBadgeText = `${classCount} lớp`;
+    const approvalChipHtml = renderStatusChip({
+      label: approvalMeta.label,
+      className: approvalMeta.className,
+      toSafeText: safeText,
+    });
+
+    const topicText = isGrouped
+      ? ""
+      : String(representative.topic || "").trim();
+
+    const groupedScheduleActions = isGrouped
+      ? buildGroupScheduleActionButtons(group, currentRole, currentUser)
+      : "";
+
+    const singleScheduleActions = isGrouped
+      ? ""
+      : buildSingleScheduleActionButtons(
+          representative,
+          currentRole,
+          currentUser,
+        );
+
+    const actionMenuHtml = buildScheduleActionMenu(
+      `${groupedScheduleActions}${singleScheduleActions}`,
+      "Tác vụ",
+    );
+
+    const classSectionHtml =
+      classCount > 4
+        ? `<details class="mt-2"><summary class="list-none text-[11px] font-semibold text-slate-600 cursor-pointer">Nhóm/lớp (${safeText(String(classCount))})</summary><div class="flex flex-wrap gap-1 mt-1.5">${classFullChips}</div></details>`
+        : `<div class="flex flex-wrap gap-1 mt-2">${classPreviewChips}</div>`;
+
+    return `
+      <div class="bg-white border border-slate-200 rounded-xl p-3 sm:p-3.5 hover:shadow-sm transition-shadow schedule-card content-auto">
+        <div class="flex flex-col sm:flex-row gap-3 sm:gap-4">
+          <div class="sm:w-28 shrink-0 border-b sm:border-b-0 sm:border-r border-slate-100 pb-2 sm:pb-0 sm:pr-3">
+            <div class="text-base font-bold text-slate-800">${safeText(representative.startTime || "")}</div>
+            <div class="text-[11px] text-slate-500">- ${safeText(representative.endTime || "")}</div>
+            <div class="text-[10px] mt-1 text-slate-600 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 inline-block">${safeText(representative.location || "N/A")}</div>
+          </div>
+
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded border bg-slate-50 text-slate-700 border-slate-200">Ca dạy</span>
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded border bg-white text-slate-700 border-slate-200">${safeText(sessionTypeLabel)}</span>
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded border ${subjectClass}">${safeText(subjectInfo.name)}</span>
+              ${approvalChipHtml}
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded border bg-slate-50 text-slate-700 border-slate-200">${safeText(summaryBadgeText)}</span>
+            </div>
+            <div class="text-sm font-semibold text-slate-800 mt-1 truncate">${safeText(teacherLabel)}</div>
+            ${classSectionHtml}
+            ${topicText ? `<div class="text-[11px] text-slate-500 mt-1.5 line-clamp-2">${safeText(topicText)}</div>` : ""}
+          </div>
+
+          <div class="flex sm:flex-col flex-wrap gap-1.5 sm:w-auto sm:min-w-[122px] shrink-0">
+            <button type="button" ${openActionAttrs} class="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 text-[11px] font-bold hover:bg-slate-100">${isGrouped ? "Xem chi tiết" : "Chi tiết"}</button>
+            ${actionMenuHtml}
+          </div>
+        </div>
+      </div>`;
+  };
+
   const renderSchedules = () => {
     const currentUser = getCurrentUser();
     const currentRole = getCurrentRole();
@@ -1500,6 +1984,12 @@ export const registerRenderCore = ({
     }
 
     filtered = filterSchedulesByKeyword(filtered, scheduleKeyword);
+    const compactGroups = buildScheduleCompactGroups(filtered, "board");
+    clearRenderedScheduleGroupCache();
+    cacheRenderedScheduleGroups(compactGroups);
+    const compactGroupLookup = new Map(
+      compactGroups.map((group) => [group.identityKey, group]),
+    );
 
     const scheduleViewMode =
       document.getElementById("scheduleViewMode")?.value === "timetable"
@@ -1515,7 +2005,11 @@ export const registerRenderCore = ({
         currentRole,
         weekLabel: safeWeekLabel,
       });
-      container.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-slate-400 py-20"><i data-lucide="${emptyIcon}" class="w-16 h-16 mb-4 opacity-30"></i><p class="text-lg font-bold text-slate-600">${emptyMessage}</p></div>`;
+      container.innerHTML = renderEmptyState({
+        icon: emptyIcon,
+        message: emptyMessage,
+        toSafeText: safeText,
+      });
       refreshIcons();
       return;
     }
@@ -1537,8 +2031,11 @@ export const registerRenderCore = ({
       });
 
       if (slotOrder.length === 0) {
-        container.innerHTML =
-          '<div class="flex flex-col items-center justify-center h-full text-slate-400 py-20"><i data-lucide="calendar-x2" class="w-16 h-16 mb-4 opacity-30"></i><p class="text-lg font-bold text-slate-600">Dữ liệu lịch thiếu khung giờ để dựng thời khóa biểu.</p></div>';
+        container.innerHTML = renderEmptyState({
+          icon: "calendar-x2",
+          message: "Dữ liệu lịch thiếu khung giờ để dựng thời khóa biểu.",
+          toSafeText: safeText,
+        });
         refreshIcons();
         return;
       }
@@ -1555,10 +2052,11 @@ export const registerRenderCore = ({
 
       const dayHeaders = dayOrder
         .map((dayKey) => {
-          const dayCount = filtered.filter(
-            (sch) => String(sch.dayOfWeek) === dayKey,
+          const dayGroupCount = compactGroups.filter(
+            (group) =>
+              String(group?.representative?.dayOfWeek || "") === dayKey,
           ).length;
-          return `<th class="p-2 border-b border-slate-200 bg-slate-50 text-left align-top"><div class="flex items-center justify-between gap-1"><span class="text-[11px] font-bold text-slate-700">${safeText(formatDayOfWeek(dayKey))}</span><span class="text-[10px] px-1.5 py-0.5 rounded bg-white border border-slate-200 text-slate-600 font-semibold">${dayCount}</span></div></th>`;
+          return `<th class="p-2 border-b border-slate-200 bg-slate-50 text-left align-top"><div class="flex items-center justify-between gap-1"><span class="text-[11px] font-bold text-slate-700">${safeText(formatDayOfWeek(dayKey))}</span><span class="text-[10px] px-1.5 py-0.5 rounded bg-white border border-slate-200 text-slate-600 font-semibold">${dayGroupCount}</span></div></th>`;
         })
         .join("");
 
@@ -1576,6 +2074,7 @@ export const registerRenderCore = ({
                 list,
                 currentRole,
                 currentUser,
+                compactGroupLookup,
               );
 
               return `<td class="p-1.5 border-b border-slate-100 align-top">${items}</td>`;
@@ -1590,7 +2089,7 @@ export const registerRenderCore = ({
         <div class="space-y-3">
           <div class="flex items-center justify-between gap-2 flex-wrap">
             <div class="text-xs font-bold text-slate-700">${safeText(weekLabel)} • TKB tuần</div>
-            <div class="text-[11px] text-slate-500">${safeText(String(filtered.length))} ca</div>
+            <div class="text-[11px] text-slate-500">${safeText(String(filtered.length))} ca • ${safeText(String(compactGroups.length))} cụm ca</div>
           </div>
           <div class="rounded-xl border border-slate-200 bg-white overflow-x-auto custom-scrollbar">
             <table class="min-w-[760px] lg:min-w-[980px] w-full border-collapse table-fixed">
@@ -1611,87 +2110,40 @@ export const registerRenderCore = ({
       return;
     }
 
-    const grouped = {};
-    filtered.forEach((s) => {
-      if (!grouped[s.dayOfWeek]) grouped[s.dayOfWeek] = [];
-      grouped[s.dayOfWeek].push(s);
+    const groupedByDay = {};
+    compactGroups.forEach((group) => {
+      const dayKey = String(group?.representative?.dayOfWeek || "");
+      if (!dayKey) return;
+      if (!groupedByDay[dayKey]) groupedByDay[dayKey] = [];
+      groupedByDay[dayKey].push(group);
     });
-    const sortedDays = Object.keys(grouped).sort(
+
+    const sortedDays = Object.keys(groupedByDay).sort(
       (a, b) => Number.parseInt(a, 10) - Number.parseInt(b, 10),
     );
 
     let html = "";
     sortedDays.forEach((day) => {
       const dayStr = day === "8" ? "Chủ nhật" : `Thứ ${day}`;
-      grouped[day].sort((a, b) => a.startTime.localeCompare(b.startTime));
-      html += `<div class="mb-5 sm:mb-8 relative"><div class="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4 sticky top-0 bg-slate-50/90 backdrop-blur-sm py-2 z-10 border-b border-slate-200"><span class="bg-indigo-600 text-white text-sm font-bold px-3 py-1 rounded-md shadow-sm">${dayStr}</span><span class="text-xs font-semibold text-slate-500 bg-white border border-slate-200 px-2.5 py-1 rounded-full">${grouped[day].length} ca</span></div><div class="space-y-3">`;
+      const dayGroups = groupedByDay[day].sort((a, b) =>
+        String(a?.representative?.startTime || "").localeCompare(
+          String(b?.representative?.startTime || ""),
+        ),
+      );
 
-      grouped[day].forEach((sch) => {
-        const cls = getClassInfoSafe(sch.classId);
-        const classLabel = getScheduleClassLabel(sch, cls);
-        const subInfo = getScheduleSubjectInfo(sch);
-        const scheduleStudentIds = getScheduleStudentIds(sch, cls);
-        const approvalMeta = getScheduleApprovalMeta(sch);
-        const canEditSchedule = canCurrentUserEditSchedule(
-          sch,
-          currentRole,
-          currentUser,
-        );
-        const canOpenEvaluation = approvalMeta.status === "approved";
-        const colorClass =
-          colorStyles[safeColorKey(subInfo.color)] ||
-          "bg-slate-100 text-slate-800 border-slate-200";
-        const stripeColor =
-          dotColors[safeColorKey(subInfo.color)] || "bg-slate-400";
-        const teacherLabel = getScheduleTeacherLabel(sch);
-        const evalCount = getScheduleEvaluationCount(sch.evaluations);
-        const isDone =
-          scheduleStudentIds.length > 0 &&
-          evalCount === scheduleStudentIds.length;
-        const badges = renderScheduleStudentBadges(
-          scheduleStudentIds,
-          sch.evaluations,
-        );
-        const deleteBtnHtml =
-          currentRole === "admin"
-            ? `<button type="button" data-schedule-action="delete-schedule" data-schedule-id="${safeAttr(sch.id)}" class="p-2 w-full sm:w-auto flex justify-center items-center text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`
-            : "";
+      const totalClassesInDay = dayGroups.reduce(
+        (sum, group) => sum + Number(group?.classEntries?.length || 0),
+        0,
+      );
 
-        const editBtnHtml = canEditSchedule
-          ? `<button type="button" data-schedule-action="open-editor" data-schedule-id="${safeAttr(sch.id)}" class="p-2 w-full sm:w-auto flex justify-center items-center text-slate-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"><i data-lucide="pencil-line" class="w-4 h-4"></i></button>`
-          : "";
+      html += `<div class="mb-5 sm:mb-8 relative"><div class="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4 sticky top-0 bg-slate-50/90 backdrop-blur-sm py-2 z-10 border-b border-slate-200"><span class="bg-indigo-600 text-white text-sm font-bold px-3 py-1 rounded-md shadow-sm">${dayStr}</span><span class="text-xs font-semibold text-slate-500 bg-white border border-slate-200 px-2.5 py-1 rounded-full">${dayGroups.length} ca dạy</span><span class="text-xs font-semibold text-slate-500 bg-white border border-slate-200 px-2.5 py-1 rounded-full">${totalClassesInDay} lớp</span></div><div class="space-y-2.5">`;
 
-        const addStudentBtnHtml = canEditSchedule
-          ? `<button type="button" data-schedule-action="add-student" data-schedule-id="${safeAttr(sch.id)}" class="p-2 w-full sm:w-auto flex justify-center items-center text-slate-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors" title="Thêm học sinh vào lớp"><i data-lucide="user-plus" class="w-4 h-4"></i></button>`
-          : "";
-
-        const approvalNote = sch.approval?.note
-          ? `<div class="text-[10px] text-slate-500 mt-1 italic">${safeText(sch.approval.note)}</div>`
-          : "";
-
-        html += `
-                        <div class="bg-white border border-slate-200 rounded-xl p-3 sm:p-4 flex flex-col sm:flex-row gap-3 sm:gap-4 hover:shadow-md transition-shadow relative overflow-hidden group schedule-card content-auto">
-                            <div class="absolute left-0 top-0 bottom-0 w-1.5 ${stripeColor}"></div>
-                          <div class="sm:w-32 shrink-0 border-b sm:border-b-0 sm:border-r border-slate-100 pb-3 sm:pb-0 pl-1"><div class="text-lg font-bold text-slate-800 flex items-center gap-1.5"><i data-lucide="clock" class="w-4 h-4 text-slate-400"></i> ${safeText(sch.startTime)}</div><div class="text-[11px] text-slate-500 font-medium pl-5 mb-2">- ${safeText(sch.endTime)}</div><div class="text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-100 px-2 py-1 rounded inline-block line-clamp-1"><i data-lucide="map-pin" class="w-3 h-3 inline text-slate-400"></i> ${safeText(sch.location)}</div></div>
-                            <div class="flex-1 flex flex-col justify-center min-w-0">
-                            <div class="flex items-center gap-2 mb-1.5 flex-wrap"><span class="bg-slate-100 text-slate-800 border border-slate-200 text-[11px] font-bold px-2 py-0.5 rounded uppercase tracking-wide">${safeText(classLabel)}</span>${cls?.groupName ? `<span class="bg-indigo-50 text-indigo-700 border border-indigo-200 text-[11px] font-bold px-2 py-0.5 rounded">${safeText(getClassGroupName(cls))}</span>` : ""}<span class="text-[11px] font-bold px-2 py-0.5 rounded border ${colorClass}">${safeText(subInfo.name)}</span>${sch.topic ? `<span class="text-slate-400 text-xs">|</span> <span class="text-slate-500 italic text-xs truncate max-w-[130px] sm:max-w-[180px]">${safeText(sch.topic)}</span>` : ""}</div>
-                            <div class="text-sm font-medium text-slate-700 bg-slate-50 self-start px-2 py-0.5 rounded flex items-center gap-1.5 mb-2 border border-slate-100"><i data-lucide="graduation-cap" class="w-3.5 h-3.5 text-slate-400"></i> GV: ${safeText(teacherLabel)}</div>
-                                <div class="flex items-center gap-1.5 flex-wrap mb-2">
-                                  <div class="text-[10px] font-bold px-2 py-0.5 rounded border self-start ${approvalMeta.className}">${approvalMeta.label}</div>
-                                </div>
-                                ${approvalNote}
-                                <div class="flex flex-wrap gap-1 mt-auto">${badges}</div>
-                            </div>
-                            <div class="flex sm:flex-col justify-end gap-2 shrink-0 border-t sm:border-t-0 sm:border-l border-slate-100 pt-3 sm:pt-0 sm:pl-3">
-                              <button type="button" data-schedule-action="open-eval" data-schedule-id="${safeAttr(sch.id)}" ${canOpenEvaluation ? "" : "disabled"} class="p-2 w-full sm:w-auto flex justify-center items-center ${isDone ? "text-emerald-600 bg-emerald-50 border-emerald-100" : "text-slate-600 bg-slate-50 border-slate-200"} ${canOpenEvaluation ? "" : "opacity-50 cursor-not-allowed"} rounded-lg transition-colors group/btn" title="${canOpenEvaluation ? "Đánh giá học sinh" : "Lịch chưa duyệt, chưa thể đánh giá"}"><i data-lucide="${isDone ? "clipboard-check" : "clipboard-pen"}" class="w-4 h-4 group-hover/btn:scale-110 transition-transform"></i></button>
-                                ${addStudentBtnHtml}
-                                ${editBtnHtml}
-                                ${deleteBtnHtml}
-                            </div>
-                        </div>`;
+      dayGroups.forEach((group) => {
+        html += renderScheduleGroupCard(group, currentRole, currentUser);
       });
       html += `</div></div>`;
     });
+
     container.innerHTML = html;
     refreshIcons();
   };

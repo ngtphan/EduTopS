@@ -1,4 +1,4 @@
-export const STUDENT_GRADE_MIN = 1;
+﻿export const STUDENT_GRADE_MIN = 1;
 export const STUDENT_GRADE_MAX = 12;
 
 export const STUDENT_GRADE_OPTIONS = Object.freeze(
@@ -11,10 +11,11 @@ export const STUDENT_GRADE_OPTIONS = Object.freeze(
   ),
 );
 
-export const isValidStudentGradeLevel = (value) =>
+export const isValidStudentGradeLevel = (value: unknown): boolean =>
   STUDENT_GRADE_OPTIONS.includes(String(value || "").trim());
 
-export const normalizeStudentGradeLevel = (value) => {
+export const normalizeStudentGradeLevel = (value: unknown): string => {
   const normalized = String(value || "").trim();
   return isValidStudentGradeLevel(normalized) ? normalized : "";
 };
+

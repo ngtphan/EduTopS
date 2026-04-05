@@ -1,7 +1,8 @@
+// @ts-nocheck
 import {
   STUDENT_GRADE_OPTIONS,
   normalizeStudentGradeLevel,
-} from "./student-grade-utils.js";
+} from "./student-grade-utils";
 
 export const registerStudentAndClassForms = () => {
   const escapeHtml = (value) =>
@@ -522,3 +523,5 @@ export const registerStudentAndClassForms = () => {
     );
   });
 };
+
+

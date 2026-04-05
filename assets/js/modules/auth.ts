@@ -1,3 +1,4 @@
+// @ts-nocheck
 import {
   GoogleAuthProvider,
   browserPopupRedirectResolver,
@@ -139,3 +140,5 @@ export const registerAuthHandlers = ({ auth, showToast }) => {
     }
   };
 };
+
+

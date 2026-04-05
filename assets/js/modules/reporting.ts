@@ -1,4 +1,5 @@
-import { sanitizeExcelCell } from "./security-utils.js";
+// @ts-nocheck
+import { sanitizeExcelCell } from "./security-utils";
 import { isActiveScheduleStatus } from "@/entities/schedule/model/approval";
 import {
   getScheduleTeacherIds,
@@ -823,3 +824,5 @@ export const registerReportingExports = ({
     showToast("Da xuat bao cao tong hop thanh cong.", "success");
   };
 };
+
+

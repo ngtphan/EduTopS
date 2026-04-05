@@ -1,3 +1,4 @@
+// @ts-nocheck
 export const registerTeacherActions = ({
   ADMIN_EMAIL,
   normalizeEmail,
@@ -367,3 +368,5 @@ export const registerTeacherForms = ({
   const openGrantAdminBtn = document.getElementById("btnOpenGrantAdminModal");
   openGrantAdminBtn?.addEventListener("click", openGrantAdminAccountModal);
 };
+
+

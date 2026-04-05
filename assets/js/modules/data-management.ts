@@ -1,12 +1,13 @@
+// @ts-nocheck
 import {
   escapeHtml,
   toSafeDomToken,
   sanitizeForStorage,
-} from "./security-utils.js";
+} from "./security-utils";
 import {
   STUDENT_GRADE_OPTIONS,
   normalizeStudentGradeLevel,
-} from "./student-grade-utils.js";
+} from "./student-grade-utils";
 import { isTeacherReferencedBySchedule } from "@/features/teacher-guards/model/can-delete-teacher";
 
 export const registerDataManagement = ({
@@ -21,6 +22,19 @@ export const registerDataManagement = ({
   parseEvaluationRecord,
 }) => {
   const isDialogCancelled = (value) => value === null || value === false;
+
+  const bringModalToFront = (modalRoot, baseZ = 170) => {
+    const runtimeRaiseModal = globalThis.raiseModalToFront;
+    if (typeof runtimeRaiseModal === "function") {
+      runtimeRaiseModal(modalRoot, baseZ);
+      return;
+    }
+
+    const parsedBase = Number.parseInt(String(baseZ || ""), 10);
+    if (modalRoot?.style && Number.isFinite(parsedBase)) {
+      modalRoot.style.zIndex = String(parsedBase);
+    }
+  };
 
   window.editData = async (table, id) => {
     if (getCurrentRole() !== "admin")
@@ -498,6 +512,7 @@ export const registerDataManagement = ({
           return `<div class="bg-white border border-slate-200 rounded-xl p-4 mb-4 shadow-sm"><div class="flex items-center gap-3 mb-3"><div class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-700 font-bold text-sm uppercase">${escapeHtml(stu.name.charAt(0) || "?")}</div><div><h4 class="font-bold text-slate-800 text-sm">${escapeHtml(stu.name)}</h4><div class="text-[11px] text-slate-500">Phụ huynh: ${escapeHtml(stu.parentPhone || "N/A")}</div></div></div><div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2"><label class="flex items-center gap-2 text-[12px] border border-emerald-200 bg-emerald-50 rounded px-2 py-1.5"><input type="radio" name="eval_level_${fieldToken}" value="good" ${currentLevel === "good" ? "checked" : ""}> Tốt</label><label class="flex items-center gap-2 text-[12px] border border-amber-200 bg-amber-50 rounded px-2 py-1.5"><input type="radio" name="eval_level_${fieldToken}" value="fair" ${currentLevel === "fair" ? "checked" : ""}> Khá</label><label class="flex items-center gap-2 text-[12px] border border-rose-200 bg-rose-50 rounded px-2 py-1.5"><input type="radio" name="eval_level_${fieldToken}" value="watch" ${currentLevel === "watch" ? "checked" : ""}> Cần theo dõi</label></div><label class="flex items-center gap-2 text-[12px] border border-rose-200 bg-rose-50 rounded px-3 py-2 mb-2 text-rose-700 font-medium"><input type="checkbox" id="eval_absent_${fieldToken}" ${currentAbsent ? "checked" : ""} class="rounded border-rose-300 text-rose-600 focus:ring-rose-500"> Đánh dấu vắng buổi này</label><textarea id="eval_note_${fieldToken}" rows="2" placeholder="Ghi chú thêm (tuỳ chọn)..." class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">${escapeHtml(currentNote)}</textarea></div>`;
         })
         .join("");
+    bringModalToFront(evalModal, 172);
     evalModal.classList.remove("hidden");
     evalModal.classList.add("flex");
     lucide.createIcons();
