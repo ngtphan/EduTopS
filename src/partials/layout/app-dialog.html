@@ -1,9 +1,7 @@
 ﻿<!-- Dialog xác nhận thay cho confirm mặc định -->
-<div
-  id="appDialog"
-  class="fixed inset-0 z-[160] hidden items-center justify-center p-3 sm:p-4 bg-slate-900/50"
->
+<dialog id="appDialog" class="app-dialog-shell">
   <div
+    id="appDialogPanel"
     class="bg-white w-full max-w-sm rounded-2xl border border-slate-200 shadow-2xl p-4 sm:p-5 max-h-[92dvh] overflow-y-auto custom-scrollbar"
   >
     <h3 id="appDialogTitle" class="text-base font-bold text-slate-800">
@@ -32,12 +30,14 @@
       class="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 mt-5"
     >
       <button
+        type="button"
         id="appDialogCancel"
         class="w-full sm:w-auto px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium"
       >
         Hủy
       </button>
       <button
+        type="button"
         id="appDialogConfirm"
         class="w-full sm:w-auto px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold"
       >
@@ -45,4 +45,4 @@
       </button>
     </div>
   </div>
-</div>
+</dialog>

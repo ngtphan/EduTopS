@@ -30,19 +30,6 @@
             Quét QR chấm công
           </button>
           <div
-            data-control-trigger="scheduleViewMode"
-            class="flex w-full sm:w-auto items-center gap-2 bg-slate-50 px-3 py-2 sm:py-1.5 rounded-lg border border-slate-200 cursor-pointer"
-          >
-            <i data-lucide="layout-template" class="w-4 h-4 text-slate-400"></i>
-            <select
-              id="scheduleViewMode"
-              class="text-sm bg-transparent focus:outline-none font-bold text-indigo-700 cursor-pointer w-full"
-            >
-              <option value="list">Danh sách</option>
-              <option value="timetable">TKB tuần</option>
-            </select>
-          </div>
-          <div
             data-control-trigger="filterWeek"
             class="flex w-full sm:w-auto items-center gap-2 bg-slate-50 px-3 py-2 sm:py-1.5 rounded-lg border border-slate-200 cursor-pointer"
           >
@@ -53,18 +40,57 @@
               class="text-sm bg-transparent focus:outline-none font-bold text-indigo-700 cursor-pointer w-full"
             />
           </div>
-          <div
-            class="flex w-full sm:w-auto items-center gap-2 bg-slate-50 px-3 py-2 sm:py-1.5 rounded-lg border border-slate-200"
+          <details
+            class="w-full sm:w-auto rounded-lg border border-slate-200 bg-white px-3 py-2 sm:py-1.5"
           >
-            <i data-lucide="search" class="w-4 h-4 text-slate-400"></i>
-            <input
-              type="text"
-              id="boardScheduleSearchInput"
-              data-config-placeholder="ui.placeholders.scheduleSearch"
-              placeholder="Tìm lịch theo lớp, giáo viên, môn học..."
-              class="text-sm bg-transparent focus:outline-none text-slate-700 w-full sm:w-52"
-            />
-          </div>
+            <summary
+              class="list-none flex items-center justify-between gap-2 cursor-pointer text-xs font-bold text-slate-700"
+            >
+              <span class="inline-flex items-center gap-1.5"
+                ><i
+                  data-lucide="sliders-horizontal"
+                  class="w-3.5 h-3.5 text-slate-400"
+                ></i
+                >Bộ lọc nâng cao</span
+              >
+              <i
+                data-lucide="chevron-down"
+                class="w-3.5 h-3.5 text-slate-400"
+              ></i>
+            </summary>
+            <div
+              class="mt-2 flex w-full sm:w-auto flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2"
+            >
+              <div
+                data-control-trigger="scheduleViewMode"
+                class="flex w-full sm:w-auto items-center gap-2 bg-slate-50 px-3 py-2 sm:py-1.5 rounded-lg border border-slate-200 cursor-pointer"
+              >
+                <i
+                  data-lucide="layout-template"
+                  class="w-4 h-4 text-slate-400"
+                ></i>
+                <select
+                  id="scheduleViewMode"
+                  class="text-sm bg-transparent focus:outline-none font-bold text-indigo-700 cursor-pointer w-full"
+                >
+                  <option value="list">Danh sách</option>
+                  <option value="timetable">TKB tuần</option>
+                </select>
+              </div>
+              <div
+                class="flex w-full sm:w-auto items-center gap-2 bg-slate-50 px-3 py-2 sm:py-1.5 rounded-lg border border-slate-200"
+              >
+                <i data-lucide="search" class="w-4 h-4 text-slate-400"></i>
+                <input
+                  type="text"
+                  id="boardScheduleSearchInput"
+                  data-config-placeholder="ui.placeholders.scheduleSearch"
+                  placeholder="Tìm lịch theo lớp, giáo viên, môn học..."
+                  class="text-sm bg-transparent focus:outline-none text-slate-700 w-full sm:w-52"
+                />
+              </div>
+            </div>
+          </details>
         </div>
       </div>
       <div
