@@ -1,7 +1,7 @@
 {
     "name": "edutops",
     "private": true,
-    "version": "1.17.2",
+    "version": "1.21.4",
     "type": "module",
     "scripts": {
         "dev": "vite",

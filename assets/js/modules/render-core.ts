@@ -306,6 +306,10 @@ export const registerRenderCore = ({
   const switchMasterTab = (tabName = "overview") => {
     const nextTab = masterTabKeys.includes(tabName) ? tabName : "overview";
     globalThis.currentMasterTab = nextTab;
+    const activeMasterTabClass =
+      "master-tab-btn w-full px-3 py-2 rounded-lg text-xs font-bold text-left master-tab-btn-active";
+    const inactiveMasterTabClass =
+      "master-tab-btn w-full px-3 py-2 rounded-lg text-xs font-bold text-left master-tab-btn-inactive";
 
     masterTabKeys.forEach((key) => {
       const panel = document.getElementById(`masterPanel_${key}`);
@@ -316,8 +320,8 @@ export const registerRenderCore = ({
       if (btn) {
         const isActive = key === nextTab;
         btn.className = isActive
-          ? "master-tab-btn px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap bg-indigo-100 text-indigo-700"
-          : "master-tab-btn px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap text-slate-600 hover:bg-slate-100";
+          ? activeMasterTabClass
+          : inactiveMasterTabClass;
       }
     });
 
@@ -1875,6 +1879,22 @@ export const registerRenderCore = ({
           `<span class="text-[11px] px-2 py-0.5 rounded border bg-white border-slate-200 text-slate-700">${safeText(getStudentInfo(studentId).name)}</span>`,
       )
       .join(" ");
+    const canEditSchedule = canCurrentUserEditSchedule(
+      schedule,
+      currentRole,
+      currentUser,
+    );
+    const addStudentBtn = canEditSchedule
+      ? `<button type="button" onclick="globalThis.addStudentToScheduleClass('${safeAttr(schedule.id)}')" class="text-[11px] font-bold px-2 py-1 rounded border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100">Thêm HS</button>`
+      : "";
+    const editBtn = canEditSchedule
+      ? `<button type="button" onclick="globalThis.openScheduleEditor('${safeAttr(schedule.id)}')" class="text-[11px] font-bold px-2 py-1 rounded border border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100">Sửa</button>`
+      : "";
+    const deleteBtn =
+      currentRole === "admin"
+        ? `<button type="button" onclick="globalThis.deleteData('schedules', '${safeAttr(schedule.id)}')" class="text-[11px] font-bold px-2 py-1 rounded border border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100">Xóa</button>`
+        : "";
+    const detailActionButtons = `${addStudentBtn}${editBtn}${deleteBtn}`;
 
     const bodyHtml = `
       <div class="space-y-3">
@@ -1906,6 +1926,8 @@ export const registerRenderCore = ({
           <div class="text-[11px] font-bold uppercase text-slate-500 mb-1">Học sinh</div>
           <div class="flex flex-wrap gap-1.5">${studentChips || '<span class="text-[12px] text-slate-400 italic">Chưa có học sinh.</span>'}</div>
         </div>
+
+        ${detailActionButtons ? `<div class="pt-1 border-t border-slate-100"><div class="text-[11px] font-bold uppercase text-slate-500 mb-1">Thao tác</div><div class="flex flex-wrap gap-1.5">${detailActionButtons}</div></div>` : ""}
       </div>`;
 
     if (typeof globalThis.appFormModal === "function") {
@@ -2072,37 +2094,16 @@ export const registerRenderCore = ({
     (currentRole === "teacher" &&
       isTeacherAssignedToSchedule(schedule, currentUser?.id));
 
-  const canCurrentUserEditScheduleGroup = (group, currentRole, currentUser) => {
-    const schedules = group?.schedules || [];
-    if (schedules.length === 0) return false;
-    return schedules.every((schedule) =>
-      canCurrentUserEditSchedule(schedule, currentRole, currentUser),
-    );
-  };
-
   const renderTimetableScheduleCard = (schedule, currentRole, currentUser) => {
     const cls = getClassInfoSafe(schedule.classId);
     const classLabel = getScheduleClassLabel(schedule, cls);
     const subInfo = getScheduleSubjectInfo(schedule);
     const teacherLabel = getScheduleTeacherLabel(schedule);
     const approvalMeta = getScheduleApprovalMeta(schedule);
-    const canEditSchedule = canCurrentUserEditSchedule(
-      schedule,
-      currentRole,
-      currentUser,
-    );
     const canOpenEvaluation = approvalMeta.status === "approved";
     const subjectClass =
       colorStyles[safeColorKey(subInfo.color)] ||
       "bg-slate-100 text-slate-800 border-slate-200";
-    const editBtn = canEditSchedule
-      ? `<button type="button" data-schedule-action="open-editor" data-schedule-id="${safeAttr(schedule.id)}" class="text-slate-400 hover:text-indigo-600"><i data-lucide="pencil-line" class="w-3.5 h-3.5"></i></button>`
-      : "";
-    const deleteBtn =
-      currentRole === "admin"
-        ? `<button type="button" data-schedule-action="delete-schedule" data-schedule-id="${safeAttr(schedule.id)}" class="text-slate-400 hover:text-rose-600"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>`
-        : "";
-
     return `
       <div data-schedule-action="open-detail" data-schedule-id="${safeAttr(schedule.id)}" class="rounded-lg border border-slate-200 bg-white p-2.5 mb-1.5 last:mb-0 cursor-pointer hover:border-indigo-300 hover:shadow-sm transition-all" title="Bấm để xem chi tiết ca dạy">
         <div class="flex items-start justify-between gap-1.5">
@@ -2112,8 +2113,6 @@ export const registerRenderCore = ({
           </div>
           <div class="flex items-center gap-1 shrink-0">
             <button type="button" data-schedule-action="open-eval" data-schedule-id="${safeAttr(schedule.id)}" ${canOpenEvaluation ? "" : "disabled"} class="text-slate-400 hover:text-emerald-600 ${canOpenEvaluation ? "" : "opacity-40 cursor-not-allowed"}"><i data-lucide="clipboard-check" class="w-3.5 h-3.5"></i></button>
-            ${editBtn}
-            ${deleteBtn}
           </div>
         </div>
         <div class="flex items-center gap-1 flex-wrap mt-1.5">
@@ -2367,39 +2366,14 @@ export const registerRenderCore = ({
       ? `<button type="button" data-schedule-action="add-student" data-schedule-id="${safeAttr(schedule.id)}" class="px-2.5 py-1.5 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 text-[11px] font-bold hover:bg-blue-100">Thêm HS</button>`
       : "";
 
-    const editBtn = canEditSchedule
-      ? `<button type="button" data-schedule-action="open-editor" data-schedule-id="${safeAttr(schedule.id)}" class="px-2.5 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 text-[11px] font-bold hover:bg-indigo-100">Sửa</button>`
-      : "";
-
-    const deleteBtn =
-      currentRole === "admin"
-        ? `<button type="button" data-schedule-action="delete-schedule" data-schedule-id="${safeAttr(schedule.id)}" class="px-2.5 py-1.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 text-[11px] font-bold hover:bg-rose-100">Xóa</button>`
-        : "";
-
-    return `${evalBtn}${addStudentBtn}${editBtn}${deleteBtn}`;
+    return `${evalBtn}${addStudentBtn}`;
   };
 
-  const buildGroupScheduleActionButtons = (group, currentRole, currentUser) => {
-    const groupToken = String(group?.token || "").trim();
-    if (!groupToken) return "";
-
-    const canEditGroup = canCurrentUserEditScheduleGroup(
-      group,
-      currentRole,
-      currentUser,
-    );
-
-    const editBtn = canEditGroup
-      ? `<button type="button" data-schedule-action="open-group-editor" data-schedule-group-key="${safeAttr(groupToken)}" class="px-2.5 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 text-[11px] font-bold hover:bg-indigo-100">Sửa nhóm</button>`
-      : "";
-
-    const deleteBtn =
-      currentRole === "admin"
-        ? `<button type="button" data-schedule-action="delete-group-schedules" data-schedule-group-key="${safeAttr(groupToken)}" class="px-2.5 py-1.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 text-[11px] font-bold hover:bg-rose-100">Xóa nhóm</button>`
-        : "";
-
-    return `${editBtn}${deleteBtn}`;
-  };
+  const buildGroupScheduleActionButtons = (
+    _group,
+    _currentRole,
+    _currentUser,
+  ) => "";
 
   const renderScheduleGroupCard = (group, currentRole, currentUser) => {
     const representative = group?.representative;
@@ -3280,6 +3254,7 @@ export const registerRenderCore = ({
     ensureBoardActionDelegation();
     const currentRole = getCurrentRole();
     const currentUser = getCurrentUser();
+    document.body.dataset.appRole = String(currentRole || "guest");
     const parentDashboardEnabled =
       typeof isParentDashboardFeatureEnabled === "function"
         ? !!isParentDashboardFeatureEnabled()
@@ -3370,10 +3345,8 @@ export const registerRenderCore = ({
       .getElementById("view_attendance")
       .classList.toggle("hidden", tabName !== "attendance");
 
-    const activeClass =
-      "py-3.5 sm:py-3 px-2 border-b-2 border-indigo-600 text-indigo-700 font-semibold text-sm flex items-center gap-2 transition-colors whitespace-nowrap shrink-0";
-    const inactiveClass =
-      "py-3.5 sm:py-3 px-2 border-b-2 border-transparent text-slate-500 hover:text-slate-800 font-semibold text-sm flex items-center gap-2 transition-colors whitespace-nowrap shrink-0";
+    const activeClass = "nav-tab-btn nav-tab-btn-active";
+    const inactiveClass = "nav-tab-btn nav-tab-btn-inactive";
 
     document.getElementById("tabBtn_board").className =
       tabName === "board" ? activeClass : inactiveClass;
@@ -3384,9 +3357,13 @@ export const registerRenderCore = ({
       inactiveClass,
     });
     document.getElementById("tabBtn_master").className =
-      tabName === "master" ? activeClass : inactiveClass + " admin-only";
+      tabName === "master"
+        ? activeClass + " admin-only"
+        : inactiveClass + " admin-only";
     document.getElementById("tabBtn_attendance").className =
-      tabName === "attendance" ? activeClass : inactiveClass + " admin-only";
+      tabName === "attendance"
+        ? activeClass + " admin-only"
+        : inactiveClass + " admin-only";
 
     if (tabName === "attendance") renderAttendance();
     if (tabName === "master") switchMasterTab("overview");

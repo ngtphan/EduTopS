@@ -10,6 +10,458 @@ body {
 
 :root {
   --app-safe-bottom: max(env(safe-area-inset-bottom), 0px);
+  --ops-card-border: #dbe3ee;
+  --ops-card-shadow: 0 12px 28px -24px rgb(15 23 42 / 0.55);
+  --ops-panel-bg: rgb(255 255 255 / 0.88);
+  --ops-ink-strong: #0f172a;
+  --ops-ink-soft: #475569;
+  --ops-accent: #0f172a;
+  --ops-accent-2: #0284c7;
+}
+
+body[data-app-role="admin"] {
+  background:
+    radial-gradient(circle at 18% -8%, rgb(14 116 144 / 0.16), transparent 36%),
+    radial-gradient(circle at 86% 0%, rgb(15 23 42 / 0.14), transparent 42%),
+    linear-gradient(180deg, #f8fbff 0%, #f1f5f9 100%);
+}
+
+.ops-header-shell {
+  background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.ops-header-brand-chip {
+  background: linear-gradient(145deg, #0f172a 0%, #1e293b 100%);
+  box-shadow: 0 8px 20px -16px rgb(15 23 42 / 0.9);
+}
+
+.ops-top-meta {
+  border-right: 1px solid #e2e8f0;
+}
+
+.ops-nav-wrap {
+  border-top: 1px solid #eef2f7;
+  background: linear-gradient(
+    90deg,
+    rgb(248 250 252 / 0.95),
+    rgb(241 245 249 / 0.95)
+  );
+}
+
+.ops-nav-track {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding-block: 0.45rem;
+}
+
+.nav-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.78rem;
+  border-radius: 0.72rem;
+  border: 1px solid transparent;
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease,
+    border-color 0.18s ease,
+    transform 0.18s ease;
+}
+
+.nav-tab-btn-active {
+  color: #f8fafc;
+  background: linear-gradient(140deg, #0f172a 0%, #1d4ed8 100%);
+  border-color: rgb(30 64 175 / 0.45);
+  box-shadow: 0 8px 18px -14px rgb(30 64 175 / 0.75);
+}
+
+.nav-tab-btn-inactive {
+  color: #475569;
+  background: rgb(255 255 255 / 0.75);
+  border-color: #e2e8f0;
+}
+
+.nav-tab-btn-inactive:hover {
+  color: #0f172a;
+  border-color: #cbd5e1;
+  background: #ffffff;
+  transform: translateY(-1px);
+}
+
+.ops-admin-view .ops-admin-shell {
+  max-width: 1460px;
+  margin-inline: auto;
+}
+
+.ops-admin-panel {
+  border-radius: 1rem;
+  border: 1px solid var(--ops-card-border);
+  background: var(--ops-panel-bg);
+  box-shadow: var(--ops-card-shadow);
+  backdrop-filter: blur(7px);
+}
+
+.ops-admin-toolbar {
+  border-bottom: 1px solid #e2e8f0;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.ops-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.5rem;
+}
+
+.ops-workspace-rail,
+.ops-workspace-main {
+  min-height: 0;
+}
+
+.ops-workspace-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.ops-workspace-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+@media (min-width: 1024px) {
+  .ops-workspace {
+    grid-template-columns: 264px minmax(0, 1fr);
+  }
+}
+
+.ops-admin-scroll {
+  scrollbar-gutter: stable both-edges;
+}
+
+.ops-admin-hero {
+  border-radius: 0.95rem;
+  border: 1px solid rgb(15 23 42 / 0.08);
+  color: #f8fafc;
+  background:
+    radial-gradient(
+      circle at 82% -35%,
+      rgb(56 189 248 / 0.28),
+      transparent 40%
+    ),
+    linear-gradient(135deg, #0f172a 0%, #172554 52%, #0f766e 100%);
+}
+
+.ops-admin-hero-title {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.ops-overview-chip {
+  backdrop-filter: blur(2px);
+}
+
+.ops-health-chip[data-level="stable"] {
+  border-color: rgb(52 211 153 / 0.45);
+  background: rgb(16 185 129 / 0.16);
+}
+
+.ops-health-chip[data-level="watch"] {
+  border-color: rgb(56 189 248 / 0.45);
+  background: rgb(14 165 233 / 0.16);
+}
+
+.ops-health-chip[data-level="warning"] {
+  border-color: rgb(251 191 36 / 0.45);
+  background: rgb(245 158 11 / 0.18);
+}
+
+.ops-health-chip[data-level="critical"] {
+  border-color: rgb(251 113 133 / 0.48);
+  background: rgb(244 63 94 / 0.2);
+}
+
+.ops-admin-metric-card {
+  border-radius: 0.75rem;
+  border: 1px solid #dbe3ee;
+  background: #ffffff;
+  box-shadow: 0 8px 24px -24px rgb(15 23 42 / 0.9);
+}
+
+.ops-admin-sidebar-card {
+  border-radius: 0.95rem;
+  border: 1px solid var(--ops-card-border);
+  background: #ffffff;
+  box-shadow: 0 10px 26px -24px rgb(15 23 42 / 0.75);
+}
+
+.master-tab-btn {
+  border: 1px solid transparent;
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease,
+    border-color 0.18s ease,
+    transform 0.18s ease;
+}
+
+.master-tab-btn-active {
+  background: linear-gradient(145deg, #0f172a 0%, #1d4ed8 100%);
+  border-color: rgb(30 64 175 / 0.45);
+  color: #f8fafc;
+  box-shadow: 0 10px 22px -18px rgb(30 64 175 / 0.9);
+}
+
+.master-tab-btn-inactive {
+  color: #475569;
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+.master-tab-btn-inactive:hover {
+  color: #0f172a;
+  border-color: #cbd5e1;
+  background: #ffffff;
+}
+
+@media (max-width: 1024px) {
+  .ops-admin-view .ops-admin-shell {
+    max-width: 1280px;
+  }
+
+  .ops-admin-view {
+    height: auto !important;
+    min-height: 0 !important;
+    --ops-rail-mobile-gap: 0.4rem;
+    --ops-rail-mobile-pad-y: 0.6rem;
+    --ops-rail-mobile-pad-x: 0.7rem;
+    --ops-rail-mobile-title-size: 0.86rem;
+    --ops-rail-mobile-label-size: 10px;
+    --ops-rail-mobile-input-size: 0.8rem;
+    --ops-rail-mobile-action-size: 0.72rem;
+    --ops-rail-mobile-action-pad-y: 0.5rem;
+    --ops-rail-mobile-action-gap: 0.35rem;
+  }
+
+  .ops-admin-view .ops-admin-shell,
+  .ops-admin-view .ops-admin-panel,
+  .ops-admin-view .ops-workspace,
+  .ops-admin-view .ops-workspace-main,
+  .ops-admin-view .ops-workspace-rail,
+  .ops-admin-view [id^="masterPanel_"] {
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
+  .ops-admin-view .ops-admin-panel,
+  .ops-admin-view .ops-workspace,
+  .ops-admin-view .ops-workspace-main,
+  .ops-admin-view .ops-workspace-rail,
+  .ops-admin-view [id^="masterPanel_"] {
+    overflow: visible !important;
+  }
+
+  .ops-admin-view .ops-admin-scroll {
+    overflow: visible !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    height: auto !important;
+    scrollbar-gutter: auto;
+  }
+
+  #scheduleContainer,
+  #scheduleApprovalList,
+  #attendanceList,
+  #attendanceApprovalList,
+  #subjectList,
+  #teacherList,
+  #studentList,
+  #accountPendingList,
+  #accountAdminList,
+  #accountGrantedList,
+  #masterSecurityTelemetryRecentList {
+    overflow-y: visible !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    height: auto !important;
+  }
+
+  #view_board .ops-workspace,
+  #view_master .ops-workspace,
+  #view_form .ops-workspace,
+  #view_attendance .ops-workspace {
+    gap: 0.5rem;
+  }
+
+  #view_board .ops-board-rail,
+  #view_master .ops-master-rail,
+  #view_form .ops-form-rail,
+  #view_attendance .ops-attendance-rail {
+    gap: var(--ops-rail-mobile-gap);
+  }
+
+  #view_board .ops-board-rail-head,
+  #view_form .ops-form-rail-head,
+  #view_attendance .ops-attendance-rail-head,
+  #view_form .ops-form-rail-checklist,
+  #view_attendance .ops-attendance-rail-period,
+  #view_attendance .ops-attendance-rail-actions,
+  #view_master .ops-master-rail-actions {
+    padding: var(--ops-rail-mobile-pad-y) var(--ops-rail-mobile-pad-x);
+  }
+
+  #view_board #boardTitle,
+  #view_form .ops-form-rail-head .ops-admin-hero-title,
+  #view_attendance .ops-attendance-rail-head h2 {
+    font-size: var(--ops-rail-mobile-title-size);
+    line-height: 1.2;
+  }
+
+  #view_board #boardSubtitle,
+  #view_form #scheduleFormRoleHint,
+  #view_attendance .ops-attendance-rail-head p {
+    display: none;
+  }
+
+  #view_board .ops-rail-field-label,
+  #view_form .ops-form-rail-checklist h3,
+  #view_master .ops-master-rail-actions summary,
+  #view_attendance .ops-attendance-rail-label {
+    font-size: var(--ops-rail-mobile-label-size);
+    letter-spacing: 0.04em;
+  }
+
+  #view_board .ops-board-rail-controls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--ops-rail-mobile-gap);
+    padding: var(--ops-rail-mobile-pad-y);
+  }
+
+  #view_board .ops-board-rail-action,
+  #view_board .ops-board-rail-field-search {
+    grid-column: 1 / -1;
+  }
+
+  #view_board .ops-board-rail-field {
+    min-width: 0;
+  }
+
+  #view_board .ops-rail-field-label {
+    margin-bottom: 0.2rem;
+  }
+
+  #view_board .ops-board-rail-controls input,
+  #view_board .ops-board-rail-controls select {
+    font-size: var(--ops-rail-mobile-input-size);
+    min-width: 0;
+  }
+
+  #view_board .ops-board-rail-action,
+  #view_master .ops-master-rail-actions button,
+  #view_attendance .ops-attendance-rail-action {
+    font-size: var(--ops-rail-mobile-action-size);
+    padding-top: var(--ops-rail-mobile-action-pad-y);
+    padding-bottom: var(--ops-rail-mobile-action-pad-y);
+    gap: var(--ops-rail-mobile-action-gap);
+  }
+
+  #view_master .ops-master-rail-tabs {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.35rem;
+    overflow-x: auto;
+    padding: 0.35rem;
+  }
+
+  #view_master .ops-master-rail-tabs .master-tab-btn {
+    width: auto !important;
+    min-width: max-content;
+    padding: 0.5rem 0.72rem;
+    text-align: center;
+    font-size: var(--ops-rail-mobile-action-size);
+    line-height: 1;
+  }
+
+  #view_form .ops-form-rail-checklist-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--ops-rail-mobile-gap);
+  }
+
+  #view_form .ops-form-rail-checklist-list li {
+    font-size: 11px;
+    line-height: 1.3;
+    gap: 0.35rem;
+  }
+
+  #view_form .ops-form-rail-checklist-list i {
+    width: 0.75rem;
+    height: 0.75rem;
+    margin-top: 0.15rem;
+  }
+
+  #view_attendance .ops-attendance-period-controls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--ops-rail-mobile-gap);
+    padding: var(--ops-rail-mobile-action-pad-y);
+  }
+
+  #view_attendance .ops-attendance-period-controls > i {
+    display: none;
+  }
+
+  #view_attendance #attendancePeriod,
+  #view_attendance #attendanceDateWrap,
+  #view_attendance #attendanceWeekWrap,
+  #view_attendance #attendanceMonthWrap {
+    grid-column: 1 / -1;
+  }
+
+  #view_attendance #attendancePeriod {
+    width: 100%;
+    font-size: 0.78rem;
+    padding: 0.42rem 0.5rem;
+  }
+
+  #view_attendance #attendanceDateWrap,
+  #view_attendance #attendanceWeekWrap,
+  #view_attendance #attendanceMonthWrap {
+    border: 1px solid #e2e8f0;
+    border-radius: 0.6rem;
+    background: #ffffff;
+    padding: 0.4rem 0.45rem;
+  }
+
+  #view_attendance #attendanceDate,
+  #view_attendance #attendanceWeek,
+  #view_attendance #attendanceMonth {
+    width: 100%;
+    font-size: var(--ops-rail-mobile-input-size);
+    color: #334155;
+  }
+
+  #view_attendance .ops-attendance-rail-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--ops-rail-mobile-gap);
+    align-items: start;
+  }
+
+  #view_attendance .ops-attendance-rail-actions .ops-attendance-rail-label,
+  #view_attendance
+    .ops-attendance-rail-actions
+    .ops-attendance-rail-action:last-child {
+    grid-column: 1 / -1;
+  }
+
+  #view_attendance .ops-attendance-rail-action {
+    min-width: 0;
+  }
 }
 
 .content-auto {

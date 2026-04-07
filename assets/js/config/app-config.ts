@@ -41,7 +41,7 @@ const deepFreeze = (value) => {
 };
 
 export const DEFAULT_APP_CONFIG = {
-  version: "v1.17.2",
+  version: "v1.21.4",
   branding: {
     shortName: "EduTopS",
     fullName: "EduTopS",

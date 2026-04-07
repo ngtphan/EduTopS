@@ -54,6 +54,7 @@ import {
   normalizeWeekToken,
   toIsoWeekTokenFromDate,
 } from "@/shared/lib/week-token";
+import { buildAdminDashboardMetrics } from "@/shared/lib/admin-dashboard-metrics";
 import { sanitizeForStorage, isSafeDocId } from "./modules/security-utils";
 import { APP_CONFIG, getConfigByPath } from "./config/app-config";
 
@@ -682,10 +683,86 @@ const getWeekAttendanceOverview = (week) => {
 
 const renderMasterOverview = () => {
   const week = getSelectedWeek();
+
+  const metrics = buildAdminDashboardMetrics({
+    weekToken: week,
+    db: globalThis.db,
+    accessDeniedEvents:
+      typeof globalThis.getAccessDeniedEvents === "function"
+        ? globalThis.getAccessDeniedEvents()
+        : [],
+    getDurationHours,
+  });
+
   const subjectsEl = document.getElementById("masterStatSubjects");
   const teachersEl = document.getElementById("masterStatTeachers");
   const studentsEl = document.getElementById("masterStatStudents");
+  const classesEl = document.getElementById("masterStatClasses");
+  const accountsEl = document.getElementById("masterStatAccounts");
+  const teacherAccountsEl = document.getElementById(
+    "masterStatTeacherAccounts",
+  );
   const schedulesWeekEl = document.getElementById("masterStatSchedulesWeek");
+  const pendingSchedulesWeekEl = document.getElementById(
+    "masterStatPendingSchedulesWeek",
+  );
+  const attendancePendingEl = document.getElementById(
+    "masterStatAttendancePending",
+  );
+  const weekLabelEl = document.getElementById("masterOverviewWeekLabel");
+  const healthScoreEl = document.getElementById("masterOverviewHealthScore");
+  const healthLevelEl = document.getElementById("masterOverviewHealthLevel");
+  const healthSummaryEl = document.getElementById(
+    "masterOverviewHealthSummary",
+  );
+  const healthChipEl = document.getElementById("masterOverviewHealthChip");
+  const approvalProgressTextEl = document.getElementById(
+    "masterOverviewApprovalProgressText",
+  );
+  const approvalProgressBarEl = document.getElementById(
+    "masterOverviewApprovalProgressBar",
+  );
+  const attendanceProgressTextEl = document.getElementById(
+    "masterOverviewAttendanceProgressText",
+  );
+  const attendanceProgressBarEl = document.getElementById(
+    "masterOverviewAttendanceProgressBar",
+  );
+  const attendancePresentTextEl = document.getElementById(
+    "masterOverviewPresentRateText",
+  );
+  const plannedHoursEl = document.getElementById("masterOverviewPlannedHours");
+  const activeTeachersEl = document.getElementById(
+    "masterOverviewActiveTeachers",
+  );
+  const activeClassesEl = document.getElementById(
+    "masterOverviewActiveClasses",
+  );
+  const teacherCoverageTextEl = document.getElementById(
+    "masterOverviewTeacherCoverageText",
+  );
+  const teacherCoverageBarEl = document.getElementById(
+    "masterOverviewTeacherCoverageBar",
+  );
+  const classActivationTextEl = document.getElementById(
+    "masterOverviewClassActivationText",
+  );
+  const classActivationBarEl = document.getElementById(
+    "masterOverviewClassActivationBar",
+  );
+  const attendanceBacklogTextEl = document.getElementById(
+    "masterOverviewAttendanceBacklogText",
+  );
+  const attendanceBacklogBarEl = document.getElementById(
+    "masterOverviewAttendanceBacklogBar",
+  );
+  const topTeacherListEl = document.getElementById(
+    "masterOverviewTopTeacherList",
+  );
+  const alertListEl = document.getElementById("masterOverviewAlertList");
+  const actionQueueListEl = document.getElementById(
+    "masterOverviewActionQueueList",
+  );
   const securityPanel = document.getElementById("masterSecurityTelemetryPanel");
   const securityTotalEl = document.getElementById(
     "masterSecurityTelemetryTotal",
@@ -695,6 +772,12 @@ const renderMasterOverview = () => {
   );
   const securityReasonListEl = document.getElementById(
     "masterSecurityTelemetryReasonList",
+  );
+  const securityDistinctActionsEl = document.getElementById(
+    "masterSecurityTelemetryDistinctActions",
+  );
+  const securityDistinctReasonsEl = document.getElementById(
+    "masterSecurityTelemetryDistinctReasons",
   );
   const securityRecentListEl = document.getElementById(
     "masterSecurityTelemetryRecentList",
@@ -708,18 +791,178 @@ const renderMasterOverview = () => {
 
   if (!subjectsEl || !teachersEl || !studentsEl) return;
 
-  subjectsEl.innerText = `${globalThis.db.subjects.length}`;
-  teachersEl.innerText = `${globalThis.db.teachers.length}`;
-  studentsEl.innerText = `${globalThis.db.students.length}`;
+  subjectsEl.innerText = `${metrics.totals.subjects}`;
+  teachersEl.innerText = `${metrics.totals.teachers}`;
+  studentsEl.innerText = `${metrics.totals.students}`;
+
+  if (classesEl) {
+    classesEl.innerText = `${metrics.totals.classes}`;
+  }
+
+  if (accountsEl) {
+    accountsEl.innerText = `${metrics.totals.accounts}`;
+  }
+
+  if (teacherAccountsEl) {
+    teacherAccountsEl.innerText = `${metrics.totals.teacherAccounts}`;
+  }
 
   if (schedulesWeekEl) {
-    const normalizedWeek = normalizeWeekToken(week);
-    const weekCount = week
-      ? globalThis.db.schedules.filter(
-          (s) => normalizeWeekToken(s.week) === normalizedWeek,
-        ).length
-      : 0;
-    schedulesWeekEl.innerText = `${weekCount}`;
+    schedulesWeekEl.innerText = `${metrics.week.schedulesTotal}`;
+  }
+
+  if (pendingSchedulesWeekEl) {
+    pendingSchedulesWeekEl.innerText = `${metrics.week.schedulesPending}`;
+  }
+
+  if (attendancePendingEl) {
+    attendancePendingEl.innerText = `${metrics.attendanceRequests.pending}`;
+  }
+
+  if (weekLabelEl) {
+    weekLabelEl.innerText = metrics.week.token || "Chưa chọn tuần";
+  }
+
+  const setProgressBarWidth = (element, value) => {
+    if (!element) return;
+    const percent = Math.max(0, Math.min(100, Number(value || 0)));
+    element.style.width = `${percent}%`;
+  };
+
+  if (healthScoreEl) {
+    healthScoreEl.innerText = `${metrics.health.score}`;
+  }
+  if (healthLevelEl) {
+    healthLevelEl.innerText = metrics.health.level;
+  }
+  if (healthSummaryEl) {
+    const pendingLabel = `${metrics.week.schedulesPending} lịch chờ duyệt`;
+    const backlogLabel = `${metrics.attendanceRequests.overduePending} chấm công quá hạn`;
+    healthSummaryEl.innerText = `Health score ${metrics.health.score}/100 • ${pendingLabel} • ${backlogLabel}.`;
+  }
+  if (healthChipEl) {
+    const levelToken =
+      metrics.health.score >= 85
+        ? "stable"
+        : metrics.health.score >= 70
+          ? "watch"
+          : metrics.health.score >= 50
+            ? "warning"
+            : "critical";
+    healthChipEl.dataset.level = levelToken;
+  }
+
+  if (approvalProgressTextEl) {
+    approvalProgressTextEl.innerText = `${metrics.week.schedulesApproved} duyệt • ${metrics.week.schedulesRejected} từ chối • ${metrics.week.schedulesPending} chờ duyệt`;
+  }
+
+  if (approvalProgressBarEl) {
+    setProgressBarWidth(
+      approvalProgressBarEl,
+      metrics.week.approvalCompletionPercent,
+    );
+  }
+
+  if (attendanceProgressTextEl) {
+    attendanceProgressTextEl.innerText = `${metrics.week.approvedAttendancePresent} có mặt • ${metrics.week.approvedAttendanceAbsent} vắng • ${metrics.week.approvedAttendancePending} chưa chấm`;
+  }
+
+  if (attendanceProgressBarEl) {
+    setProgressBarWidth(
+      attendanceProgressBarEl,
+      metrics.week.attendanceCompletionPercent,
+    );
+  }
+
+  if (attendancePresentTextEl) {
+    attendancePresentTextEl.innerText = `${Math.round(metrics.week.attendancePresentPercent)}% tỉ lệ có mặt trên số ca đã chấm`;
+  }
+
+  if (plannedHoursEl) {
+    plannedHoursEl.innerText = `${formatHours(metrics.week.plannedHours)}`;
+  }
+
+  if (activeTeachersEl) {
+    activeTeachersEl.innerText = `${metrics.week.activeTeachers}`;
+  }
+
+  if (activeClassesEl) {
+    activeClassesEl.innerText = `${metrics.week.activeClasses}`;
+  }
+
+  if (teacherCoverageTextEl) {
+    teacherCoverageTextEl.innerText = `${Math.round(metrics.coverage.teacherAccountCoveragePercent)}%`;
+  }
+  if (teacherCoverageBarEl) {
+    setProgressBarWidth(
+      teacherCoverageBarEl,
+      metrics.coverage.teacherAccountCoveragePercent,
+    );
+  }
+
+  if (classActivationTextEl) {
+    classActivationTextEl.innerText = `${Math.round(metrics.coverage.classActivationPercent)}%`;
+  }
+  if (classActivationBarEl) {
+    setProgressBarWidth(
+      classActivationBarEl,
+      metrics.coverage.classActivationPercent,
+    );
+  }
+
+  if (attendanceBacklogTextEl) {
+    attendanceBacklogTextEl.innerText = `${Math.round(metrics.attendanceRequests.backlogRatePercent)}%`;
+  }
+  if (attendanceBacklogBarEl) {
+    setProgressBarWidth(
+      attendanceBacklogBarEl,
+      metrics.attendanceRequests.backlogRatePercent,
+    );
+  }
+
+  if (topTeacherListEl) {
+    topTeacherListEl.innerHTML =
+      metrics.week.topTeachers.length > 0
+        ? metrics.week.topTeachers
+            .map((item, index) => {
+              const teacherName = escapeHtml(
+                getTeacherInfo(item.teacherId).name || item.teacherId,
+              );
+              return `<div class="rounded-lg border border-slate-200 bg-white px-2.5 py-2 flex items-center justify-between gap-2"><div class="min-w-0"><div class="text-xs font-bold text-slate-800 truncate">#${index + 1} ${teacherName}</div><div class="text-[11px] text-slate-500">${item.totalSessions} ca • ${formatHours(item.totalHours)}</div></div><span class="text-[10px] font-bold px-1.5 py-0.5 rounded border border-indigo-200 bg-indigo-50 text-indigo-700">Load</span></div>`;
+            })
+            .join("")
+        : '<div class="text-[11px] text-slate-400 italic">Chưa có dữ liệu tải giảng dạy trong tuần đã chọn.</div>';
+  }
+
+  if (actionQueueListEl) {
+    const actionClassBySeverity = {
+      info: "border-cyan-200 bg-cyan-50/70 text-cyan-800",
+      warning: "border-amber-200 bg-amber-50 text-amber-800",
+      critical: "border-rose-200 bg-rose-50 text-rose-800",
+    };
+    actionQueueListEl.innerHTML = metrics.actions
+      .map((actionItem) => {
+        const rowClass =
+          actionClassBySeverity[actionItem.severity] ||
+          actionClassBySeverity.info;
+        return `<div class="rounded-lg border px-2.5 py-2 ${rowClass}"><div class="text-[11px] font-bold">${escapeHtml(actionItem.title)}</div><div class="text-[11px] opacity-90 mt-0.5">${escapeHtml(actionItem.detail)}</div></div>`;
+      })
+      .join("");
+  }
+
+  if (alertListEl) {
+    const alertClassBySeverity = {
+      info: "border-cyan-200 bg-cyan-50/60 text-cyan-800",
+      warning: "border-amber-200 bg-amber-50 text-amber-800",
+      critical: "border-rose-200 bg-rose-50 text-rose-800",
+    };
+    alertListEl.innerHTML = metrics.alerts
+      .map((alert) => {
+        const rowClass =
+          alertClassBySeverity[alert.severity] || alertClassBySeverity.info;
+        return `<div class="rounded-lg border px-2.5 py-2 text-xs font-medium ${rowClass}">${escapeHtml(alert.message)}</div>`;
+      })
+      .join("");
   }
 
   if (
@@ -756,6 +999,12 @@ const renderMasterOverview = () => {
       : [];
 
   securityTotalEl.innerText = `${events.length}`;
+  if (securityDistinctActionsEl) {
+    securityDistinctActionsEl.innerText = `${metrics.security.denyDistinctActions}`;
+  }
+  if (securityDistinctReasonsEl) {
+    securityDistinctReasonsEl.innerText = `${metrics.security.denyDistinctReasons}`;
+  }
 
   const toTopCountRows = (items, keyName) => {
     const grouped = new Map();

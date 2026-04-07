@@ -1,12 +1,12 @@
 ﻿<!-- HEADER -->
 <header
-  class="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm shrink-0"
+  class="ops-header-shell border-b border-slate-200 sticky top-0 z-20 shadow-sm shrink-0"
 >
   <div
     class="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 min-h-16 sm:h-16 py-2 sm:py-0 flex items-center justify-between"
   >
     <div class="flex items-center gap-2.5 sm:gap-3 min-w-0">
-      <div class="bg-indigo-600 p-2 rounded-lg shadow-sm">
+      <div class="ops-header-brand-chip p-2 rounded-lg shadow-sm">
         <i data-lucide="database" class="w-5 h-5 text-white"></i>
       </div>
       <div>
@@ -38,9 +38,7 @@
     </div>
 
     <div class="flex items-center gap-2 sm:gap-4">
-      <div
-        class="hidden sm:flex items-center gap-2 text-sm font-medium text-slate-600 border-r border-slate-200 pr-4"
-      >
+      <div class="ops-top-meta hidden sm:flex items-center gap-2 text-sm font-medium text-slate-600 pr-4">
         <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
         <span class="text-xs text-emerald-600 font-bold mr-2">Online</span>
         <span id="headerUserName">...</span>
@@ -52,7 +50,7 @@
       </div>
       <button
         onclick="window.logoutFirebase()"
-        class="text-slate-500 hover:text-red-600 transition-colors flex items-center gap-1.5 text-sm font-medium px-2 py-2 rounded-lg"
+        class="text-slate-500 hover:text-red-600 transition-colors flex items-center gap-1.5 text-sm font-medium px-2.5 py-2 rounded-lg border border-transparent hover:border-red-200 hover:bg-red-50"
       >
         <i data-lucide="log-out" class="w-4 h-4"></i>
         <span class="hidden sm:inline">Đăng xuất</span>
@@ -60,38 +58,35 @@
     </div>
   </div>
 
-  <div
-    class="bg-slate-50/90 backdrop-blur-md border-b border-slate-200"
-    id="navTabsContainer"
-  >
+  <div class="ops-nav-wrap border-b border-slate-200" id="navTabsContainer">
     <div
-      class="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 flex gap-3 sm:gap-6 overflow-x-auto hide-scroll whitespace-nowrap scroll-px-4 sm:scroll-px-6"
+      class="ops-nav-track max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 hide-scroll whitespace-nowrap scroll-px-4 sm:scroll-px-6"
     >
       <button
         onclick="window.switchTab('board')"
         id="tabBtn_board"
-        class="py-3.5 sm:py-3 px-2 border-b-2 border-indigo-600 text-indigo-700 font-bold text-sm flex items-center gap-2 transition-colors whitespace-nowrap"
+        class="nav-tab-btn nav-tab-btn-active"
       >
         <i data-lucide="calendar" class="w-4 h-4"></i> 1. Lịch dạy
       </button>
       <button
         onclick="window.switchTab('form')"
         id="tabBtn_form"
-        class="py-3.5 sm:py-3 px-2 border-b-2 border-transparent text-slate-500 hover:text-slate-800 font-medium text-sm flex items-center gap-2 transition-colors whitespace-nowrap"
+        class="nav-tab-btn nav-tab-btn-inactive"
       >
         <i data-lucide="calendar-plus" class="w-4 h-4"></i> 2. Xếp lịch
       </button>
       <button
         onclick="window.switchTab('master')"
         id="tabBtn_master"
-        class="py-3.5 sm:py-3 px-2 border-b-2 border-transparent text-slate-500 hover:text-slate-800 font-medium text-sm flex items-center gap-2 transition-colors whitespace-nowrap admin-only hidden"
+        class="nav-tab-btn nav-tab-btn-inactive admin-only hidden"
       >
         <i data-lucide="layers" class="w-4 h-4"></i> 3. Dữ liệu
       </button>
       <button
         onclick="window.switchTab('attendance')"
         id="tabBtn_attendance"
-        class="py-3.5 sm:py-3 px-2 border-b-2 border-transparent text-slate-500 hover:text-slate-800 font-medium text-sm flex items-center gap-2 transition-colors whitespace-nowrap admin-only hidden"
+        class="nav-tab-btn nav-tab-btn-inactive admin-only hidden"
       >
         <i data-lucide="badge-dollar-sign" class="w-4 h-4"></i> 4. Chấm công
       </button>

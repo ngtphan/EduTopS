@@ -19,6 +19,215 @@ Quy uoc version: Semantic Versioning (MAJOR.MINOR.PATCH)
 
 - Chua co.
 
+## [v1.21.4] - 2026-04-07
+
+### Changed
+
+- Tinh chinh vi mo typography/padding cho rail mobile tren toan bo 4 man hinh:
+  - `Lich day` (Board)
+  - `Du lieu` (Master)
+  - `Xep lich` (Form)
+  - `Cham cong` (Attendance)
+- Refactor block CSS mobile rail theo huong token hoa (`--ops-rail-mobile-*`) de:
+  - Giam duplicate gia tri le.
+  - Tranh sai lech style khi mo rong them man hinh.
+  - De bao tri va review regression theo mot he scale thong nhat.
+- Chuan hoa cung mot scale cho title/label/input/action (font-size, padding, gap), sau do giu lai cac ngoai le can thiet theo tung view.
+
+### Fixed
+
+- Khac phuc lech nhip typography/padding nho giua 4 rail tren mobile (cam giac khong deu pixel-level).
+- Giam rui ro no ky thuat do hard-code nhieu con so style tai nhieu block rieng le.
+
+### Metadata
+
+- Dong bo version metadata/runtime/docs/package lock len `v1.21.4`.
+
+## [v1.21.3] - 2026-04-07
+
+### Changed
+
+- Mo rong pattern compact rail mobile cho 2 man hinh con lai de dong nhat toan app:
+  - `Xếp lịch` (Form)
+  - `Chấm công` (Attendance)
+- Bo sung class hook co nghia theo view (`ops-form-*`, `ops-attendance-*`) de CSS mobile duoc quan ly theo chinh sach, khong sua roi rac.
+- Chuan hoa mat do control mobile o rail:
+  - Rut gon tieu de/phu de rail.
+  - Giam padding, font-size va khoang cach de uu tien khung noi dung chinh.
+  - Group lai checklist/tac vu theo bo cuc gon hon de thao tac bang ngon tay de hon.
+
+### Fixed
+
+- Khac phuc do lech style mobile giua Board/Master voi Form/Attendance.
+- Loai bo cam giac rail Chấm công/Xếp lịch qua dai va roi tren man hinh nho.
+- Dam bao toan bo 4 man hinh quan tri chay cung mot he quy tac compact rail tren mobile.
+
+### Metadata
+
+- Dong bo version metadata/runtime/docs/package lock len `v1.21.3`.
+
+## [v1.21.2] - 2026-04-06
+
+### Changed
+
+- Tinh gon va chuan hoa rail mobile cho 2 man hinh trong tam:
+  - `Lịch dạy` (Board)
+  - `Dữ liệu` (Master)
+- Thay doi rail mobile theo mot mau dong deu:
+  - Bo cuc field/filter gon hon, giam khoang trang du.
+  - Nhom tab du lieu chuyen sang dang pill ngang (de quet nhanh, de thao tac bang ngon tay).
+  - Giu nguyen hook id/onclick de tranh roi logic runtime.
+- Loai bo cach dan rail mobile gay roi o ban truoc (khong con cam giac bo cuc bi "lap ghep").
+
+### Fixed
+
+- Khac phuc tinh trang mobile giao dien "rối và không đồng đều" o khu rail cua Lich day + Du lieu.
+- Giam chieu cao rail chiem dung tren dau man hinh, uu tien dien tich hien thi noi dung chinh.
+- Tang tinh nhat quan visual va kha nang mo rong: rail compact co class muc tieu ro rang, de tai su dung cho cac man khac.
+
+### Metadata
+
+- Dong bo version metadata/runtime/docs/package lock len `v1.21.2`.
+
+## [v1.21.1] - 2026-04-06
+
+### Added
+
+- Bo sung "mobile scroll policy" o tang CSS cho toan bo admin views:
+  - Ưu tien page-level scroll tren mobile/tablet nho.
+  - Loai bo nested-scroll o cac container van hanh chinh (`schedule`, `attendance`, `master lists`).
+- Bo sung quy tac compact rail cho mobile o Board/Attendance de giam dien tich chiem cho khu dieu huong.
+
+### Changed
+
+- Chuan hoa responsive behavior theo huong de bao tri:
+  - Huy lock chieu cao viewport (`h-[calc(...)]`) o mobile bang override tap trung, giu desktop behavior.
+  - Chuyen cac vung `ops-admin-scroll` va list co `max-height` ve che do mo rong theo noi dung tren mobile.
+- Dong bo version metadata/package/docs len `v1.21.1`.
+
+### Fixed
+
+- Khac phuc hien tuong "khung nho cuon trong khung nho" tren mobile (nested-scroll khien noi dung kho theo doi).
+- Khac phuc tinh trang rail chiem qua nhieu dien tich doc o mobile, lam man hinh hien thi noi dung qua hep.
+- Dam bao cac man quan tri co the cuon toan trang de quan sat du lieu day du tren dien thoai.
+
+## [v1.21.0] - 2026-04-06
+
+### Added
+
+- Bo sung bo class layout tai su dung cho kieu bo cuc rail:
+  - `.ops-workspace`
+  - `.ops-workspace-rail`
+  - `.ops-workspace-main`
+- Bo sung khu thao tac ngay trong popup chi tiet ca day (Them HS / Sua / Xoa theo quyen), de gom hanh vi mutating ve mot diem.
+
+### Changed
+
+- Tai cau truc 3 man hinh admin theo huong rail trai + noi dung ben phai:
+  - `view-board`
+  - `view-form`
+  - `view-attendance`
+- Dong bo template giua `public/partials` va `src/partials` cho cac view tren de tranh lech giao dien theo moi truong.
+- Chuan hoa luong thao tac lich day:
+  - Ngoai card uu tien "Chi tiet" va thao tac can thiet.
+  - Loai bo nut `Sua`/`Xoa` trung lap o cac card va menu ngoai khi da co trong chi tiet.
+
+### Fixed
+
+- Giam no ky thuat giao dien do lap lai bo cuc ngang/tren giua cac man admin.
+- Giam rui ro thao tac nham va UX roi rac do trung nghia hanh dong sua/xoa giua card va popup chi tiet.
+- Tang kha nang bao tri/mo rong: them man admin moi co the tai dung truc tiep pattern rail ma khong can copy-paste bo cuc.
+
+## [v1.20.0] - 2026-04-06
+
+### Added
+
+- Mo rong bo metrics dashboard admin theo huong van hanh thuc te:
+  - health score + health level
+  - do phu du lieu (tai khoan giao vien, kich hoat lop)
+  - backlog rate cho cham cong
+  - hang doi uu tien xu ly (`actions`) cho admin.
+- Bo sung cac widget moi trong tab `Master`:
+  - khung health chip/succinct summary
+  - KPI `TK giáo viên`
+  - thanh progress do phu + ap luc ton dong
+  - danh sach uu tien xu ly trong ngay.
+
+### Changed
+
+- Thiet ke lai ky hon dashboard Dữ liệu (`Master`) theo huong control-center:
+  - bo cuc hero + health summary + KPI + coverage + action queue.
+  - toi uu visual hierarchy de admin nhin nhanh trang thai van hanh va bien dong rui ro.
+- Refactor tang render dashboard trong `assets/js/app.ts`:
+  - bo sung helper set progress an toan
+  - tach ro nhom render: KPI, health, coverage, action queue, telemetry.
+- Mo rong test cho `admin-dashboard-metrics` de giam rui ro hoi quy khi tiep tuc mo rong KPI sau nay.
+- Dong bo template `view-master` giua `public/partials` va `src/partials`.
+- Dong bo version metadata/runtime/docs len `v1.20.0`.
+
+### Fixed
+
+- Giam rui ro dashboard chi dung o muc “hien thi so lieu thuan”, thieu bo phan uu tien xu ly va danh gia suc khoe tong the.
+- Giam rui ro no ky thuat tang Data dashboard: metrics/logic da dat tai shared helper + test thay vi tiep tuc tang logic ad-hoc o runtime.
+
+## [v1.19.0] - 2026-04-06
+
+### Added
+
+- Bo sung design system giao dien admin theo huong tai su dung (ops shell/panel/navigation/tab state), gom cac class dung chung trong `assets/css/app.css` de dam bao de mo rong va de bao tri.
+- Bo sung nhan dien role runtime tren `body` (`data-app-role`) de ho tro them style/co che dieu kien theo role ma khong can chen logic trung lap vao tung view.
+
+### Changed
+
+- Thiet ke lai toan bo giao dien phan admin theo huong web app van hanh thuc te:
+  - Header + nav tabs duoc chuan hoa thanh bo navigation state-based, dong nhat active/inactive state.
+  - Board/Form/Master/Attendance duoc dua ve cung mot he bo cuc shell + panel + toolbar de giam roi mat va de dinh huong thao tac.
+  - Master tab bo sung class state chuan (`master-tab-btn-active`/`master-tab-btn-inactive`) va dong bo render runtime.
+- Tai cau truc logic class state trong `assets/js/modules/render-core.ts`:
+  - Loai bo hard-code class dai trong nhieu nhanh.
+  - Giu class `admin-only` o tab admin ngay ca khi active de tranh roi RBAC marker trong role-switch session.
+- Dong bo partial giao dien giua `public/partials` va `src/partials` cho cac khu vuc:
+  - `layout/header.html`
+  - `views/view-board.html`
+  - `views/view-form.html`
+  - `views/view-master.html`
+  - `views/view-attendance.html`
+- Dong bo version metadata/runtime/docs len `v1.19.0`.
+
+### Fixed
+
+- Giam rui ro no ky thuat giao dien do duplicate style-pattern va class hard-code phan tan.
+- Giam rui ro loi an role-toggle cho cac tab admin do mat class marker khi chuyen tab.
+- Tang kha nang bao hanh, mo rong them man admin moi ma khong can copy-paste style cac man hinh cu.
+
+## [v1.18.0] - 2026-04-06
+
+### Added
+
+- Bo sung bo helper thuần de tinh toan KPI dashboard admin theo tuan:
+  - `src/shared/lib/admin-dashboard-metrics.ts`
+  - `src/shared/lib/admin-dashboard-metrics.test.ts`
+- Bo sung cac chi so van hanh moi trong tab `Master`:
+  - tong quan tai nguyen (mon hoc, giao vien, hoc sinh, lop, tai khoan)
+  - KPI tuan (tong ca, ca cho duyet, tai gio giang, giao vien/lop hoat dong)
+  - tien do duyet lich + tien do cham cong + ti le co mat
+  - danh sach canh bao van hanh va top tai giang day theo giao vien.
+
+### Changed
+
+- Nang cap giao dien `overview` thanh dashboard admin rieng, bo cuc ro vai tro va uu tien thong tin van hanh thuc te:
+  - `public/partials/views/view-master.html`
+  - `src/partials/views/view-master.html`
+- Refactor `renderMasterOverview` theo huong tach data-logic/render:
+  - Runtime render lay metrics tu helper thuần, giam duplicate logic va de mo rong KPI ve sau.
+- Mo rong security telemetry panel voi summary distinct (`action`/`reason`) ben canh tong deny event.
+- Dong bo version metadata/runtime/docs len `v1.18.0`.
+
+### Fixed
+
+- Giam rui ro no ky thuat o tang giao dien admin: loai bo tinh trang UI tong hop qua don gian, kho theo doi van hanh theo tuan.
+- Tang do ben vung bao tri: KPI duoc tinh qua helper co test, han che hoi quy khi them chi so moi o cac release sau.
+
 ## [v1.17.2] - 2026-04-05
 
 ### Added
