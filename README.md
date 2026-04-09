@@ -2,13 +2,17 @@
 
 Ứng dụng web quản lý vận hành trung tâm học tập: quản lý môn học, giáo viên, học sinh, lớp học, xếp lịch dạy, chấm công, đánh giá và xuất báo cáo Excel.
 
-Phiên bản hiện tại: v1.21.4
+Phiên bản hiện tại: v1.22.1
 
 Lich su thay doi theo version: xem file CHANGELOG.md
 
 Tai lieu gioi thieu website: xem file docs/GIOI_THIEU_TRANG_WEB.md
 
 Roadmap migration component + TypeScript: xem file docs/COMPONENT_TS_MIGRATION_ROADMAP.md
+
+Role matrix Firestore: xem file docs/FIRESTORE_ROLE_MATRIX.md
+
+Checklist deploy hardening rules: xem file docs/FIREBASE_RULES_HARDENING.md
 
 ## 1. Tính năng chính
 

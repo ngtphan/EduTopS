@@ -6,7 +6,7 @@ Muc tieu cua file nay:
 - Xac dinh trinh tu trien khai tung buoc, co tieu chi chat luong ro rang.
 - Dam bao moi thay doi deu toi uu, han che loi tiem an ve sau (khong lam kieu "chi chay duoc").
 
-Baseline theo doi hien tai: v1.21.4 (tinh chinh vi mo typography/padding rail mobile cho 4 man hinh, dong deu pixel-level, 2026-04-07).
+Baseline theo doi hien tai: v1.22.1 (refactor giam cognitive complexity o dashboard/data-management, bo nested ternary, chuan hoa globalThis toan bo, 2026-04-07).
 
 Nguyen tac bat buoc khi implement:
 
@@ -295,7 +295,7 @@ Tu lan sau, khi them tinh nang moi, se bat dau tu file nay theo dung trinh tu:
 
 Trang thai hien tai:
 
-- Baseline hien tai cua roadmap: v1.21.4.
+- Baseline hien tai cua roadmap: v1.22.1.
 - Da khoi dong Feature 1 (Cong phu huynh) theo huong domain-first.
 - Da them model guard truy cap hoc sinh cho phu huynh o tang entity, kem unit test happy-path + edge-case.
 - Da hoan tat integration role `parent` o runtime cho cac luong doc cốt loi (lich/cham cong/danh gia) theo huong read-only an toan.

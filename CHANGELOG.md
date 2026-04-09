@@ -19,6 +19,47 @@ Quy uoc version: Semantic Versioning (MAJOR.MINOR.PATCH)
 
 - Chua co.
 
+## [v1.22.1] - 2026-04-07
+
+### Changed
+
+- Refactor man hinh Tong quan admin trong `assets/js/app.ts` theo huong tach helper rendering/telemetry, giam do phuc tap va de mo rong cac block KPI.
+- Refactor `src/shared/lib/admin-dashboard-metrics.ts` thanh pipeline helper nho (week metrics, alerts, actions, health level) de giam cognitive complexity va tang kha nang bao tri.
+- Refactor `assets/js/modules/data-management.ts` theo huong handler-per-table cho luong sua/xoa du lieu, giup logic de test, de theo doi va han che regression.
+
+### Fixed
+
+- Loai bo nested ternary o luong health-level dashboard va cac diem Sonar canh bao trong luong render/metrics.
+- Chuan hoa truy cap global object theo `globalThis` thay vi `window` tren runtime logic lien quan.
+- Xu ly canh bao optional chaining/stringification trong luong danh gia va xoa hoc sinh, tranh no ky thuat tiem an khi mo rong.
+
+### Metadata
+
+- Dong bo version metadata/runtime/docs/package lock len `v1.22.1`.
+
+## [v1.22.0] - 2026-04-07
+
+### Added
+
+- Khoi phuc bo `firestore.rules` vao repo va bo sung helper rules theo huong de mo rong, de review va de rollback.
+- Bo sung role matrix ro rang cho Firestore tai `docs/FIRESTORE_ROLE_MATRIX.md` (phan tach quyen read/write theo role + ownership cho records nhay cam).
+- Bo sung checklist deploy bao mat chuan hoa tai `docs/FIREBASE_RULES_HARDENING.md` de dam bao code-ha tang dong bo qua moi release.
+- Bo sung module policy thuần `src/shared/lib/firestore-role-matrix.ts` va test `src/shared/lib/firestore-role-matrix.test.ts` de mo phong tan cong permission bypass ownership.
+
+### Changed
+
+- Tang `canWriteTable` o runtime (`assets/js/app.ts`) su dung gate ownership tu module policy dung chung truoc khi vao cac rule chi tiet, giam rui ro drift logic.
+
+### Fixed
+
+- Giam rui ro teacher forge `teacherId` de ghi `attendanceRequests` khong thuoc ownership.
+- Giam rui ro teacher tao/sua `schedules` khong nam trong tap giao vien duoc gan vao ca day.
+- Chuan hoa quy trinh hardening/deploy rules de tranh mat file rule va lech matrix giua repo va production.
+
+### Metadata
+
+- Dong bo version metadata/runtime/docs/package lock len `v1.22.0`.
+
 ## [v1.21.4] - 2026-04-07
 
 ### Changed

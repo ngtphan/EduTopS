@@ -1,0 +1,232 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function authRole() {
+      return signedIn() && request.auth.token.role is string
+        ? request.auth.token.role
+        : "guest";
+    }
+
+    function authEmail() {
+      return signedIn() && request.auth.token.email is string
+        ? lower(request.auth.token.email)
+        : "";
+    }
+
+    function authTeacherIdClaim() {
+      return signedIn() && request.auth.token.teacherId is string
+        ? request.auth.token.teacherId
+        : "";
+    }
+
+    function isBootstrapAdminEmail() {
+      return authEmail() == "ngoctaiphan.edu@gmail.com";
+    }
+
+    function isAdmin() {
+      return signedIn() && (authRole() == "admin" || isBootstrapAdminEmail());
+    }
+
+    function isTeacher() {
+      return signedIn() && authRole() == "teacher";
+    }
+
+    function isParent() {
+      return signedIn() && authRole() == "parent";
+    }
+
+    function isSupportedCollection(collection) {
+      return collection in [
+        "subjects",
+        "teachers",
+        "students",
+        "classes",
+        "schedules",
+        "accounts",
+        "attendanceRequests",
+        "settings"
+      ];
+    }
+
+    function isTeacherListedOnSchedule(data, teacherId) {
+      return teacherId != "" && (
+        data.teacherId == teacherId ||
+        (data.coTeacherIds is list && data.coTeacherIds.hasAny([teacherId]))
+      );
+    }
+
+    function hasTeacherScheduleOwnership(data) {
+      return isTeacher() && (
+        isTeacherListedOnSchedule(data, request.auth.uid) ||
+        isTeacherListedOnSchedule(data, authTeacherIdClaim())
+      );
+    }
+
+    function isScheduleApprovalStatus(value) {
+      return value in ["pending", "approved", "rejected"];
+    }
+
+    function scheduleHasCoreShape(data) {
+      return data is map &&
+        data.teacherId is string &&
+        data.coTeacherIds is list &&
+        data.approval is map &&
+        data.approval.status is string &&
+        isScheduleApprovalStatus(data.approval.status);
+    }
+
+    function hasUnchangedPendingProtectedFields() {
+      return
+        request.resource.data.week == resource.data.week &&
+        request.resource.data.dayOfWeek == resource.data.dayOfWeek &&
+        request.resource.data.startTime == resource.data.startTime &&
+        request.resource.data.endTime == resource.data.endTime &&
+        request.resource.data.location == resource.data.location &&
+        request.resource.data.classId == resource.data.classId &&
+        request.resource.data.classLabel == resource.data.classLabel &&
+        request.resource.data.studentIds == resource.data.studentIds &&
+        request.resource.data.subjectId == resource.data.subjectId &&
+        request.resource.data.topic == resource.data.topic &&
+        request.resource.data.attendance == resource.data.attendance &&
+        request.resource.data.evaluations == resource.data.evaluations;
+    }
+
+    function hasUnchangedApprovedProtectedFields() {
+      return
+        request.resource.data.week == resource.data.week &&
+        request.resource.data.dayOfWeek == resource.data.dayOfWeek &&
+        request.resource.data.startTime == resource.data.startTime &&
+        request.resource.data.endTime == resource.data.endTime &&
+        request.resource.data.location == resource.data.location &&
+        request.resource.data.classId == resource.data.classId &&
+        request.resource.data.classLabel == resource.data.classLabel &&
+        request.resource.data.studentIds == resource.data.studentIds &&
+        request.resource.data.subjectId == resource.data.subjectId &&
+        request.resource.data.teacherId == resource.data.teacherId &&
+        request.resource.data.coTeacherIds == resource.data.coTeacherIds &&
+        request.resource.data.topic == resource.data.topic;
+    }
+
+    function hasUnchangedApprovedReviewMeta() {
+      return
+        request.resource.data.approval.requestType == resource.data.approval.requestType &&
+        request.resource.data.approval.reviewedBy == resource.data.approval.reviewedBy &&
+        request.resource.data.approval.reviewedAt == resource.data.approval.reviewedAt;
+    }
+
+    function canTeacherCreateSchedule() {
+      return scheduleHasCoreShape(request.resource.data) &&
+        request.resource.data.approval.status == "pending" &&
+        hasTeacherScheduleOwnership(request.resource.data);
+    }
+
+    function canTeacherUpdateSchedule() {
+      return scheduleHasCoreShape(request.resource.data) &&
+        scheduleHasCoreShape(resource.data) &&
+        hasTeacherScheduleOwnership(resource.data) &&
+        hasTeacherScheduleOwnership(request.resource.data) && (
+          (
+            request.resource.data.approval.status == "pending" &&
+            hasUnchangedPendingProtectedFields()
+          ) ||
+          (
+            resource.data.approval.status == "approved" &&
+            request.resource.data.approval.status == "approved" &&
+            hasUnchangedApprovedProtectedFields() &&
+            hasUnchangedApprovedReviewMeta()
+          )
+        );
+    }
+
+    function attendanceRequestHasCoreShape(data) {
+      return data is map &&
+        data.id is string &&
+        data.teacherId is string &&
+        data.attendanceDate is string &&
+        data.status is string;
+    }
+
+    function hasForbiddenAttendanceServerFields(data) {
+      return data.submittedAtServer != null ||
+        data.reviewedAtServer != null ||
+        data.updatedAtServer != null;
+    }
+
+    function isTeacherPendingAttendancePayload(data) {
+      return attendanceRequestHasCoreShape(data) &&
+        isTeacher() &&
+        data.status == "pending" &&
+        data.reviewedBy == null &&
+        data.reviewedAt == null &&
+        data.reviewNote == null &&
+        !hasForbiddenAttendanceServerFields(data) &&
+        data.id == (data.teacherId + "_" + data.attendanceDate) &&
+        data.workedMinutes is number &&
+        data.workedMinutes > 0 &&
+        data.workedMinutes <= 960 &&
+        data.createdAt is number;
+    }
+
+    function canTeacherCreateAttendanceRequest() {
+      return isTeacherPendingAttendancePayload(request.resource.data) &&
+        (
+          request.resource.data.teacherId == request.auth.uid ||
+          request.resource.data.teacherId == authTeacherIdClaim()
+        );
+    }
+
+    function canTeacherUpdateAttendanceRequest() {
+      return isTeacherPendingAttendancePayload(request.resource.data) &&
+        attendanceRequestHasCoreShape(resource.data) &&
+        resource.data.status == "rejected" &&
+        resource.data.teacherId == request.resource.data.teacherId &&
+        resource.data.attendanceDate == request.resource.data.attendanceDate &&
+        (
+          request.resource.data.teacherId == request.auth.uid ||
+          request.resource.data.teacherId == authTeacherIdClaim()
+        );
+    }
+
+    function canReadCollection(collection) {
+      return isSupportedCollection(collection) && signedIn();
+    }
+
+    function canCreateCollection(collection) {
+      return isSupportedCollection(collection) && (
+        isAdmin() ||
+        (collection == "schedules" && canTeacherCreateSchedule()) ||
+        (collection == "attendanceRequests" && canTeacherCreateAttendanceRequest())
+      );
+    }
+
+    function canUpdateCollection(collection) {
+      return isSupportedCollection(collection) && (
+        isAdmin() ||
+        (collection == "schedules" && canTeacherUpdateSchedule()) ||
+        (collection == "attendanceRequests" && canTeacherUpdateAttendanceRequest())
+      );
+    }
+
+    function canDeleteCollection(collection) {
+      return isSupportedCollection(collection) && isAdmin();
+    }
+
+    match /{collection}/{docId} {
+      allow read: if canReadCollection(collection);
+      allow create: if canCreateCollection(collection);
+      allow update: if canUpdateCollection(collection);
+      allow delete: if canDeleteCollection(collection);
+    }
+
+    match /artifacts/{appId}/public/data/{collection}/{docId} {
+      allow read: if canReadCollection(collection);
+      allow create: if canCreateCollection(collection);
+      allow update: if canUpdateCollection(collection);
+      allow delete: if canDeleteCollection(collection);
+    }
+  }
+}

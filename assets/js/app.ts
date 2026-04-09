@@ -38,7 +38,10 @@ import {
   registerAttendanceFeature,
 } from "./modules/features/attendance/attendance-feature";
 import { normalizeScheduleApprovalStatus } from "@/entities/schedule/model/approval";
-import { getScheduleTeacherIds } from "@/entities/schedule/model/teacher-assignment";
+import {
+  getScheduleTeacherIds,
+  isTeacherAssignedToSchedule,
+} from "@/entities/schedule/model/teacher-assignment";
 import { getParentStudentIds } from "@/entities/parent/model/student-access";
 import { canParentAccessSchedule } from "@/features/parent-guards/model/access";
 import {
@@ -55,6 +58,7 @@ import {
   toIsoWeekTokenFromDate,
 } from "@/shared/lib/week-token";
 import { buildAdminDashboardMetrics } from "@/shared/lib/admin-dashboard-metrics";
+import { canRoleWriteCollectionWithOwnership } from "@/shared/lib/firestore-role-matrix";
 import { sanitizeForStorage, isSafeDocId } from "./modules/security-utils";
 import { APP_CONFIG, getConfigByPath } from "./config/app-config";
 
@@ -681,289 +685,227 @@ const getWeekAttendanceOverview = (week) => {
   };
 };
 
-const renderMasterOverview = () => {
-  const week = getSelectedWeek();
+const setElementText = (element, value) => {
+  if (!element) return;
+  element.innerText = `${value}`;
+};
 
-  const metrics = buildAdminDashboardMetrics({
-    weekToken: week,
-    db: globalThis.db,
-    accessDeniedEvents:
-      typeof globalThis.getAccessDeniedEvents === "function"
-        ? globalThis.getAccessDeniedEvents()
-        : [],
-    getDurationHours,
+const setProgressBarWidth = (element, value) => {
+  if (!element) return;
+  const percent = Math.max(0, Math.min(100, Number(value || 0)));
+  element.style.width = `${percent}%`;
+};
+
+const getMasterHealthLevelToken = (score) => {
+  if (score >= 85) return "stable";
+  if (score >= 70) return "watch";
+  if (score >= 50) return "warning";
+  return "critical";
+};
+
+const toTopCountRows = (items, keyName) => {
+  const grouped = new Map();
+  (items || []).forEach((item) => {
+    const key = toToken(item?.[keyName]) || "unknown";
+    grouped.set(key, Number(grouped.get(key) || 0) + 1);
   });
 
-  const subjectsEl = document.getElementById("masterStatSubjects");
-  const teachersEl = document.getElementById("masterStatTeachers");
-  const studentsEl = document.getElementById("masterStatStudents");
-  const classesEl = document.getElementById("masterStatClasses");
-  const accountsEl = document.getElementById("masterStatAccounts");
-  const teacherAccountsEl = document.getElementById(
-    "masterStatTeacherAccounts",
-  );
-  const schedulesWeekEl = document.getElementById("masterStatSchedulesWeek");
-  const pendingSchedulesWeekEl = document.getElementById(
+  return Array.from(grouped.entries())
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, 5);
+};
+
+const getMasterOverviewElements = () => ({
+  subjectsEl: document.getElementById("masterStatSubjects"),
+  teachersEl: document.getElementById("masterStatTeachers"),
+  studentsEl: document.getElementById("masterStatStudents"),
+  classesEl: document.getElementById("masterStatClasses"),
+  accountsEl: document.getElementById("masterStatAccounts"),
+  teacherAccountsEl: document.getElementById("masterStatTeacherAccounts"),
+  schedulesWeekEl: document.getElementById("masterStatSchedulesWeek"),
+  pendingSchedulesWeekEl: document.getElementById(
     "masterStatPendingSchedulesWeek",
-  );
-  const attendancePendingEl = document.getElementById(
-    "masterStatAttendancePending",
-  );
-  const weekLabelEl = document.getElementById("masterOverviewWeekLabel");
-  const healthScoreEl = document.getElementById("masterOverviewHealthScore");
-  const healthLevelEl = document.getElementById("masterOverviewHealthLevel");
-  const healthSummaryEl = document.getElementById(
-    "masterOverviewHealthSummary",
-  );
-  const healthChipEl = document.getElementById("masterOverviewHealthChip");
-  const approvalProgressTextEl = document.getElementById(
+  ),
+  attendancePendingEl: document.getElementById("masterStatAttendancePending"),
+  weekLabelEl: document.getElementById("masterOverviewWeekLabel"),
+  healthScoreEl: document.getElementById("masterOverviewHealthScore"),
+  healthLevelEl: document.getElementById("masterOverviewHealthLevel"),
+  healthSummaryEl: document.getElementById("masterOverviewHealthSummary"),
+  healthChipEl: document.getElementById("masterOverviewHealthChip"),
+  approvalProgressTextEl: document.getElementById(
     "masterOverviewApprovalProgressText",
-  );
-  const approvalProgressBarEl = document.getElementById(
+  ),
+  approvalProgressBarEl: document.getElementById(
     "masterOverviewApprovalProgressBar",
-  );
-  const attendanceProgressTextEl = document.getElementById(
+  ),
+  attendanceProgressTextEl: document.getElementById(
     "masterOverviewAttendanceProgressText",
-  );
-  const attendanceProgressBarEl = document.getElementById(
+  ),
+  attendanceProgressBarEl: document.getElementById(
     "masterOverviewAttendanceProgressBar",
-  );
-  const attendancePresentTextEl = document.getElementById(
+  ),
+  attendancePresentTextEl: document.getElementById(
     "masterOverviewPresentRateText",
-  );
-  const plannedHoursEl = document.getElementById("masterOverviewPlannedHours");
-  const activeTeachersEl = document.getElementById(
-    "masterOverviewActiveTeachers",
-  );
-  const activeClassesEl = document.getElementById(
-    "masterOverviewActiveClasses",
-  );
-  const teacherCoverageTextEl = document.getElementById(
+  ),
+  plannedHoursEl: document.getElementById("masterOverviewPlannedHours"),
+  activeTeachersEl: document.getElementById("masterOverviewActiveTeachers"),
+  activeClassesEl: document.getElementById("masterOverviewActiveClasses"),
+  teacherCoverageTextEl: document.getElementById(
     "masterOverviewTeacherCoverageText",
-  );
-  const teacherCoverageBarEl = document.getElementById(
+  ),
+  teacherCoverageBarEl: document.getElementById(
     "masterOverviewTeacherCoverageBar",
-  );
-  const classActivationTextEl = document.getElementById(
+  ),
+  classActivationTextEl: document.getElementById(
     "masterOverviewClassActivationText",
-  );
-  const classActivationBarEl = document.getElementById(
+  ),
+  classActivationBarEl: document.getElementById(
     "masterOverviewClassActivationBar",
-  );
-  const attendanceBacklogTextEl = document.getElementById(
+  ),
+  attendanceBacklogTextEl: document.getElementById(
     "masterOverviewAttendanceBacklogText",
-  );
-  const attendanceBacklogBarEl = document.getElementById(
+  ),
+  attendanceBacklogBarEl: document.getElementById(
     "masterOverviewAttendanceBacklogBar",
-  );
-  const topTeacherListEl = document.getElementById(
-    "masterOverviewTopTeacherList",
-  );
-  const alertListEl = document.getElementById("masterOverviewAlertList");
-  const actionQueueListEl = document.getElementById(
-    "masterOverviewActionQueueList",
-  );
-  const securityPanel = document.getElementById("masterSecurityTelemetryPanel");
-  const securityTotalEl = document.getElementById(
-    "masterSecurityTelemetryTotal",
-  );
-  const securityActionListEl = document.getElementById(
+  ),
+  topTeacherListEl: document.getElementById("masterOverviewTopTeacherList"),
+  alertListEl: document.getElementById("masterOverviewAlertList"),
+  actionQueueListEl: document.getElementById("masterOverviewActionQueueList"),
+  securityPanel: document.getElementById("masterSecurityTelemetryPanel"),
+  securityTotalEl: document.getElementById("masterSecurityTelemetryTotal"),
+  securityActionListEl: document.getElementById(
     "masterSecurityTelemetryActionList",
-  );
-  const securityReasonListEl = document.getElementById(
+  ),
+  securityReasonListEl: document.getElementById(
     "masterSecurityTelemetryReasonList",
-  );
-  const securityDistinctActionsEl = document.getElementById(
+  ),
+  securityDistinctActionsEl: document.getElementById(
     "masterSecurityTelemetryDistinctActions",
-  );
-  const securityDistinctReasonsEl = document.getElementById(
+  ),
+  securityDistinctReasonsEl: document.getElementById(
     "masterSecurityTelemetryDistinctReasons",
-  );
-  const securityRecentListEl = document.getElementById(
+  ),
+  securityRecentListEl: document.getElementById(
     "masterSecurityTelemetryRecentList",
-  );
-  const securityEmptyEl = document.getElementById(
-    "masterSecurityTelemetryEmpty",
-  );
-  const securityClearBtn = document.getElementById(
-    "btnMasterSecurityTelemetryClear",
-  );
+  ),
+  securityEmptyEl: document.getElementById("masterSecurityTelemetryEmpty"),
+  securityClearBtn: document.getElementById("btnMasterSecurityTelemetryClear"),
+});
 
-  if (!subjectsEl || !teachersEl || !studentsEl) return;
+const renderTopTeacherList = (topTeacherListEl, topTeachers) => {
+  if (!topTeacherListEl) return;
 
-  subjectsEl.innerText = `${metrics.totals.subjects}`;
-  teachersEl.innerText = `${metrics.totals.teachers}`;
-  studentsEl.innerText = `${metrics.totals.students}`;
+  topTeacherListEl.innerHTML =
+    topTeachers.length > 0
+      ? topTeachers
+          .map((item, index) => {
+            const teacherName = escapeHtml(
+              getTeacherInfo(item.teacherId).name || item.teacherId,
+            );
+            return `<div class="rounded-lg border border-slate-200 bg-white px-2.5 py-2 flex items-center justify-between gap-2"><div class="min-w-0"><div class="text-xs font-bold text-slate-800 truncate">#${index + 1} ${teacherName}</div><div class="text-[11px] text-slate-500">${item.totalSessions} ca • ${formatHours(item.totalHours)}</div></div><span class="text-[10px] font-bold px-1.5 py-0.5 rounded border border-indigo-200 bg-indigo-50 text-indigo-700">Load</span></div>`;
+          })
+          .join("")
+      : '<div class="text-[11px] text-slate-400 italic">Chưa có dữ liệu tải giảng dạy trong tuần đã chọn.</div>';
+};
 
-  if (classesEl) {
-    classesEl.innerText = `${metrics.totals.classes}`;
-  }
+const renderActionQueueList = (actionQueueListEl, actions) => {
+  if (!actionQueueListEl) return;
 
-  if (accountsEl) {
-    accountsEl.innerText = `${metrics.totals.accounts}`;
-  }
-
-  if (teacherAccountsEl) {
-    teacherAccountsEl.innerText = `${metrics.totals.teacherAccounts}`;
-  }
-
-  if (schedulesWeekEl) {
-    schedulesWeekEl.innerText = `${metrics.week.schedulesTotal}`;
-  }
-
-  if (pendingSchedulesWeekEl) {
-    pendingSchedulesWeekEl.innerText = `${metrics.week.schedulesPending}`;
-  }
-
-  if (attendancePendingEl) {
-    attendancePendingEl.innerText = `${metrics.attendanceRequests.pending}`;
-  }
-
-  if (weekLabelEl) {
-    weekLabelEl.innerText = metrics.week.token || "Chưa chọn tuần";
-  }
-
-  const setProgressBarWidth = (element, value) => {
-    if (!element) return;
-    const percent = Math.max(0, Math.min(100, Number(value || 0)));
-    element.style.width = `${percent}%`;
+  const actionClassBySeverity = {
+    info: "border-cyan-200 bg-cyan-50/70 text-cyan-800",
+    warning: "border-amber-200 bg-amber-50 text-amber-800",
+    critical: "border-rose-200 bg-rose-50 text-rose-800",
   };
 
-  if (healthScoreEl) {
-    healthScoreEl.innerText = `${metrics.health.score}`;
-  }
-  if (healthLevelEl) {
-    healthLevelEl.innerText = metrics.health.level;
-  }
-  if (healthSummaryEl) {
-    const pendingLabel = `${metrics.week.schedulesPending} lịch chờ duyệt`;
-    const backlogLabel = `${metrics.attendanceRequests.overduePending} chấm công quá hạn`;
-    healthSummaryEl.innerText = `Health score ${metrics.health.score}/100 • ${pendingLabel} • ${backlogLabel}.`;
-  }
-  if (healthChipEl) {
-    const levelToken =
-      metrics.health.score >= 85
-        ? "stable"
-        : metrics.health.score >= 70
-          ? "watch"
-          : metrics.health.score >= 50
-            ? "warning"
-            : "critical";
-    healthChipEl.dataset.level = levelToken;
+  actionQueueListEl.innerHTML = actions
+    .map((actionItem) => {
+      const rowClass =
+        actionClassBySeverity[actionItem.severity] ||
+        actionClassBySeverity.info;
+      return `<div class="rounded-lg border px-2.5 py-2 ${rowClass}"><div class="text-[11px] font-bold">${escapeHtml(actionItem.title)}</div><div class="text-[11px] opacity-90 mt-0.5">${escapeHtml(actionItem.detail)}</div></div>`;
+    })
+    .join("");
+};
+
+const renderAlertList = (alertListEl, alerts) => {
+  if (!alertListEl) return;
+
+  const alertClassBySeverity = {
+    info: "border-cyan-200 bg-cyan-50/60 text-cyan-800",
+    warning: "border-amber-200 bg-amber-50 text-amber-800",
+    critical: "border-rose-200 bg-rose-50 text-rose-800",
+  };
+
+  alertListEl.innerHTML = alerts
+    .map((alert) => {
+      const rowClass =
+        alertClassBySeverity[alert.severity] || alertClassBySeverity.info;
+      return `<div class="rounded-lg border px-2.5 py-2 text-xs font-medium ${rowClass}">${escapeHtml(alert.message)}</div>`;
+    })
+    .join("");
+};
+
+const renderSecurityCountList = (element, rows, chipClassName) => {
+  if (!element) return;
+
+  element.innerHTML =
+    rows.length > 0
+      ? rows
+          .map(
+            ([label, count]) =>
+              `<div class="flex items-center justify-between gap-2"><span class="text-[11px] text-slate-700 truncate">${escapeHtml(label)}</span><span class="text-[10px] font-bold px-1.5 py-0.5 rounded ${chipClassName}">${count}</span></div>`,
+          )
+          .join("")
+      : '<div class="text-[11px] text-slate-400 italic">Chưa có dữ liệu.</div>';
+};
+
+const renderSecurityRecentList = (element, events) => {
+  if (!element) return;
+
+  const recentRows = [...events]
+    .sort((left, right) => Number(right?.at || 0) - Number(left?.at || 0))
+    .slice(0, 8);
+
+  if (recentRows.length === 0) {
+    element.innerHTML = "";
+    return 0;
   }
 
-  if (approvalProgressTextEl) {
-    approvalProgressTextEl.innerText = `${metrics.week.schedulesApproved} duyệt • ${metrics.week.schedulesRejected} từ chối • ${metrics.week.schedulesPending} chờ duyệt`;
-  }
+  element.innerHTML = recentRows
+    .map((eventItem) => {
+      const action = escapeHtml(toToken(eventItem?.action) || "unknown_action");
+      const reason = escapeHtml(toToken(eventItem?.reason) || "unspecified");
+      const resourceType = escapeHtml(
+        toToken(eventItem?.resourceType) || "unknown_resource",
+      );
+      const resourceId = escapeHtml(toToken(eventItem?.resourceId) || "-");
+      const role = escapeHtml(toToken(eventItem?.role) || "guest");
 
-  if (approvalProgressBarEl) {
-    setProgressBarWidth(
-      approvalProgressBarEl,
-      metrics.week.approvalCompletionPercent,
-    );
-  }
+      const atValue = Number(eventItem?.at || 0);
+      let atLabel = "N/A";
+      if (Number.isFinite(atValue)) {
+        atLabel = new Date(atValue).toLocaleString("vi-VN");
+      }
 
-  if (attendanceProgressTextEl) {
-    attendanceProgressTextEl.innerText = `${metrics.week.approvedAttendancePresent} có mặt • ${metrics.week.approvedAttendanceAbsent} vắng • ${metrics.week.approvedAttendancePending} chưa chấm`;
-  }
+      return `<div class="rounded-lg border border-slate-200 bg-white px-2.5 py-2"><div class="text-[11px] font-bold text-slate-800 truncate">${action}</div><div class="text-[10px] text-slate-500 mt-0.5">${reason} • role: ${role}</div><div class="text-[10px] text-slate-500">${resourceType}: ${resourceId}</div><div class="text-[10px] text-slate-400 mt-0.5">${escapeHtml(atLabel)}</div></div>`;
+    })
+    .join("");
 
-  if (attendanceProgressBarEl) {
-    setProgressBarWidth(
-      attendanceProgressBarEl,
-      metrics.week.attendanceCompletionPercent,
-    );
-  }
+  return recentRows.length;
+};
 
-  if (attendancePresentTextEl) {
-    attendancePresentTextEl.innerText = `${Math.round(metrics.week.attendancePresentPercent)}% tỉ lệ có mặt trên số ca đã chấm`;
-  }
-
-  if (plannedHoursEl) {
-    plannedHoursEl.innerText = `${formatHours(metrics.week.plannedHours)}`;
-  }
-
-  if (activeTeachersEl) {
-    activeTeachersEl.innerText = `${metrics.week.activeTeachers}`;
-  }
-
-  if (activeClassesEl) {
-    activeClassesEl.innerText = `${metrics.week.activeClasses}`;
-  }
-
-  if (teacherCoverageTextEl) {
-    teacherCoverageTextEl.innerText = `${Math.round(metrics.coverage.teacherAccountCoveragePercent)}%`;
-  }
-  if (teacherCoverageBarEl) {
-    setProgressBarWidth(
-      teacherCoverageBarEl,
-      metrics.coverage.teacherAccountCoveragePercent,
-    );
-  }
-
-  if (classActivationTextEl) {
-    classActivationTextEl.innerText = `${Math.round(metrics.coverage.classActivationPercent)}%`;
-  }
-  if (classActivationBarEl) {
-    setProgressBarWidth(
-      classActivationBarEl,
-      metrics.coverage.classActivationPercent,
-    );
-  }
-
-  if (attendanceBacklogTextEl) {
-    attendanceBacklogTextEl.innerText = `${Math.round(metrics.attendanceRequests.backlogRatePercent)}%`;
-  }
-  if (attendanceBacklogBarEl) {
-    setProgressBarWidth(
-      attendanceBacklogBarEl,
-      metrics.attendanceRequests.backlogRatePercent,
-    );
-  }
-
-  if (topTeacherListEl) {
-    topTeacherListEl.innerHTML =
-      metrics.week.topTeachers.length > 0
-        ? metrics.week.topTeachers
-            .map((item, index) => {
-              const teacherName = escapeHtml(
-                getTeacherInfo(item.teacherId).name || item.teacherId,
-              );
-              return `<div class="rounded-lg border border-slate-200 bg-white px-2.5 py-2 flex items-center justify-between gap-2"><div class="min-w-0"><div class="text-xs font-bold text-slate-800 truncate">#${index + 1} ${teacherName}</div><div class="text-[11px] text-slate-500">${item.totalSessions} ca • ${formatHours(item.totalHours)}</div></div><span class="text-[10px] font-bold px-1.5 py-0.5 rounded border border-indigo-200 bg-indigo-50 text-indigo-700">Load</span></div>`;
-            })
-            .join("")
-        : '<div class="text-[11px] text-slate-400 italic">Chưa có dữ liệu tải giảng dạy trong tuần đã chọn.</div>';
-  }
-
-  if (actionQueueListEl) {
-    const actionClassBySeverity = {
-      info: "border-cyan-200 bg-cyan-50/70 text-cyan-800",
-      warning: "border-amber-200 bg-amber-50 text-amber-800",
-      critical: "border-rose-200 bg-rose-50 text-rose-800",
-    };
-    actionQueueListEl.innerHTML = metrics.actions
-      .map((actionItem) => {
-        const rowClass =
-          actionClassBySeverity[actionItem.severity] ||
-          actionClassBySeverity.info;
-        return `<div class="rounded-lg border px-2.5 py-2 ${rowClass}"><div class="text-[11px] font-bold">${escapeHtml(actionItem.title)}</div><div class="text-[11px] opacity-90 mt-0.5">${escapeHtml(actionItem.detail)}</div></div>`;
-      })
-      .join("");
-  }
-
-  if (alertListEl) {
-    const alertClassBySeverity = {
-      info: "border-cyan-200 bg-cyan-50/60 text-cyan-800",
-      warning: "border-amber-200 bg-amber-50 text-amber-800",
-      critical: "border-rose-200 bg-rose-50 text-rose-800",
-    };
-    alertListEl.innerHTML = metrics.alerts
-      .map((alert) => {
-        const rowClass =
-          alertClassBySeverity[alert.severity] || alertClassBySeverity.info;
-        return `<div class="rounded-lg border px-2.5 py-2 text-xs font-medium ${rowClass}">${escapeHtml(alert.message)}</div>`;
-      })
-      .join("");
-  }
+const renderMasterSecurityTelemetry = (elements, metrics) => {
+  const {
+    securityPanel,
+    securityTotalEl,
+    securityActionListEl,
+    securityReasonListEl,
+    securityDistinctActionsEl,
+    securityDistinctReasonsEl,
+    securityRecentListEl,
+    securityEmptyEl,
+    securityClearBtn,
+  } = elements;
 
   if (
     !securityPanel ||
@@ -979,9 +921,7 @@ const renderMasterOverview = () => {
   const canShowSecurityTelemetry =
     currentRole === "admin" && SECURITY_TELEMETRY_ENABLED;
   securityPanel.classList.toggle("hidden", !canShowSecurityTelemetry);
-  if (!canShowSecurityTelemetry) {
-    return;
-  }
+  if (!canShowSecurityTelemetry) return;
 
   if (securityClearBtn && securityClearBtn.dataset.boundClick !== "1") {
     securityClearBtn.addEventListener("click", () => {
@@ -998,78 +938,139 @@ const renderMasterOverview = () => {
       ? globalThis.getAccessDeniedEvents()
       : [];
 
-  securityTotalEl.innerText = `${events.length}`;
-  if (securityDistinctActionsEl) {
-    securityDistinctActionsEl.innerText = `${metrics.security.denyDistinctActions}`;
+  setElementText(securityTotalEl, events.length);
+  setElementText(
+    securityDistinctActionsEl,
+    metrics.security.denyDistinctActions,
+  );
+  setElementText(
+    securityDistinctReasonsEl,
+    metrics.security.denyDistinctReasons,
+  );
+
+  renderSecurityCountList(
+    securityActionListEl,
+    toTopCountRows(events, "action"),
+    "border border-slate-200 bg-slate-50 text-slate-700",
+  );
+  renderSecurityCountList(
+    securityReasonListEl,
+    toTopCountRows(events, "reason"),
+    "border border-amber-200 bg-amber-50 text-amber-700",
+  );
+
+  const recentCount = renderSecurityRecentList(securityRecentListEl, events);
+  securityEmptyEl.classList.toggle("hidden", recentCount > 0);
+};
+
+const renderMasterOverview = () => {
+  const week = getSelectedWeek();
+
+  const metrics = buildAdminDashboardMetrics({
+    weekToken: week,
+    db: globalThis.db,
+    accessDeniedEvents:
+      typeof globalThis.getAccessDeniedEvents === "function"
+        ? globalThis.getAccessDeniedEvents()
+        : [],
+    getDurationHours,
+  });
+
+  const elements = getMasterOverviewElements();
+  if (!elements.subjectsEl || !elements.teachersEl || !elements.studentsEl) {
+    return;
   }
-  if (securityDistinctReasonsEl) {
-    securityDistinctReasonsEl.innerText = `${metrics.security.denyDistinctReasons}`;
+
+  setElementText(elements.subjectsEl, metrics.totals.subjects);
+  setElementText(elements.teachersEl, metrics.totals.teachers);
+  setElementText(elements.studentsEl, metrics.totals.students);
+  setElementText(elements.classesEl, metrics.totals.classes);
+  setElementText(elements.accountsEl, metrics.totals.accounts);
+  setElementText(elements.teacherAccountsEl, metrics.totals.teacherAccounts);
+  setElementText(elements.schedulesWeekEl, metrics.week.schedulesTotal);
+  setElementText(
+    elements.pendingSchedulesWeekEl,
+    metrics.week.schedulesPending,
+  );
+  setElementText(
+    elements.attendancePendingEl,
+    metrics.attendanceRequests.pending,
+  );
+  setElementText(elements.weekLabelEl, metrics.week.token || "Chưa chọn tuần");
+
+  setElementText(elements.healthScoreEl, metrics.health.score);
+  setElementText(elements.healthLevelEl, metrics.health.level);
+
+  const pendingLabel = `${metrics.week.schedulesPending} lịch chờ duyệt`;
+  const backlogLabel = `${metrics.attendanceRequests.overduePending} chấm công quá hạn`;
+  setElementText(
+    elements.healthSummaryEl,
+    `Health score ${metrics.health.score}/100 • ${pendingLabel} • ${backlogLabel}.`,
+  );
+
+  if (elements.healthChipEl) {
+    elements.healthChipEl.dataset.level = getMasterHealthLevelToken(
+      metrics.health.score,
+    );
   }
 
-  const toTopCountRows = (items, keyName) => {
-    const grouped = new Map();
-    (items || []).forEach((item) => {
-      const key = toToken(item?.[keyName]) || "unknown";
-      grouped.set(key, Number(grouped.get(key) || 0) + 1);
-    });
+  setElementText(
+    elements.approvalProgressTextEl,
+    `${metrics.week.schedulesApproved} duyệt • ${metrics.week.schedulesRejected} từ chối • ${metrics.week.schedulesPending} chờ duyệt`,
+  );
+  setProgressBarWidth(
+    elements.approvalProgressBarEl,
+    metrics.week.approvalCompletionPercent,
+  );
 
-    return Array.from(grouped.entries())
-      .sort((left, right) => right[1] - left[1])
-      .slice(0, 5);
-  };
+  setElementText(
+    elements.attendanceProgressTextEl,
+    `${metrics.week.approvedAttendancePresent} có mặt • ${metrics.week.approvedAttendanceAbsent} vắng • ${metrics.week.approvedAttendancePending} chưa chấm`,
+  );
+  setProgressBarWidth(
+    elements.attendanceProgressBarEl,
+    metrics.week.attendanceCompletionPercent,
+  );
 
-  const actionRows = toTopCountRows(events, "action");
-  securityActionListEl.innerHTML =
-    actionRows.length > 0
-      ? actionRows
-          .map(
-            ([action, count]) =>
-              `<div class="flex items-center justify-between gap-2"><span class="text-[11px] text-slate-700 truncate">${escapeHtml(action)}</span><span class="text-[10px] font-bold px-1.5 py-0.5 rounded border border-slate-200 bg-slate-50 text-slate-700">${count}</span></div>`,
-          )
-          .join("")
-      : '<div class="text-[11px] text-slate-400 italic">Chưa có dữ liệu.</div>';
+  setElementText(
+    elements.attendancePresentTextEl,
+    `${Math.round(metrics.week.attendancePresentPercent)}% tỉ lệ có mặt trên số ca đã chấm`,
+  );
+  setElementText(
+    elements.plannedHoursEl,
+    formatHours(metrics.week.plannedHours),
+  );
+  setElementText(elements.activeTeachersEl, metrics.week.activeTeachers);
+  setElementText(elements.activeClassesEl, metrics.week.activeClasses);
+  setElementText(
+    elements.teacherCoverageTextEl,
+    `${Math.round(metrics.coverage.teacherAccountCoveragePercent)}%`,
+  );
+  setProgressBarWidth(
+    elements.teacherCoverageBarEl,
+    metrics.coverage.teacherAccountCoveragePercent,
+  );
+  setElementText(
+    elements.classActivationTextEl,
+    `${Math.round(metrics.coverage.classActivationPercent)}%`,
+  );
+  setProgressBarWidth(
+    elements.classActivationBarEl,
+    metrics.coverage.classActivationPercent,
+  );
+  setElementText(
+    elements.attendanceBacklogTextEl,
+    `${Math.round(metrics.attendanceRequests.backlogRatePercent)}%`,
+  );
+  setProgressBarWidth(
+    elements.attendanceBacklogBarEl,
+    metrics.attendanceRequests.backlogRatePercent,
+  );
 
-  const reasonRows = toTopCountRows(events, "reason");
-  securityReasonListEl.innerHTML =
-    reasonRows.length > 0
-      ? reasonRows
-          .map(
-            ([reason, count]) =>
-              `<div class="flex items-center justify-between gap-2"><span class="text-[11px] text-slate-700 truncate">${escapeHtml(reason)}</span><span class="text-[10px] font-bold px-1.5 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700">${count}</span></div>`,
-          )
-          .join("")
-      : '<div class="text-[11px] text-slate-400 italic">Chưa có dữ liệu.</div>';
-
-  const recentRows = [...events]
-    .sort((left, right) => Number(right?.at || 0) - Number(left?.at || 0))
-    .slice(0, 8);
-
-  securityRecentListEl.innerHTML =
-    recentRows.length > 0
-      ? recentRows
-          .map((eventItem) => {
-            const action = escapeHtml(
-              toToken(eventItem?.action) || "unknown_action",
-            );
-            const reason = escapeHtml(
-              toToken(eventItem?.reason) || "unspecified",
-            );
-            const resourceType = escapeHtml(
-              toToken(eventItem?.resourceType) || "unknown_resource",
-            );
-            const resourceId = escapeHtml(
-              toToken(eventItem?.resourceId) || "-",
-            );
-            const role = escapeHtml(toToken(eventItem?.role) || "guest");
-            const atLabel = Number.isFinite(Number(eventItem?.at || 0))
-              ? new Date(Number(eventItem.at)).toLocaleString("vi-VN")
-              : "N/A";
-            return `<div class="rounded-lg border border-slate-200 bg-white px-2.5 py-2"><div class="text-[11px] font-bold text-slate-800 truncate">${action}</div><div class="text-[10px] text-slate-500 mt-0.5">${reason} • role: ${role}</div><div class="text-[10px] text-slate-500">${resourceType}: ${resourceId}</div><div class="text-[10px] text-slate-400 mt-0.5">${escapeHtml(atLabel)}</div></div>`;
-          })
-          .join("")
-      : "";
-
-  securityEmptyEl.classList.toggle("hidden", recentRows.length > 0);
+  renderTopTeacherList(elements.topTeacherListEl, metrics.week.topTeachers);
+  renderActionQueueList(elements.actionQueueListEl, metrics.actions);
+  renderAlertList(elements.alertListEl, metrics.alerts);
+  renderMasterSecurityTelemetry(elements, metrics);
 };
 
 const syncStatusUI = {
@@ -1228,7 +1229,7 @@ const lockModalViewport = (ownerId) => {
   modalViewportLockState.bodyTouchAction = body.style.touchAction;
   modalViewportLockState.htmlOverflow = html.style.overflow;
 
-  const scrollbarWidth = Math.max(0, window.innerWidth - html.clientWidth);
+  const scrollbarWidth = Math.max(0, globalThis.innerWidth - html.clientWidth);
   body.style.overflow = "hidden";
   body.style.touchAction = "none";
   html.style.overflow = "hidden";
@@ -2510,15 +2511,23 @@ const canTeacherWriteSchedule = (payload, currentTeacherId) => {
 };
 
 const canWriteTable = (table, payload) => {
+  const currentUserId = String(currentUser?.id || "");
+  if (
+    !canRoleWriteCollectionWithOwnership({
+      role: currentRole,
+      currentUserId,
+      collection: table,
+      payload,
+    })
+  ) {
+    return false;
+  }
+
   if (currentRole === "admin") return true;
-  if (currentRole !== "teacher") return false;
   if (table === "attendanceRequests") {
     return canTeacherWriteAttendanceRequest(payload);
   }
-  if (table !== "schedules") return false;
-
-  const currentTeacherId = String(currentUser?.id || "");
-  return canTeacherWriteSchedule(payload, currentTeacherId);
+  return canTeacherWriteSchedule(payload, currentUserId);
 };
 
 globalThis.cloudSave = async (table, data) => {
