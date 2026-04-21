@@ -1,25 +1,26 @@
 {
-    "name": "edutops",
-    "private": true,
-    "version": "1.22.1",
-    "type": "module",
-    "scripts": {
-        "dev": "vite",
-        "build": "tsc --noEmit && vite build",
-        "preview": "vite preview",
-        "typecheck": "tsc --noEmit",
-        "test": "vitest run"
-    },
-    "dependencies": {
-        "firebase": "^11.6.1"
-    },
-    "devDependencies": {
-        "@types/node": "^22.15.3",
-        "autoprefixer": "^10.4.20",
-        "postcss": "^8.4.47",
-        "tailwindcss": "^3.4.14",
-        "typescript": "^5.8.3",
-        "vite": "^6.3.5",
-        "vitest": "^2.1.9"
-    }
+  "name": "edutops",
+  "private": true,
+  "version": "1.22.2",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "start": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "firebase": "^11.6.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.3",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.14",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5",
+    "vitest": "^2.1.9"
+  }
 }

@@ -19,6 +19,18 @@ Quy uoc version: Semantic Versioning (MAJOR.MINOR.PATCH)
 
 - Chua co.
 
+## [v1.22.2] - 2026-04-21
+
+### Changed
+
+- Chuyen hoan toan sang Vite-only runtime/build/deploy va bo luong framework trung gian.
+- Don dep artifact/cau hinh cu, chuan hoa base-path runtime theo `import.meta.env.BASE_URL`.
+- Dong bo workflow GitHub Pages theo `dist/` + `VITE_BASE_PATH`.
+
+### Metadata
+
+- Dong bo version metadata/runtime/docs/package lock len `v1.22.2`.
+
 ## [v1.22.1] - 2026-04-07
 
 ### Changed
