@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <title>EduTopS — Hệ thống quản lý trung tâm học tập</title>
+    <meta
+      name="description"
+      content="EduTopS — Ứng dụng web quản lý vận hành trung tâm học tập: quản lý môn học, giáo viên, học sinh, lớp học, xếp lịch dạy, chấm công QR và xuất báo cáo Excel."
+    />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://unpkg.com; script-src-elem 'self' 'unsafe-inline' https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com https:; connect-src 'self' https://unpkg.com; frame-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'self';"
+    />
+    <script src="https://unpkg.com/lucide@0.453.0/dist/umd/lucide.min.js"></script>
+  </head>
+  <body class="landing-body" id="landingBody">
+    <!-- ============================================================
+         HERO SECTION
+         ============================================================ -->
+    <section class="ld-hero" id="heroSection">
+      <!-- Floating stat cards -->
+      <div class="ld-hero-floats" aria-hidden="true">
+        <div class="ld-float-card">
+          <div class="fc-label">Giáo viên</div>
+          <div class="fc-value">12</div>
+        </div>
+        <div class="ld-float-card">
+          <div class="fc-label">Học sinh</div>
+          <div class="fc-value">45</div>
+        </div>
+        <div class="ld-float-card">
+          <div class="fc-label">Lớp học</div>
+          <div class="fc-value">6</div>
+        </div>
+        <div class="ld-float-card">
+          <div class="fc-label">Môn học</div>
+          <div class="fc-value">8</div>
+        </div>
+      </div>
+
+      <div class="ld-hero-content">
+        <div class="ld-hero-badge">
+          <span class="badge-dot"></span>
+          Hệ thống đang hoạt động · v1.22.2
+        </div>
+        <h1>
+          Quản lý trung tâm học tập<br />
+          <span class="ld-gradient-text">thông minh & hiện đại</span>
+        </h1>
+        <p class="ld-hero-desc">
+          EduTopS giúp quản lý toàn diện vận hành trung tâm: từ xếp lịch giảng dạy, chấm công QR, đánh giá học sinh đến xuất báo cáo Excel — tất cả trên một nền tảng duy nhất.
+        </p>
+        <div class="ld-hero-actions">
+          <a href="#demoSection" class="ld-btn ld-btn-primary" id="btnViewDemo">
+            <i data-lucide="play-circle" style="width:18px;height:18px"></i>
+            Xem Demo
+          </a>
+          <a href="index.html" class="ld-btn ld-btn-outline" id="btnLogin">
+            <i data-lucide="log-in" style="width:18px;height:18px"></i>
+            Đăng nhập
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         FEATURES OVERVIEW
+         ============================================================ -->
+    <section class="ld-features" id="featuresSection">
+      <div class="ld-container">
+        <h2 class="ld-section-title ld-reveal">Tính năng nổi bật</h2>
+        <p class="ld-section-sub ld-reveal">
+          Giải pháp toàn diện cho mọi hoạt động vận hành tại trung tâm học tập
+        </p>
+        <div class="ld-features-grid">
+          <!-- Card 1 -->
+          <div class="ld-feature-card ld-reveal" id="feature-schedule">
+            <div class="ld-feature-icon ld-icon-indigo">
+              <i data-lucide="calendar-days"></i>
+            </div>
+            <h3>Xếp lịch giảng dạy</h3>
+            <p>Tạo và quản lý lịch dạy theo tuần, ngày, khung giờ. Hỗ trợ luồng đề xuất — duyệt giữa giáo viên và admin.</p>
+          </div>
+          <!-- Card 2 -->
+          <div class="ld-feature-card ld-reveal" id="feature-teacher">
+            <div class="ld-feature-icon ld-icon-amber">
+              <i data-lucide="graduation-cap"></i>
+            </div>
+            <h3>Quản lý giáo viên</h3>
+            <p>Danh sách giáo viên, thông tin liên hệ, phân quyền tài khoản. Theo dõi tải giảng dạy theo tuần.</p>
+          </div>
+          <!-- Card 3 -->
+          <div class="ld-feature-card ld-reveal" id="feature-student">
+            <div class="ld-feature-icon ld-icon-cyan">
+              <i data-lucide="users"></i>
+            </div>
+            <h3>Quản lý học sinh</h3>
+            <p>Hồ sơ học sinh, thông tin phụ huynh, phân lớp. Đánh giá học sinh theo từng buổi học.</p>
+          </div>
+          <!-- Card 4 -->
+          <div class="ld-feature-card ld-reveal" id="feature-class">
+            <div class="ld-feature-icon ld-icon-emerald">
+              <i data-lucide="book-open"></i>
+            </div>
+            <h3>Môn học & Lớp học</h3>
+            <p>Quản lý danh mục môn học với mã màu trực quan. Tạo lớp, gán môn, gán giáo viên linh hoạt.</p>
+          </div>
+          <!-- Card 5 -->
+          <div class="ld-feature-card ld-reveal" id="feature-attendance">
+            <div class="ld-feature-icon ld-icon-rose">
+              <i data-lucide="scan-line"></i>
+            </div>
+            <h3>Chấm công QR</h3>
+            <p>Giáo viên quét mã QR cố định, nhập giờ vào/ra. Admin duyệt hoặc từ chối yêu cầu chấm công.</p>
+          </div>
+          <!-- Card 6 -->
+          <div class="ld-feature-card ld-reveal" id="feature-report">
+            <div class="ld-feature-icon ld-icon-violet">
+              <i data-lucide="file-spreadsheet"></i>
+            </div>
+            <h3>Xuất báo cáo Excel</h3>
+            <p>Xuất dữ liệu giáo viên, học sinh, chấm công. Báo cáo tổng hợp chi tiết với nhiều sheet.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         INTERACTIVE DEMO SECTION
+         ============================================================ -->
+    <section class="ld-demo" id="demoSection">
+      <div class="ld-container">
+        <h2 class="ld-section-title ld-reveal">Trải nghiệm Demo</h2>
+        <p class="ld-section-sub ld-reveal">
+          Khám phá giao diện thực tế của EduTopS với dữ liệu mẫu
+        </p>
+
+        <!-- Tabs -->
+        <div class="ld-demo-tabs ld-reveal">
+          <button class="ld-demo-tab active" data-tab="board" id="demoTab-board" type="button">
+            <i data-lucide="calendar"></i> Bảng Lịch Dạy
+          </button>
+          <button class="ld-demo-tab" data-tab="dashboard" id="demoTab-dashboard" type="button">
+            <i data-lucide="layout-dashboard"></i> Tổng Quan
+          </button>
+          <button class="ld-demo-tab" data-tab="form" id="demoTab-form" type="button">
+            <i data-lucide="calendar-plus"></i> Xếp Lịch
+          </button>
+          <button class="ld-demo-tab" data-tab="attendance" id="demoTab-attendance" type="button">
+            <i data-lucide="badge-dollar-sign"></i> Chấm Công
+          </button>
+        </div>
+
+        <!-- Demo Panels -->
+        <div class="ld-demo-panel-wrap ld-reveal">
+
+          <!-- ===== BOARD DEMO ===== -->
+          <div class="ld-demo-panel active" id="demo-board">
+            <div class="ld-demo-label"><i data-lucide="eye"></i> Demo giao diện</div>
+            <div class="ld-board-header">
+              <span class="ld-board-title">Lịch giảng dạy</span>
+              <span class="ld-board-filter">
+                <i data-lucide="filter"></i>
+                <span id="board-week-label">2025-W22</span>
+              </span>
+              <span class="ld-board-filter">
+                <i data-lucide="layout-template"></i>
+                Danh sách
+              </span>
+              <span class="ld-board-filter" style="margin-left:auto">
+                <i data-lucide="search"></i>
+                Tìm kiếm...
+              </span>
+            </div>
+            <div class="ld-schedule-grid" id="demo-board-list">
+              <!-- Rendered by JS -->
+            </div>
+          </div>
+
+          <!-- ===== DASHBOARD DEMO ===== -->
+          <div class="ld-demo-panel" id="demo-dashboard">
+            <div class="ld-demo-label"><i data-lucide="eye"></i> Demo giao diện</div>
+
+            <div class="ld-dash-hero">
+              <div class="ld-dash-hero-title">Admin Operations Dashboard</div>
+              <h3>Tổng quan dữ liệu vận hành theo thời gian thực</h3>
+              <p>Hệ thống vận hành ổn định — không có cảnh báo khẩn cấp.</p>
+              <div class="ld-dash-hero-chips">
+                <div class="ld-dash-chip">
+                  <div class="dc-label">Tuần theo dõi</div>
+                  <div class="dc-value" id="dash-week">W22</div>
+                </div>
+                <div class="ld-dash-chip" style="border-color:rgba(52,211,153,0.4);background:rgba(16,185,129,0.16)">
+                  <div class="dc-label">Health Score</div>
+                  <div class="dc-value">85 <span style="font-size:0.55rem;opacity:0.7;font-weight:600">Ổn định</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="ld-metrics-row">
+              <div class="ld-metric-card" style="background:#ecfdf5;border:1px solid #a7f3d0">
+                <div class="mc-label" style="color:#047857">Môn học</div>
+                <div class="mc-value" style="color:#064e3b">8</div>
+              </div>
+              <div class="ld-metric-card" style="background:#fffbeb;border:1px solid #fde68a">
+                <div class="mc-label" style="color:#92400e">Giáo viên</div>
+                <div class="mc-value" style="color:#78350f">12</div>
+              </div>
+              <div class="ld-metric-card" style="background:#eff6ff;border:1px solid #bfdbfe">
+                <div class="mc-label" style="color:#1d4ed8">Học sinh</div>
+                <div class="mc-value" style="color:#1e3a5f">45</div>
+              </div>
+              <div class="ld-metric-card" style="background:#ecfeff;border:1px solid #a5f3fc">
+                <div class="mc-label" style="color:#0891b2">Lớp học</div>
+                <div class="mc-value" style="color:#164e63">6</div>
+              </div>
+              <div class="ld-metric-card" style="background:#f5f3ff;border:1px solid #ddd6fe">
+                <div class="mc-label" style="color:#6d28d9">Tài khoản</div>
+                <div class="mc-value" style="color:#4c1d95">14</div>
+              </div>
+              <div class="ld-metric-card" style="background:#fdf4ff;border:1px solid #f0abfc">
+                <div class="mc-label" style="color:#a21caf">TK giáo viên</div>
+                <div class="mc-value" style="color:#701a75">10</div>
+              </div>
+              <div class="ld-metric-card" style="background:#fff;border:1px solid #e2e8f0">
+                <div class="mc-label" style="color:#475569">Ca tuần</div>
+                <div class="mc-value" style="color:#0f172a">18</div>
+              </div>
+              <div class="ld-metric-card" style="background:#fff1f2;border:1px solid #fecdd3">
+                <div class="mc-label" style="color:#be123c">Chờ duyệt</div>
+                <div class="mc-value" style="color:#881337">2</div>
+              </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
+              <div class="ld-progress-section">
+                <div class="ld-progress-label">Tiến độ vận hành tuần</div>
+                <div class="ld-progress-item">
+                  <div class="pi-title">Duyệt lịch dạy</div>
+                  <div class="ld-progress-bar"><div class="pb-fill" id="pb-approval" style="width:0%;background:#4f46e5"></div></div>
+                  <div class="pi-text">16 duyệt · 0 từ chối · 2 chờ duyệt</div>
+                </div>
+                <div class="ld-progress-item">
+                  <div class="pi-title">Chấm công ca đã duyệt</div>
+                  <div class="ld-progress-bar"><div class="pb-fill" id="pb-attendance" style="width:0%;background:#10b981"></div></div>
+                  <div class="pi-text">12 có mặt · 2 vắng · 4 chưa chấm</div>
+                </div>
+              </div>
+              <div class="ld-progress-section">
+                <div class="ld-progress-label">Top tải giảng dạy</div>
+                <div class="ld-progress-item">
+                  <div class="pi-title">Nguyễn Văn An</div>
+                  <div class="ld-progress-bar"><div class="pb-fill" style="width:85%;background:#f59e0b"></div></div>
+                  <div class="pi-text">6 ca · 9h giảng dạy</div>
+                </div>
+                <div class="ld-progress-item">
+                  <div class="pi-title">Trần Thị Bích</div>
+                  <div class="ld-progress-bar"><div class="pb-fill" style="width:60%;background:#06b6d4"></div></div>
+                  <div class="pi-text">4 ca · 6h giảng dạy</div>
+                </div>
+                <div class="ld-progress-item">
+                  <div class="pi-title">Lê Hoàng Nam</div>
+                  <div class="ld-progress-bar"><div class="pb-fill" style="width:45%;background:#8b5cf6"></div></div>
+                  <div class="pi-text">3 ca · 4.5h giảng dạy</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ===== FORM DEMO ===== -->
+          <div class="ld-demo-panel" id="demo-form">
+            <div class="ld-demo-label"><i data-lucide="eye"></i> Demo giao diện</div>
+
+            <div class="ld-form-demo">
+              <div class="ld-form-checklist">
+                <h4>Checklist xếp lịch</h4>
+                <ul style="list-style:none;padding:0">
+                  <li><i data-lucide="check-circle-2" class="check-done"></i> Chọn lớp học</li>
+                  <li><i data-lucide="check-circle-2" class="check-done"></i> Chọn môn học</li>
+                  <li><i data-lucide="check-circle-2" class="check-done"></i> Chọn giáo viên</li>
+                  <li><i data-lucide="circle" class="check-pending"></i> Chọn ngày & giờ</li>
+                  <li><i data-lucide="circle" class="check-pending"></i> Xác nhận & gửi duyệt</li>
+                </ul>
+                <div style="margin-top:1rem;padding:0.65rem;background:#eff6ff;border:1px solid #bfdbfe;border-radius:0.5rem;font-size:0.72rem;color:#1e40af;font-weight:600">
+                  <i data-lucide="info" style="width:13px;height:13px;display:inline-block;vertical-align:-2px;margin-right:3px"></i>
+                  Giáo viên tạo lịch dạng đề xuất. Admin duyệt hoặc từ chối.
+                </div>
+              </div>
+
+              <div class="ld-form-fields">
+                <div class="ld-form-group">
+                  <label for="demo-class">Lớp học</label>
+                  <select id="demo-class">
+                    <option>Lớp 10A — Toán Nâng Cao</option>
+                    <option>Lớp 11B — Tiếng Anh Giao Tiếp</option>
+                    <option>Lớp 12C — Vật Lý</option>
+                    <option>Lớp 11A — Hóa Học</option>
+                  </select>
+                </div>
+                <div class="ld-form-row">
+                  <div class="ld-form-group">
+                    <label for="demo-subject">Môn học</label>
+                    <select id="demo-subject">
+                      <option>Toán Nâng Cao</option>
+                      <option>Tiếng Anh Giao Tiếp</option>
+                      <option>Vật Lý</option>
+                      <option>Hóa Học</option>
+                      <option>Ngữ Văn</option>
+                      <option>Tin Học</option>
+                    </select>
+                  </div>
+                  <div class="ld-form-group">
+                    <label for="demo-teacher">Giáo viên</label>
+                    <select id="demo-teacher">
+                      <option>Nguyễn Văn An</option>
+                      <option>Trần Thị Bích</option>
+                      <option>Lê Hoàng Nam</option>
+                      <option>Phạm Minh Tuấn</option>
+                      <option>Đỗ Thanh Hương</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="ld-form-row">
+                  <div class="ld-form-group">
+                    <label for="demo-day">Ngày</label>
+                    <select id="demo-day">
+                      <option>Thứ 2 — 26/05</option>
+                      <option>Thứ 3 — 27/05</option>
+                      <option>Thứ 4 — 28/05</option>
+                      <option>Thứ 5 — 29/05</option>
+                      <option>Thứ 6 — 30/05</option>
+                      <option>Thứ 7 — 31/05</option>
+                    </select>
+                  </div>
+                  <div class="ld-form-group">
+                    <label for="demo-time">Khung giờ</label>
+                    <select id="demo-time">
+                      <option>08:00 – 09:30</option>
+                      <option>10:00 – 11:30</option>
+                      <option>14:00 – 15:30</option>
+                      <option>16:00 – 17:30</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="ld-form-group">
+                  <label for="demo-note">Ghi chú</label>
+                  <input type="text" id="demo-note" placeholder="Ghi chú thêm (không bắt buộc)..." />
+                </div>
+                <div class="ld-form-submit-wrap">
+                  <button type="button" class="ld-form-btn ld-form-btn-primary">
+                    <i data-lucide="send" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;margin-right:3px"></i>
+                    Gửi đề xuất
+                  </button>
+                  <button type="button" class="ld-form-btn ld-form-btn-secondary">Hủy</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ===== ATTENDANCE DEMO ===== -->
+          <div class="ld-demo-panel" id="demo-attendance">
+            <div class="ld-demo-label"><i data-lucide="eye"></i> Demo giao diện</div>
+
+            <div class="ld-att-filters">
+              <span class="ld-att-filter-chip active">Theo ngày</span>
+              <span class="ld-att-filter-chip">Theo tuần</span>
+              <span class="ld-att-filter-chip">Theo tháng</span>
+              <span class="ld-board-filter" style="margin-left:auto">
+                <i data-lucide="calendar"></i>
+                26/05/2025
+              </span>
+            </div>
+            <div class="ld-att-list" id="demo-att-list">
+              <!-- Rendered by JS -->
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         TECH STACK
+         ============================================================ -->
+    <section class="ld-tech" id="techSection">
+      <div class="ld-container">
+        <h2 class="ld-section-title ld-reveal">Công nghệ sử dụng</h2>
+        <p class="ld-section-sub ld-reveal">
+          Nền tảng hiện đại, hiệu suất cao, bảo mật tốt
+        </p>
+        <div class="ld-tech-grid ld-reveal">
+          <span class="ld-tech-badge"><i data-lucide="zap"></i> Vite</span>
+          <span class="ld-tech-badge"><i data-lucide="file-code-2"></i> TypeScript</span>
+          <span class="ld-tech-badge"><i data-lucide="paintbrush"></i> Tailwind CSS</span>
+          <span class="ld-tech-badge"><i data-lucide="flame"></i> Firebase</span>
+          <span class="ld-tech-badge"><i data-lucide="shield-check"></i> Firestore Rules</span>
+          <span class="ld-tech-badge"><i data-lucide="image"></i> Lucide Icons</span>
+          <span class="ld-tech-badge"><i data-lucide="table-2"></i> SheetJS (XLSX)</span>
+          <span class="ld-tech-badge"><i data-lucide="test-tubes"></i> Vitest</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         CTA FOOTER
+         ============================================================ -->
+    <section class="ld-cta" id="ctaSection">
+      <div class="ld-container ld-reveal">
+        <h2>Bắt đầu sử dụng ngay</h2>
+        <p>
+          Đăng nhập bằng tài khoản Google được cấp quyền để truy cập toàn bộ tính năng quản lý trung tâm.
+        </p>
+        <a href="index.html" class="ld-btn ld-btn-primary" id="btnCtaLogin">
+          <i data-lucide="log-in" style="width:20px;height:20px"></i>
+          Đăng nhập hệ thống
+        </a>
+        <div class="ld-footer-note">
+          <p>EduTopS v1.22.2 · © 2025 · <a href="index.html">Quay về trang chính</a></p>
+        </div>
+      </div>
+    </section>
+
+    <script type="module" src="./src/app/landing.ts"></script>
+  </body>
+</html>
