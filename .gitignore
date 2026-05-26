@@ -1,4 +1,5 @@
 /.venv
+/.vscode
 
 # Firebase / admin credential artifacts
 /.firebase
