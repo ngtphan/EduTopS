@@ -159,112 +159,160 @@
 
           <!-- ===== BOARD DEMO ===== -->
           <div class="ld-demo-panel active" id="demo-board">
-            <div class="ld-demo-label"><i data-lucide="eye"></i> Demo giao diện</div>
-            <div class="ld-board-header">
-              <span class="ld-board-title">Lịch giảng dạy</span>
-              <span class="ld-board-filter">
-                <i data-lucide="filter"></i>
-                <span id="board-week-label">2025-W22</span>
-              </span>
-              <span class="ld-board-filter">
-                <i data-lucide="layout-template"></i>
-                Danh sách
-              </span>
-              <span class="ld-board-filter" style="margin-left:auto">
-                <i data-lucide="search"></i>
-                Tìm kiếm...
-              </span>
-            </div>
-            <div class="ld-schedule-grid" id="demo-board-list">
-              <!-- Rendered by JS -->
+            <div class="ops-admin-view block h-full">
+              <div class="ops-admin-shell max-w-5xl mx-auto flex flex-col h-auto min-h-0">
+                <div class="ops-admin-panel bg-white rounded-xl shadow-sm border border-slate-200 p-2 sm:p-3 flex-1 min-h-0 overflow-hidden">
+                  <div class="ops-workspace h-full min-h-0">
+                    <aside class="ops-workspace-rail min-h-0 ops-board-rail">
+                      <div class="ops-admin-sidebar-card ops-board-rail-head rounded-xl border border-slate-200 bg-white p-3 space-y-1">
+                        <h2 class="text-base font-bold text-slate-800">Lịch giảng dạy</h2>
+                        <p class="text-xs text-slate-500">Đồng bộ Cloud</p>
+                      </div>
+
+                      <div class="ops-admin-sidebar-card ops-board-rail-controls rounded-xl border border-slate-200 bg-white p-3 space-y-2.5">
+                        <div class="space-y-1.5 ops-board-rail-field">
+                          <div class="text-[11px] font-bold uppercase text-slate-500 ops-rail-field-label">Tuần hiển thị</div>
+                          <div class="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-lg border border-slate-200 cursor-default">
+                            <i data-lucide="filter" class="w-4 h-4 text-slate-400"></i>
+                            <span id="board-week-label" class="text-sm font-bold text-indigo-700">W22</span>
+                          </div>
+                        </div>
+
+                        <div class="space-y-1.5 ops-board-rail-field">
+                          <div class="text-[11px] font-bold uppercase text-slate-500 ops-rail-field-label">Chế độ xem</div>
+                          <div class="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-lg border border-slate-200 cursor-default">
+                            <i data-lucide="layout-template" class="w-4 h-4 text-slate-400"></i>
+                            <span class="text-sm font-bold text-indigo-700 w-full">Danh sách</span>
+                          </div>
+                        </div>
+
+                        <div class="space-y-1.5 ops-board-rail-field ops-board-rail-field-search">
+                          <div class="text-[11px] font-bold uppercase text-slate-500 ops-rail-field-label">Tìm kiếm ca dạy</div>
+                          <div class="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-lg border border-slate-200">
+                            <i data-lucide="search" class="w-4 h-4 text-slate-400"></i>
+                            <input type="text" id="demoScheduleSearchInput" placeholder="Tìm theo lớp, giáo viên..." class="text-sm bg-transparent focus:outline-none text-slate-700 w-full" />
+                          </div>
+                        </div>
+                      </div>
+                    </aside>
+
+                    <section class="ops-workspace-main min-h-0">
+                      <div class="h-full min-h-0 rounded-xl border border-slate-200 bg-white overflow-hidden flex flex-col">
+                        <div class="ops-admin-scroll flex-1 overflow-y-auto max-h-[500px] custom-scrollbar p-3 sm:p-4 lg:p-6 bg-slate-50/60" id="demo-board-list">
+                          <!-- Rendered by JS -->
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
           <!-- ===== DASHBOARD DEMO ===== -->
           <div class="ld-demo-panel" id="demo-dashboard">
-            <div class="ld-demo-label"><i data-lucide="eye"></i> Demo giao diện</div>
+            <div class="ops-admin-view block h-full">
+              <div class="ops-admin-shell max-w-5xl mx-auto flex flex-col h-auto min-h-0">
+                <div class="ops-admin-panel bg-white rounded-xl shadow-sm border border-slate-200 p-2 sm:p-3 flex-1 min-h-0 overflow-hidden">
+                  <div class="ops-workspace h-full min-h-0 !grid-cols-1">
+                    <div class="space-y-3 min-w-0">
+                      <!-- Hero Header section -->
+                      <section class="ops-admin-hero rounded-xl border border-slate-200 text-white px-4 py-3">
+                        <div class="flex items-center gap-2.5 pb-2.5 mb-2.5 border-b border-white/20">
+                          <div class="p-1.5 rounded-md bg-white/10 text-cyan-100">
+                            <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+                          </div>
+                          <h2 class="font-bold text-sm text-white">Tổng dữ liệu</h2>
+                        </div>
+                        <div class="flex flex-col lg:flex-row lg:items-start justify-between gap-3">
+                          <div class="min-w-0">
+                            <div class="text-[11px] font-bold uppercase tracking-[0.08em] text-slate-200">Admin Operations Dashboard</div>
+                            <h3 class="ops-admin-hero-title text-sm sm:text-base mt-0.5">Tổng quan dữ liệu vận hành theo thời gian thực</h3>
+                            <p class="text-[11px] text-slate-200/90 mt-1 leading-relaxed max-w-2xl">
+                              Hệ thống vận hành ổn định — không có cảnh báo khẩn cấp.
+                            </p>
+                          </div>
+                          <div class="grid grid-cols-2 gap-2 lg:min-w-[300px]">
+                            <div class="ops-overview-chip rounded-lg border border-cyan-300/35 bg-cyan-500/10 px-2.5 py-2">
+                              <div class="text-[10px] uppercase tracking-wide text-cyan-100/90">Tuần theo dõi</div>
+                              <div id="dash-week-label" class="text-sm font-bold text-cyan-100">W22</div>
+                            </div>
+                            <div class="ops-overview-chip ops-health-chip rounded-lg border border-emerald-300/40 bg-emerald-500/10 px-2.5 py-2" data-level="stable">
+                              <div class="text-[10px] uppercase tracking-wide text-slate-100/90">Health score</div>
+                              <div class="flex items-end justify-between gap-2">
+                                <span class="text-xl font-extrabold leading-none text-white">85</span>
+                                <span class="text-[10px] font-bold uppercase tracking-wide text-emerald-100">Ổn định</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </section>
 
-            <div class="ld-dash-hero">
-              <div class="ld-dash-hero-title">Admin Operations Dashboard</div>
-              <h3>Tổng quan dữ liệu vận hành theo thời gian thực</h3>
-              <p>Hệ thống vận hành ổn định — không có cảnh báo khẩn cấp.</p>
-              <div class="ld-dash-hero-chips">
-                <div class="ld-dash-chip">
-                  <div class="dc-label">Tuần theo dõi</div>
-                  <div class="dc-value" id="dash-week">W22</div>
-                </div>
-                <div class="ld-dash-chip" style="border-color:rgba(52,211,153,0.4);background:rgba(16,185,129,0.16)">
-                  <div class="dc-label">Health Score</div>
-                  <div class="dc-value">85 <span style="font-size:0.55rem;opacity:0.7;font-weight:600">Ổn định</span></div>
-                </div>
-              </div>
-            </div>
+                      <!-- Metrics Row -->
+                      <section class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2">
+                        <div class="ops-admin-metric-card rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
+                          <div class="text-[10px] font-bold uppercase text-emerald-700">Môn học</div>
+                          <div class="text-lg font-bold text-emerald-900">8</div>
+                        </div>
+                        <div class="ops-admin-metric-card rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                          <div class="text-[10px] font-bold uppercase text-amber-700">Giáo viên</div>
+                          <div class="text-lg font-bold text-amber-900">12</div>
+                        </div>
+                        <div class="ops-admin-metric-card rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+                          <div class="text-[10px] font-bold uppercase text-blue-700">Học sinh</div>
+                          <div class="text-lg font-bold text-blue-900">45</div>
+                        </div>
+                        <div class="ops-admin-metric-card rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2">
+                          <div class="text-[10px] font-bold uppercase text-cyan-700">Lớp học</div>
+                          <div class="text-lg font-bold text-cyan-900">6</div>
+                        </div>
+                        <div class="ops-admin-metric-card rounded-lg border border-violet-200 bg-violet-50 px-3 py-2">
+                          <div class="text-[10px] font-bold uppercase text-violet-700">Tài khoản</div>
+                          <div class="text-lg font-bold text-violet-900">14</div>
+                        </div>
+                        <div class="ops-admin-metric-card rounded-lg border border-fuchsia-200 bg-fuchsia-50 px-3 py-2">
+                          <div class="text-[10px] font-bold uppercase text-fuchsia-700">TK giáo viên</div>
+                          <div class="text-lg font-bold text-fuchsia-900">10</div>
+                        </div>
+                        <div class="ops-admin-metric-card rounded-lg border border-slate-200 bg-white px-3 py-2">
+                          <div class="text-[10px] font-bold uppercase text-slate-600">Ca tuần</div>
+                          <div class="text-lg font-bold text-slate-900">18</div>
+                        </div>
+                        <div class="ops-admin-metric-card rounded-lg border border-rose-200 bg-rose-50 px-3 py-2">
+                          <div class="text-[10px] font-bold uppercase text-rose-700">Chờ duyệt</div>
+                          <div class="text-lg font-bold text-rose-900">2</div>
+                        </div>
+                      </section>
 
-            <div class="ld-metrics-row">
-              <div class="ld-metric-card" style="background:#ecfdf5;border:1px solid #a7f3d0">
-                <div class="mc-label" style="color:#047857">Môn học</div>
-                <div class="mc-value" style="color:#064e3b">8</div>
-              </div>
-              <div class="ld-metric-card" style="background:#fffbeb;border:1px solid #fde68a">
-                <div class="mc-label" style="color:#92400e">Giáo viên</div>
-                <div class="mc-value" style="color:#78350f">12</div>
-              </div>
-              <div class="ld-metric-card" style="background:#eff6ff;border:1px solid #bfdbfe">
-                <div class="mc-label" style="color:#1d4ed8">Học sinh</div>
-                <div class="mc-value" style="color:#1e3a5f">45</div>
-              </div>
-              <div class="ld-metric-card" style="background:#ecfeff;border:1px solid #a5f3fc">
-                <div class="mc-label" style="color:#0891b2">Lớp học</div>
-                <div class="mc-value" style="color:#164e63">6</div>
-              </div>
-              <div class="ld-metric-card" style="background:#f5f3ff;border:1px solid #ddd6fe">
-                <div class="mc-label" style="color:#6d28d9">Tài khoản</div>
-                <div class="mc-value" style="color:#4c1d95">14</div>
-              </div>
-              <div class="ld-metric-card" style="background:#fdf4ff;border:1px solid #f0abfc">
-                <div class="mc-label" style="color:#a21caf">TK giáo viên</div>
-                <div class="mc-value" style="color:#701a75">10</div>
-              </div>
-              <div class="ld-metric-card" style="background:#fff;border:1px solid #e2e8f0">
-                <div class="mc-label" style="color:#475569">Ca tuần</div>
-                <div class="mc-value" style="color:#0f172a">18</div>
-              </div>
-              <div class="ld-metric-card" style="background:#fff1f2;border:1px solid #fecdd3">
-                <div class="mc-label" style="color:#be123c">Chờ duyệt</div>
-                <div class="mc-value" style="color:#881337">2</div>
-              </div>
-            </div>
+                      <!-- Workload and details split -->
+                      <section class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div class="ops-admin-sidebar-card rounded-xl border border-slate-200 bg-white p-3 space-y-3">
+                          <div class="text-[11px] font-bold uppercase text-slate-600">Tiến độ vận hành tuần</div>
+                          <div class="space-y-1.5">
+                            <div class="text-[11px] font-semibold text-slate-700">Duyệt lịch dạy</div>
+                            <div class="h-2 rounded-full bg-slate-100 overflow-hidden">
+                              <div id="pb-approval" class="h-full rounded-full bg-indigo-500" style="width: 0%"></div>
+                            </div>
+                            <div class="text-[11px] text-slate-500">16 duyệt · 0 từ chối · 2 chờ duyệt</div>
+                          </div>
+                          <div class="space-y-1.5">
+                            <div class="text-[11px] font-semibold text-slate-700">Chấm công ca đã duyệt</div>
+                            <div class="h-2 rounded-full bg-slate-100 overflow-hidden">
+                              <div id="pb-attendance" class="h-full rounded-full bg-emerald-500" style="width: 0%"></div>
+                            </div>
+                            <div class="text-[11px] text-slate-500">12 có mặt · 2 vắng · 4 chưa chấm</div>
+                          </div>
+                        </div>
 
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
-              <div class="ld-progress-section">
-                <div class="ld-progress-label">Tiến độ vận hành tuần</div>
-                <div class="ld-progress-item">
-                  <div class="pi-title">Duyệt lịch dạy</div>
-                  <div class="ld-progress-bar"><div class="pb-fill" id="pb-approval" style="width:0%;background:#4f46e5"></div></div>
-                  <div class="pi-text">16 duyệt · 0 từ chối · 2 chờ duyệt</div>
-                </div>
-                <div class="ld-progress-item">
-                  <div class="pi-title">Chấm công ca đã duyệt</div>
-                  <div class="ld-progress-bar"><div class="pb-fill" id="pb-attendance" style="width:0%;background:#10b981"></div></div>
-                  <div class="pi-text">12 có mặt · 2 vắng · 4 chưa chấm</div>
-                </div>
-              </div>
-              <div class="ld-progress-section">
-                <div class="ld-progress-label">Top tải giảng dạy</div>
-                <div class="ld-progress-item">
-                  <div class="pi-title">Nguyễn Văn An</div>
-                  <div class="ld-progress-bar"><div class="pb-fill" style="width:85%;background:#f59e0b"></div></div>
-                  <div class="pi-text">6 ca · 9h giảng dạy</div>
-                </div>
-                <div class="ld-progress-item">
-                  <div class="pi-title">Trần Thị Bích</div>
-                  <div class="ld-progress-bar"><div class="pb-fill" style="width:60%;background:#06b6d4"></div></div>
-                  <div class="pi-text">4 ca · 6h giảng dạy</div>
-                </div>
-                <div class="ld-progress-item">
-                  <div class="pi-title">Lê Hoàng Nam</div>
-                  <div class="ld-progress-bar"><div class="pb-fill" style="width:45%;background:#8b5cf6"></div></div>
-                  <div class="pi-text">3 ca · 4.5h giảng dạy</div>
+                        <div class="ops-admin-sidebar-card rounded-xl border border-slate-200 bg-white p-3 space-y-2.5">
+                          <div class="text-[11px] font-bold uppercase text-slate-600">Top tải giảng dạy tuần này</div>
+                          <div class="space-y-2" id="demo-top-teachers">
+                            <!-- Rendered by JS -->
+                          </div>
+                        </div>
+                      </section>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -272,89 +320,129 @@
 
           <!-- ===== FORM DEMO ===== -->
           <div class="ld-demo-panel" id="demo-form">
-            <div class="ld-demo-label"><i data-lucide="eye"></i> Demo giao diện</div>
+            <div class="ops-admin-view block h-full">
+              <div class="ops-admin-shell max-w-5xl mx-auto flex flex-col h-auto min-h-0">
+                <div class="ops-admin-panel bg-white rounded-xl shadow-sm border border-slate-200 p-2 sm:p-3 flex-1 min-h-0 overflow-hidden">
+                  <div class="ops-workspace h-full min-h-0">
+                    <aside class="ops-workspace-rail min-h-0 ops-form-rail">
+                      <section class="ops-admin-hero ops-form-rail-head rounded-xl border border-slate-200 text-white px-4 py-3 space-y-1">
+                        <div class="inline-flex items-center gap-2 text-cyan-100">
+                          <i data-lucide="calendar-plus" class="w-4 h-4"></i>
+                          <span class="text-[11px] font-bold uppercase tracking-wide">Lên lịch</span>
+                        </div>
+                        <h2 class="ops-admin-hero-title text-sm sm:text-base">Tạo ca dạy mới</h2>
+                        <p class="text-[11px] text-cyan-100/95">Vai trò: Admin / Giáo viên</p>
+                      </section>
 
-            <div class="ld-form-demo">
-              <div class="ld-form-checklist">
-                <h4>Checklist xếp lịch</h4>
-                <ul style="list-style:none;padding:0">
-                  <li><i data-lucide="check-circle-2" class="check-done"></i> Chọn lớp học</li>
-                  <li><i data-lucide="check-circle-2" class="check-done"></i> Chọn môn học</li>
-                  <li><i data-lucide="check-circle-2" class="check-done"></i> Chọn giáo viên</li>
-                  <li><i data-lucide="circle" class="check-pending"></i> Chọn ngày & giờ</li>
-                  <li><i data-lucide="circle" class="check-pending"></i> Xác nhận & gửi duyệt</li>
-                </ul>
-                <div style="margin-top:1rem;padding:0.65rem;background:#eff6ff;border:1px solid #bfdbfe;border-radius:0.5rem;font-size:0.72rem;color:#1e40af;font-weight:600">
-                  <i data-lucide="info" style="width:13px;height:13px;display:inline-block;vertical-align:-2px;margin-right:3px"></i>
-                  Giáo viên tạo lịch dạng đề xuất. Admin duyệt hoặc từ chối.
-                </div>
-              </div>
+                      <section class="ops-admin-sidebar-card ops-form-rail-checklist rounded-xl border border-slate-200 bg-white p-3 space-y-2">
+                        <h3 class="text-[11px] font-bold uppercase text-slate-600">Checklist nhanh</h3>
+                        <ul class="space-y-1.5 text-[12px] text-slate-600 ops-form-rail-checklist-list">
+                          <li class="flex items-start gap-1.5">
+                            <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-600 mt-0.5"></i>
+                            Chọn đúng tuần, thứ và khung giờ.
+                          </li>
+                          <li class="flex items-start gap-1.5">
+                            <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-600 mt-0.5"></i>
+                            Xác nhận lớp và giáo viên trước khi lưu.
+                          </li>
+                          <li class="flex items-start gap-1.5">
+                            <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-600 mt-0.5"></i>
+                            Chỉ dùng Tùy chọn khi bổ sung nội dung.
+                          </li>
+                        </ul>
+                      </section>
+                    </aside>
 
-              <div class="ld-form-fields">
-                <div class="ld-form-group">
-                  <label for="demo-class">Lớp học</label>
-                  <select id="demo-class">
-                    <option>Lớp 10A — Toán Nâng Cao</option>
-                    <option>Lớp 11B — Tiếng Anh Giao Tiếp</option>
-                    <option>Lớp 12C — Vật Lý</option>
-                    <option>Lớp 11A — Hóa Học</option>
-                  </select>
-                </div>
-                <div class="ld-form-row">
-                  <div class="ld-form-group">
-                    <label for="demo-subject">Môn học</label>
-                    <select id="demo-subject">
-                      <option>Toán Nâng Cao</option>
-                      <option>Tiếng Anh Giao Tiếp</option>
-                      <option>Vật Lý</option>
-                      <option>Hóa Học</option>
-                      <option>Ngữ Văn</option>
-                      <option>Tin Học</option>
-                    </select>
+                    <section class="ops-workspace-main min-h-0">
+                      <div class="h-full min-h-0 rounded-xl border border-slate-200 bg-white overflow-hidden">
+                        <form class="h-full min-h-0 flex flex-col" onsubmit="return false;">
+                          <div class="ops-admin-scroll flex-1 min-h-0 overflow-y-auto max-h-[500px] custom-scrollbar p-4 sm:p-5 lg:p-6 space-y-5 bg-white/95">
+                            <!-- Ca học section -->
+                            <section class="rounded-xl border border-slate-200 bg-white p-3 sm:p-4 space-y-3">
+                              <h3 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Ca học</h3>
+                              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                  <label class="block text-[13px] font-medium text-slate-700 mb-1">Tuần <span class="text-red-500">*</span></label>
+                                  <input type="week" value="2026-W22" class="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
+                                </div>
+                                <div>
+                                  <label class="block text-[13px] font-medium text-slate-700 mb-1">Thứ <span class="text-red-500">*</span></label>
+                                  <select class="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                                    <option>Thứ 2</option>
+                                    <option>Thứ 3</option>
+                                    <option>Thứ 4</option>
+                                    <option>Thứ 5</option>
+                                    <option>Thứ 6</option>
+                                    <option>Thứ 7</option>
+                                  </select>
+                                </div>
+                              </div>
+                              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                  <label class="block text-[13px] font-medium text-slate-700 mb-1">Từ giờ <span class="text-red-500">*</span></label>
+                                  <select class="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                                    <option>08:00</option>
+                                    <option>10:00</option>
+                                    <option>14:00</option>
+                                    <option>16:00</option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <label class="block text-[13px] font-medium text-slate-700 mb-1">Đến giờ <span class="text-red-500">*</span></label>
+                                  <select class="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                                    <option>09:30</option>
+                                    <option>11:30</option>
+                                    <option>15:30</option>
+                                    <option>17:30</option>
+                                  </select>
+                                </div>
+                              </div>
+                              <div>
+                                <label class="block text-[13px] font-medium text-slate-700 mb-1">Cơ sở / Phòng <span class="text-red-500">*</span></label>
+                                <input type="text" value="Phòng 102 - Cơ sở chính" class="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
+                              </div>
+                            </section>
+
+                            <!-- Nhân sự section -->
+                            <section class="rounded-xl border border-slate-200 bg-white p-3 sm:p-4 space-y-3">
+                              <h3 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Nhân sự</h3>
+                              <div class="space-y-3">
+                                <div>
+                                  <label class="block text-[13px] font-medium text-slate-700 mb-1">Nhóm/Lớp <span class="text-red-500">*</span></label>
+                                  <select class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-slate-50 font-medium text-indigo-700 shadow-inner focus:outline-none">
+                                    <option>Lớp 10A — Toán Nâng Cao</option>
+                                    <option>Lớp 11B — Tiếng Anh Giao Tiếp</option>
+                                    <option>Lớp 12C — Vật Lý</option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <label class="block text-[13px] font-medium text-slate-700 mb-1">Môn học <span class="text-red-500">*</span></label>
+                                  <select class="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white focus:outline-none">
+                                    <option>Toán Nâng Cao</option>
+                                    <option>Tiếng Anh Giao Tiếp</option>
+                                    <option>Vật Lý</option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <label class="block text-[13px] font-medium text-slate-700 mb-1">Giáo viên <span class="text-red-500">*</span></label>
+                                  <select class="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white focus:outline-none">
+                                    <option>Nguyễn Văn An</option>
+                                    <option>Trần Thị Bích</option>
+                                    <option>Lê Hoàng Nam</option>
+                                  </select>
+                                </div>
+                              </div>
+                            </section>
+                          </div>
+                          <div class="border-t border-slate-200 bg-white px-4 py-3">
+                            <button type="button" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-md text-sm cursor-default">
+                              <i data-lucide="cloud-upload" class="w-4 h-4"></i> Lưu đề xuất lên Cloud
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+                    </section>
                   </div>
-                  <div class="ld-form-group">
-                    <label for="demo-teacher">Giáo viên</label>
-                    <select id="demo-teacher">
-                      <option>Nguyễn Văn An</option>
-                      <option>Trần Thị Bích</option>
-                      <option>Lê Hoàng Nam</option>
-                      <option>Phạm Minh Tuấn</option>
-                      <option>Đỗ Thanh Hương</option>
-                    </select>
-                  </div>
-                </div>
-                <div class="ld-form-row">
-                  <div class="ld-form-group">
-                    <label for="demo-day">Ngày</label>
-                    <select id="demo-day">
-                      <option>Thứ 2 — 26/05</option>
-                      <option>Thứ 3 — 27/05</option>
-                      <option>Thứ 4 — 28/05</option>
-                      <option>Thứ 5 — 29/05</option>
-                      <option>Thứ 6 — 30/05</option>
-                      <option>Thứ 7 — 31/05</option>
-                    </select>
-                  </div>
-                  <div class="ld-form-group">
-                    <label for="demo-time">Khung giờ</label>
-                    <select id="demo-time">
-                      <option>08:00 – 09:30</option>
-                      <option>10:00 – 11:30</option>
-                      <option>14:00 – 15:30</option>
-                      <option>16:00 – 17:30</option>
-                    </select>
-                  </div>
-                </div>
-                <div class="ld-form-group">
-                  <label for="demo-note">Ghi chú</label>
-                  <input type="text" id="demo-note" placeholder="Ghi chú thêm (không bắt buộc)..." />
-                </div>
-                <div class="ld-form-submit-wrap">
-                  <button type="button" class="ld-form-btn ld-form-btn-primary">
-                    <i data-lucide="send" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;margin-right:3px"></i>
-                    Gửi đề xuất
-                  </button>
-                  <button type="button" class="ld-form-btn ld-form-btn-secondary">Hủy</button>
                 </div>
               </div>
             </div>
@@ -362,19 +450,74 @@
 
           <!-- ===== ATTENDANCE DEMO ===== -->
           <div class="ld-demo-panel" id="demo-attendance">
-            <div class="ld-demo-label"><i data-lucide="eye"></i> Demo giao diện</div>
+            <div class="ops-admin-view block h-full">
+              <div class="ops-admin-shell max-w-5xl mx-auto flex flex-col h-auto min-h-0">
+                <div class="ops-admin-panel bg-white rounded-xl shadow-sm border border-slate-200 p-2 sm:p-3 h-full min-h-0 overflow-hidden">
+                  <div class="ops-workspace h-full min-h-0">
+                    <aside class="ops-workspace-rail min-h-0 ops-attendance-rail">
+                      <section class="ops-admin-sidebar-card ops-attendance-rail-head rounded-xl border border-slate-200 bg-white p-3 space-y-1">
+                        <h2 class="text-base font-bold text-slate-800">Chấm công giáo viên</h2>
+                        <p class="text-xs text-slate-500">Quét QR gửi giờ vào/ra, admin duyệt.</p>
+                      </section>
 
-            <div class="ld-att-filters">
-              <span class="ld-att-filter-chip active">Theo ngày</span>
-              <span class="ld-att-filter-chip">Theo tuần</span>
-              <span class="ld-att-filter-chip">Theo tháng</span>
-              <span class="ld-board-filter" style="margin-left:auto">
-                <i data-lucide="calendar"></i>
-                26/05/2025
-              </span>
-            </div>
-            <div class="ld-att-list" id="demo-att-list">
-              <!-- Rendered by JS -->
+                      <section class="ops-admin-sidebar-card ops-attendance-rail-period rounded-xl border border-slate-200 bg-white p-3 space-y-2">
+                        <div class="text-[11px] font-bold uppercase text-slate-600 ops-attendance-rail-label">Kỳ thống kê</div>
+                        <div class="ops-attendance-period-controls flex flex-wrap items-center gap-2 bg-slate-50 px-3 py-2 rounded-lg border border-slate-200">
+                          <i data-lucide="filter" class="w-4 h-4 text-slate-400"></i>
+                          <span class="text-xs font-bold text-indigo-700">Theo tuần</span>
+                        </div>
+                      </section>
+
+                      <section class="ops-admin-sidebar-card ops-attendance-rail-actions rounded-xl border border-slate-200 bg-white p-3 space-y-2">
+                        <div class="text-[11px] font-bold uppercase text-slate-600 ops-attendance-rail-label">Tác vụ nhanh</div>
+                        <button type="button" class="ops-attendance-rail-action w-full text-xs font-bold px-3 py-2 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 flex items-center justify-center gap-1.5 cursor-default">
+                          <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i>
+                          Xuất chấm công
+                        </button>
+                      </section>
+                    </aside>
+
+                    <section class="ops-workspace-main min-h-0">
+                      <div class="h-full min-h-0 rounded-xl border border-slate-200 bg-white overflow-hidden flex flex-col">
+                        <div class="px-3 sm:px-4 py-2 border-b border-slate-200 bg-slate-50/70">
+                          <div class="text-xs font-bold text-slate-600">Kỳ thống kê: W22</div>
+                        </div>
+
+                        <div class="ops-admin-scroll flex-1 min-h-0 overflow-y-auto max-h-[500px] custom-scrollbar p-3 sm:p-4 bg-slate-50/70 space-y-3">
+                          <div class="grid grid-cols-2 md:grid-cols-5 gap-2">
+                            <div class="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                              <div class="text-[10px] font-bold uppercase text-slate-500">Tổng bản ghi</div>
+                              <div class="text-base font-bold text-slate-900">6</div>
+                            </div>
+                            <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
+                              <div class="text-[10px] font-bold uppercase text-emerald-700">Đã duyệt</div>
+                              <div class="text-base font-bold text-emerald-900">4</div>
+                            </div>
+                            <div class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2">
+                              <div class="text-[10px] font-bold uppercase text-rose-700">Từ chối</div>
+                              <div class="text-base font-bold text-rose-900">1</div>
+                            </div>
+                            <div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                              <div class="text-[10px] font-bold uppercase text-amber-700">Chờ duyệt</div>
+                              <div class="text-base font-bold text-amber-900">1</div>
+                            </div>
+                            <div class="rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2">
+                              <div class="text-[10px] font-bold uppercase text-cyan-700">Tỉ lệ duyệt</div>
+                              <div class="text-base font-bold text-cyan-900">80%</div>
+                            </div>
+                          </div>
+
+                          <div class="rounded-xl border border-slate-200 bg-white overflow-hidden min-h-[200px]">
+                            <div id="demo-att-list" class="ops-admin-scroll p-3 sm:p-4 space-y-2 min-h-[200px] overflow-y-auto bg-slate-50/70 bg-slate-50/60">
+                              <!-- Grouped details rendered by JS -->
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
