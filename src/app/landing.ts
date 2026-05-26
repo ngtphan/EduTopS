@@ -32,6 +32,53 @@ interface AttendanceEntry {
   status: "approved" | "pending" | "rejected";
 }
 
+interface SubjectEntry {
+  id: string;
+  name: string;
+  color: string;
+}
+
+interface TeacherEntry {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  subjects: string[];
+}
+
+interface StudentEntry {
+  id: string;
+  name: string;
+  class: string;
+  parent: string;
+  parentPhone: string;
+}
+
+const MOCK_SUBJECTS: SubjectEntry[] = [
+  { id: "sub1", name: "Toán Nâng Cao", color: "blue" },
+  { id: "sub2", name: "Tiếng Anh Giao Tiếp", color: "cyan" },
+  { id: "sub3", name: "Vật Lý", color: "amber" },
+  { id: "sub4", name: "Hóa Học", color: "emerald" },
+  { id: "sub5", name: "Ngữ Văn", color: "purple" },
+  { id: "sub6", name: "Tin Học", color: "rose" }
+];
+
+const MOCK_TEACHERS: TeacherEntry[] = [
+  { id: "t1", name: "Nguyễn Văn An", email: "an.nguyen@edutops.edu.vn", phone: "0901 234 567", subjects: ["Toán Nâng Cao", "Tin Học"] },
+  { id: "t2", name: "Trần Thị Bích", email: "bich.tran@edutops.edu.vn", phone: "0912 345 678", subjects: ["Tiếng Anh Giao Tiếp"] },
+  { id: "t3", name: "Lê Hoàng Nam", email: "nam.le@edutops.edu.vn", phone: "0923 456 789", subjects: ["Vật Lý"] },
+  { id: "t4", name: "Phạm Minh Tuấn", email: "tuan.pham@edutops.edu.vn", phone: "0934 567 890", subjects: ["Hóa Học"] },
+  { id: "t5", name: "Đỗ Thanh Hương", email: "huong.do@edutops.edu.vn", phone: "0945 678 901", subjects: ["Ngữ Văn"] }
+];
+
+const MOCK_STUDENTS: StudentEntry[] = [
+  { id: "st1", name: "Nguyễn Hoàng Long", class: "Lớp 10A", parent: "Nguyễn Hoàng Hùng", parentPhone: "0909 999 888" },
+  { id: "st2", name: "Trần Bảo Ngọc", class: "Lớp 11B", parent: "Trần Văn Minh", parentPhone: "0919 888 777" },
+  { id: "st3", name: "Lê Minh Triết", class: "Lớp 12C", parent: "Lê Hữu Đạt", parentPhone: "0929 777 666" },
+  { id: "st4", name: "Phạm Thùy Chi", class: "Lớp 11A", parent: "Phạm Hùng Sơn", parentPhone: "0939 666 555" },
+  { id: "st5", name: "Đỗ Minh Khang", class: "Lớp 10B", parent: "Đỗ Hoàng Gia", parentPhone: "0949 555 444" }
+];
+
 const MOCK_SCHEDULES: ScheduleEntry[] = [
   { id: "s1", subject: "Toán Nâng Cao", teacher: "Nguyễn Văn An", className: "Lớp 10A", day: "Thứ 2", time: "08:00 – 09:30", color: "#4f46e5", status: "approved" },
   { id: "s2", subject: "Tiếng Anh Giao Tiếp", teacher: "Trần Thị Bích", className: "Lớp 11B", day: "Thứ 2", time: "10:00 – 11:30", color: "#06b6d4", status: "approved" },
@@ -342,6 +389,331 @@ function renderAttendance(): void {
   container.innerHTML = html;
 }
 
+function renderSubjects(): void {
+  const container = $("#demo-subjects-list");
+  if (!container) return;
+
+  const colorMeta: Record<string, string> = {
+    blue: "bg-blue-50 text-blue-700 border-blue-200",
+    rose: "bg-rose-50 text-rose-700 border-rose-200",
+    emerald: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    amber: "bg-amber-50 text-amber-700 border-amber-200",
+    purple: "bg-purple-50 text-purple-700 border-purple-200",
+    cyan: "bg-cyan-50 text-cyan-700 border-cyan-200"
+  };
+
+  const html = MOCK_SUBJECTS.map(s => {
+    const cMeta = colorMeta[s.color] || colorMeta.blue;
+    return `
+      <div class="rounded-xl border border-slate-200 bg-white p-3 flex items-center justify-between gap-3 shadow-sm hover:shadow-md transition-shadow">
+        <div class="min-w-0">
+          <span class="text-xs font-bold px-2 py-1 rounded border ${cMeta}">${escapeHtml(s.name)}</span>
+          <div class="text-[10px] text-slate-500 mt-2">Mã môn học: ${escapeHtml(s.id.toUpperCase())}</div>
+        </div>
+        <button type="button" class="text-rose-500 hover:text-rose-700 opacity-60 hover:opacity-100 cursor-default"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+      </div>
+    `;
+  }).join("");
+
+  container.innerHTML = html;
+
+  // Add Subject button listener
+  const addBtn = $("#btnDemoAddSubject");
+  if (addBtn && !(addBtn as any)._hasListener) {
+    (addBtn as any)._hasListener = true;
+    addBtn.addEventListener("click", () => {
+      const nameInput = $("#demoSubNameInput") as HTMLInputElement | null;
+      const colorSelect = $("#demoSubColorSelect") as HTMLSelectElement | null;
+      if (nameInput && colorSelect && nameInput.value.trim()) {
+        const newSub: SubjectEntry = {
+          id: "sub" + (MOCK_SUBJECTS.length + 1),
+          name: nameInput.value.trim(),
+          color: colorSelect.value
+        };
+        MOCK_SUBJECTS.push(newSub);
+        nameInput.value = "";
+        renderSubjects();
+        setTimeout(() => {
+          if (typeof (window as any).lucide !== "undefined") {
+            (window as any).lucide.createIcons();
+          }
+        }, 50);
+      }
+    });
+  }
+}
+
+function renderTeachers(): void {
+  const container = $("#demo-teachers-list");
+  const countBadge = $("#demo-teachers-count");
+  if (!container) return;
+
+  const searchInput = $("#demoTeacherSearchInput") as HTMLInputElement | null;
+  const keyword = searchInput ? searchInput.value.trim().toLowerCase() : "";
+
+  // Wire up search event listener
+  if (searchInput && !(searchInput as any)._hasListener) {
+    (searchInput as any)._hasListener = true;
+    searchInput.addEventListener("input", () => {
+      renderTeachers();
+      setTimeout(() => {
+        if (typeof (window as any).lucide !== "undefined") {
+          (window as any).lucide.createIcons();
+        }
+      }, 50);
+    });
+  }
+
+  let filtered = MOCK_TEACHERS;
+  if (keyword) {
+    filtered = MOCK_TEACHERS.filter(t => 
+      t.name.toLowerCase().includes(keyword) || 
+      t.email.toLowerCase().includes(keyword)
+    );
+  }
+
+  if (countBadge) countBadge.textContent = String(filtered.length);
+
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <div class="py-12 text-center text-slate-400">
+        <i data-lucide="user-x" class="w-10 h-10 mx-auto mb-2 text-slate-300"></i>
+        <p class="text-sm font-semibold">Không tìm thấy giáo viên phù hợp</p>
+      </div>
+    `;
+    return;
+  }
+
+  const html = filtered.map(t => {
+    const subjectBadges = t.subjects.map(s => `
+      <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-100 font-medium">${escapeHtml(s)}</span>
+    `).join("");
+
+    return `
+      <div class="bg-white border border-slate-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm hover:shadow-md transition-shadow">
+        <div class="min-w-0">
+          <div class="text-sm font-bold text-slate-800">${escapeHtml(t.name)}</div>
+          <div class="text-xs text-slate-500 mt-1 flex flex-wrap gap-x-3 gap-y-1">
+            <span><i data-lucide="mail" class="w-3 h-3 inline-block mr-1"></i>${escapeHtml(t.email)}</span>
+            <span><i data-lucide="phone" class="w-3 h-3 inline-block mr-1"></i>${escapeHtml(t.phone)}</span>
+          </div>
+          <div class="flex flex-wrap gap-1 mt-2.5">${subjectBadges}</div>
+        </div>
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button type="button" class="px-2 py-1 rounded border border-slate-200 text-slate-600 bg-slate-50 hover:bg-slate-100 text-xs font-bold cursor-default">Sửa</button>
+          <button type="button" class="px-2 py-1 rounded border border-rose-200 text-rose-600 bg-rose-50 hover:bg-rose-100 text-xs font-bold cursor-default">Xóa</button>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  container.innerHTML = html;
+}
+
+function renderStudents(): void {
+  const container = $("#demo-students-list");
+  const countBadge = $("#demo-students-count");
+  if (!container) return;
+
+  const searchInput = $("#demoStudentSearchInput") as HTMLInputElement | null;
+  const keyword = searchInput ? searchInput.value.trim().toLowerCase() : "";
+
+  // Wire up search event listener
+  if (searchInput && !(searchInput as any)._hasListener) {
+    (searchInput as any)._hasListener = true;
+    searchInput.addEventListener("input", () => {
+      renderStudents();
+      setTimeout(() => {
+        if (typeof (window as any).lucide !== "undefined") {
+          (window as any).lucide.createIcons();
+        }
+      }, 50);
+    });
+  }
+
+  let filtered = MOCK_STUDENTS;
+  if (keyword) {
+    filtered = MOCK_STUDENTS.filter(st => 
+      st.name.toLowerCase().includes(keyword) || 
+      st.class.toLowerCase().includes(keyword)
+    );
+  }
+
+  if (countBadge) countBadge.textContent = String(filtered.length);
+
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <div class="py-12 text-center text-slate-400">
+        <i data-lucide="user-x" class="w-10 h-10 mx-auto mb-2 text-slate-300"></i>
+        <p class="text-sm font-semibold">Không tìm thấy học sinh phù hợp</p>
+      </div>
+    `;
+    return;
+  }
+
+  const html = filtered.map(st => `
+    <div class="bg-white border border-slate-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm hover:shadow-md transition-shadow">
+      <div class="min-w-0">
+        <div class="flex items-center gap-2">
+          <div class="text-sm font-bold text-slate-800">${escapeHtml(st.name)}</div>
+          <span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100 font-bold">${escapeHtml(st.class)}</span>
+        </div>
+        <div class="text-xs text-slate-500 mt-1 flex flex-wrap gap-x-3 gap-y-1">
+          <span><i data-lucide="user" class="w-3 h-3 inline-block mr-1"></i>Phụ huynh: ${escapeHtml(st.parent)}</span>
+          <span><i data-lucide="phone" class="w-3 h-3 inline-block mr-1"></i>SĐT: ${escapeHtml(st.parentPhone)}</span>
+        </div>
+      </div>
+      <div class="flex items-center gap-1.5 shrink-0">
+        <button type="button" class="px-2 py-1 rounded border border-slate-200 text-slate-600 bg-slate-50 hover:bg-slate-100 text-xs font-bold cursor-default">Đánh giá</button>
+        <button type="button" class="px-2 py-1 rounded border border-rose-200 text-rose-600 bg-rose-50 hover:bg-rose-100 text-xs font-bold cursor-default">Xóa</button>
+      </div>
+    </div>
+  `).join("");
+
+  container.innerHTML = html;
+}
+
+/* ================================================================
+   MOCK ACCOUNTS & SUBTAB SWITCHER
+   ================================================================ */
+
+interface AccountEntry {
+  email: string;
+  role: "admin" | "teacher" | "parent" | "guest";
+  granted: boolean;
+  grantedAt?: string;
+}
+
+const MOCK_ACCOUNTS: AccountEntry[] = [
+  { email: "ngoctaiphan.edu@gmail.com", role: "admin", granted: true, grantedAt: "20/05/2026" },
+  { email: "an.nguyen@edutops.edu.vn", role: "teacher", granted: true, grantedAt: "21/05/2026" },
+  { email: "bich.tran@edutops.edu.vn", role: "teacher", granted: true, grantedAt: "22/05/2026" },
+  { email: "nam.le@edutops.edu.vn", role: "teacher", granted: true, grantedAt: "23/05/2026" },
+  { email: "tuan.pham@edutops.edu.vn", role: "teacher", granted: false },
+  { email: "huong.do@edutops.edu.vn", role: "teacher", granted: false }
+];
+
+function renderAccounts(): void {
+  const container = $("#demo-accounts-list");
+  const countBadge = $("#demo-accounts-count");
+  if (!container) return;
+
+  const searchInput = $("#demoAccountSearchInput") as HTMLInputElement | null;
+  const keyword = searchInput ? searchInput.value.trim().toLowerCase() : "";
+
+  // Wire up search event listener
+  if (searchInput && !(searchInput as any)._hasListener) {
+    (searchInput as any)._hasListener = true;
+    searchInput.addEventListener("input", () => {
+      renderAccounts();
+      setTimeout(() => {
+        if (typeof (window as any).lucide !== "undefined") {
+          (window as any).lucide.createIcons();
+        }
+      }, 50);
+    });
+  }
+
+  let filtered = MOCK_ACCOUNTS;
+  if (keyword) {
+    filtered = MOCK_ACCOUNTS.filter(a => 
+      a.email.toLowerCase().includes(keyword) || 
+      a.role.toLowerCase().includes(keyword)
+    );
+  }
+
+  if (countBadge) countBadge.textContent = String(filtered.length);
+
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <div class="py-12 text-center text-slate-400">
+        <i data-lucide="shield-alert" class="w-10 h-10 mx-auto mb-2 text-slate-300"></i>
+        <p class="text-sm font-semibold">Không tìm thấy tài khoản phù hợp</p>
+      </div>
+    `;
+    return;
+  }
+
+  const roleLabels: Record<string, string> = {
+    admin: "Admin",
+    teacher: "Giáo viên",
+    parent: "Phụ huynh",
+    guest: "Khách"
+  };
+
+  const roleColors: Record<string, string> = {
+    admin: "bg-purple-100 text-purple-700 border-purple-200",
+    teacher: "bg-amber-100 text-amber-700 border-amber-200",
+    parent: "bg-blue-100 text-blue-700 border-blue-200",
+    guest: "bg-slate-100 text-slate-700 border-slate-200"
+  };
+
+  const html = filtered.map(a => {
+    const roleLabel = roleLabels[a.role] || a.role;
+    const roleColor = roleColors[a.role] || roleColors.guest;
+    const statusBadge = a.granted
+      ? `<span class="text-[10px] px-2 py-0.5 rounded border bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold">Đã cấp: ${a.grantedAt || ""}</span>`
+      : `<span class="text-[10px] px-2 py-0.5 rounded border bg-rose-50 text-rose-700 border-rose-200 font-semibold">Chưa cấp quyền</span>`;
+
+    return `
+      <div class="bg-white border border-slate-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm hover:shadow-md transition-shadow">
+        <div class="min-w-0">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold px-2 py-0.5 rounded border ${roleColor}">${escapeHtml(roleLabel)}</span>
+            <div class="text-sm font-bold text-slate-800 truncate">${escapeHtml(a.email)}</div>
+          </div>
+          <div class="flex flex-wrap gap-2 mt-2.5">
+            ${statusBadge}
+          </div>
+        </div>
+        <div class="flex items-center gap-1.5 shrink-0">
+          ${a.granted 
+            ? `<button type="button" class="px-2 py-1 rounded border border-rose-200 text-rose-600 bg-rose-50 hover:bg-rose-100 text-xs font-bold cursor-default">Thu hồi</button>` 
+            : `<button type="button" class="px-2 py-1 rounded border border-emerald-200 text-emerald-600 bg-emerald-50 hover:bg-emerald-100 text-xs font-bold cursor-default">Cấp quyền</button>`
+          }
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  container.innerHTML = html;
+}
+
+function initDemoSubtabs(): void {
+  const subtabs = $$(".master-tab-btn, .demo-quick-access-btn");
+  const subpanels = $$(".demo-subpanel");
+
+  subtabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+      const target = tab.getAttribute("data-subtab");
+      if (!target) return;
+
+      // update active classes on rail buttons
+      const railButtons = $$(".ops-master-rail-tabs .master-tab-btn");
+      railButtons.forEach((btn) => {
+        const btnTarget = btn.getAttribute("data-subtab");
+        if (btnTarget === target) {
+          btn.classList.add("master-tab-btn-active");
+          btn.classList.remove("master-tab-btn-inactive");
+        } else {
+          btn.classList.remove("master-tab-btn-active");
+          btn.classList.add("master-tab-btn-inactive");
+        }
+      });
+
+      // show/hide panel
+      subpanels.forEach((p) => p.classList.add("hidden"));
+      const panel = $(`#demo-subpanel-${target}`);
+      if (panel) {
+        panel.classList.remove("hidden");
+      }
+
+      // Re-trigger icon render
+      setTimeout(initLucide, 50);
+    });
+  });
+}
+
 /* ================================================================
    SCROLL REVEAL
    ================================================================ */
@@ -396,8 +768,13 @@ function setCurrentWeek(): void {
 
 document.addEventListener("DOMContentLoaded", () => {
   initDemoTabs();
+  initDemoSubtabs();
   renderScheduleBoard();
   renderDashboard();
+  renderSubjects();
+  renderTeachers();
+  renderStudents();
+  renderAccounts();
   renderAttendance();
   setCurrentWeek();
   initScrollReveal();
